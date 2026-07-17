@@ -337,6 +337,19 @@ td b { color: #30445c; }
 .treasury-ratebar p { margin-left: auto; display: flex; align-items: center; gap: 7px; color: #7c8998; font-size: 9px; }
 .treasury-ratebar i { width: 7px; height: 7px; border-radius: 50%; background: #d09a4c; box-shadow: 0 0 0 3px rgba(208,154,76,.12); }
 .treasury-ratebar i.live { background: #35a276; box-shadow: 0 0 0 3px rgba(53,162,118,.12); }
+.currency-rate-panel { margin-bottom: 16px; overflow: hidden; border: 1px solid #d9e3ee; border-radius: 11px; background: #fff; }
+.market-panel-heading { min-height: 66px; padding: 11px 15px; display: flex; align-items: center; justify-content: space-between; gap: 14px; border-bottom: 1px solid #e5ebf2; background: linear-gradient(135deg, #f9fbfd, #f2f7fc); }
+.market-panel-heading > div { display: flex; align-items: center; gap: 10px; color: #3976b7; }
+.market-panel-heading span { display: flex; flex-direction: column; }
+.market-panel-heading b { color: #203850; font-size: 13px; }
+.market-panel-heading small { margin-top: 2px; color: #7e8fa2; font-size: 10px; }
+.market-panel-heading > em { padding: 5px 8px; border-radius: 99px; color: #416f9f; background: #e7f0fa; font-size: 10px; font-style: normal; font-weight: 750; }
+.currency-rate-grid { max-height: 270px; padding: 11px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; overflow-y: auto; scrollbar-width: thin; }
+.currency-rate-grid article { min-width: 0; min-height: 62px; padding: 9px 10px; display: flex; flex-direction: column; justify-content: center; border: 1px solid #e7edf3; border-radius: 8px; background: #fbfcfe; }
+.currency-rate-grid span { overflow: hidden; color: #7a8a9d; font-size: 9px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.currency-rate-grid span em { margin-left: 4px; color: #3f73aa; font-style: normal; }
+.currency-rate-grid b { margin-top: 5px; color: #233b54; font-size: 13px; }
+.market-source-note { margin: 0; padding: 10px 14px; display: flex; align-items: center; gap: 7px; border-top: 1px solid #e8edf3; color: #78899c; background: #f8fafc; font-size: 10px; line-height: 1.5; }
 .gold-rate-panel { margin-bottom: 16px; overflow: hidden; border: 1px solid #e3d5b7; border-radius: 11px; background: linear-gradient(135deg, #fffdf8, #fbf6eb); }
 .gold-rate-heading { min-height: 66px; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; gap: 14px; border-bottom: 1px solid #eadfc8; }
 .gold-rate-heading > div { display: flex; align-items: center; gap: 10px; color: #b1853e; }
@@ -480,6 +493,7 @@ td { height: 64px; font-size: 11px; }
   .responsive-table table { min-width: 860px; }
   .entry-modal { border-radius: 14px; }
   .gold-rate-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .currency-rate-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .modal-actions { position: sticky; bottom: 0; background: rgba(255,255,255,.96); backdrop-filter: blur(10px); }
 }
 
@@ -506,6 +520,8 @@ td { height: 64px; font-size: 11px; }
   .gold-rate-heading { align-items: flex-start; flex-direction: column; padding: 14px; }
   .gold-rate-heading .outline-button { width: 100%; }
   .gold-rate-grid { grid-template-columns: 1fr 1fr; padding: 9px; }
+  .currency-rate-grid { max-height: 340px; grid-template-columns: 1fr 1fr; padding: 9px; }
+  .market-panel-heading { align-items: flex-start; }
   .treasury-summary article { min-height: 142px; }
   .files-panel, .company-panel { padding: 17px; }
   .upload-zone { min-height: 240px; padding: 22px 16px; }
