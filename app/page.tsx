@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import {
   ArrowRight,
   BarChart3,
@@ -44,6 +47,15 @@ const principles = [
 ];
 
 export default function Home() {
+  const [authenticated, setAuthenticated] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/auth/status", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((result: { authenticated?: boolean }) => setAuthenticated(Boolean(result.authenticated)))
+      .catch(() => setAuthenticated(false));
+  }, []);
+
   return (
     <main className="site-shell">
       <header className="site-header">
@@ -55,8 +67,8 @@ export default function Home() {
           <a href="#yaklasim">Yaklaşım</a>
           <a href="#kurumsal">Kurumsal</a>
         </nav>
-        <Link className="login-link" href="/giris">
-          Giriş / Kayıt <ArrowRight size={16} />
+        <Link className="login-link" href={authenticated ? "/panel" : "/giris"}>
+          {authenticated ? "Panele dön" : "Giriş / Kayıt"} <ArrowRight size={16} />
         </Link>
       </header>
 
