@@ -95,6 +95,20 @@ export default function Dashboard() {
 
   useEffect(() => { void load(); }, []);
 
+  useEffect(() => {
+    if (!mobileNav) return;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileNav(false);
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [mobileNav]);
+
   const latest = data?.summaries.at(-1);
   const previous = data?.summaries.at(-2);
   const debtChange = latest && previous ? ((latest.total_debt - previous.total_debt) / previous.total_debt) * 100 : 0;
@@ -184,7 +198,10 @@ export default function Dashboard() {
   return (
     <div className="dashboard-shell">
       <aside className={`dashboard-sidebar ${mobileNav ? "open" : ""}`}>
-        <div className="sidebar-brand"><img src="/assets/teksanor-logo.png" alt="Teksanor" /><button className="mobile-close" onClick={() => setMobileNav(false)}><X size={19} /></button></div>
+        <div className="sidebar-brand">
+          <a className="sidebar-home" href="/" aria-label="Teksanor ana sayfasına git"><img src="/assets/teksanor-logo.png" alt="Teksanor" /></a>
+          <button type="button" className="mobile-close" onClick={() => setMobileNav(false)} aria-label="Menüyü kapat"><X size={19} /></button>
+        </div>
         <div className="sidebar-context">
           <span>Çalışma alanı</span>
           <select aria-label="Çalışma alanı seç" value={organizationId} onChange={(event) => void load(event.target.value)}>
@@ -199,15 +216,15 @@ export default function Dashboard() {
           ))}
         </nav>
         <div className="sidebar-security"><ShieldCheck size={19} /><span><b>Güvenli çalışma alanı</b>Finansal veriler şifreli oturumla korunur.</span></div>
-        <div className="sidebar-user"><div>{data.user.fullName.split(" ").map((item) => item[0]).join("").slice(0, 2)}</div><span><b>{data.user.fullName}</b><small>{data.user.username} · {roleLabel}</small></span><button onClick={logout} title="Çıkış yap"><LogOut size={17} /></button></div>
+        <div className="sidebar-user"><div>{data.user.fullName.split(" ").map((item) => item[0]).join("").slice(0, 2)}</div><span><b>{data.user.fullName}</b><small>{data.user.username} · {roleLabel}</small></span><button type="button" onClick={logout} title="Çıkış yap" aria-label="Çıkış yap"><LogOut size={17} /></button></div>
       </aside>
-      {mobileNav && <button className="sidebar-backdrop" onClick={() => setMobileNav(false)} aria-label="Menüyü kapat" />}
+      {mobileNav && <button type="button" className="sidebar-backdrop" onClick={() => setMobileNav(false)} aria-label="Menüyü kapat" />}
 
       <main className="dashboard-main">
         <header className="dashboard-topbar">
-          <button className="mobile-menu" onClick={() => setMobileNav(true)}><Menu size={21} /></button>
+          <button type="button" className="mobile-menu" onClick={() => setMobileNav(true)} aria-label="Menüyü aç"><Menu size={21} /></button>
           <div className="topbar-search"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Banka, kişi veya not ara..." /></div>
-          <div className="topbar-actions"><button title="Bildirimler"><Bell size={19} /><i /></button><button title="Parolayı değiştir" onClick={() => setModal("password")}><Settings size={19} /></button></div>
+          <div className="topbar-actions"><button type="button" title="Bildirimler" aria-label="Bildirimler"><Bell size={19} /><i /></button><button type="button" title="Parolayı değiştir" aria-label="Parolayı değiştir" onClick={() => setModal("password")}><Settings size={19} /></button></div>
         </header>
 
         <div className="dashboard-content">
