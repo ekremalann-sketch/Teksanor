@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   AlertTriangle, ArrowDownRight, ArrowUpRight, Banknote, BarChart3, Bell, Building2, Check,
   CircleDollarSign, Coins, CreditCard, Database, Download, FileSpreadsheet, Files,
@@ -61,6 +61,7 @@ export default function Dashboard() {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [active, setActive] = useState("overview");
   const [mobileNav, setMobileNav] = useState(false);
+  const [topbarPanel, setTopbarPanel] = useState<"notifications" | "settings" | null>(null);
   const [search, setSearch] = useState("");
   const [modal, setModal] = useState<"payment" | "expense" | "user" | "balance" | "manualDebt" | "rates" | "password" | "company" | null>(null);
   const [message, setMessage] = useState("");
@@ -68,6 +69,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const importRef = useRef<HTMLInputElement>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
+  const topbarActionsRef = useRef<HTMLDivElement>(null);
 
   async function load(targetOrganizationId?: string) {
     setLoading(true);
@@ -109,6 +111,22 @@ export default function Dashboard() {
     };
   }, [mobileNav]);
 
+  useEffect(() => {
+    if (!topbarPanel) return;
+    const closePanel = (event: globalThis.MouseEvent) => {
+      if (!topbarActionsRef.current?.contains(event.target as Node)) setTopbarPanel(null);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setTopbarPanel(null);
+    };
+    document.addEventListener("mousedown", closePanel);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closePanel);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [topbarPanel]);
+
   const latest = data?.summaries.at(-1);
   const previous = data?.summaries.at(-2);
   const debtChange = latest && previous ? ((latest.total_debt - previous.total_debt) / previous.total_debt) * 100 : 0;
@@ -127,16 +145,6 @@ export default function Dashboard() {
     await fetch("/api/auth/logout", { method: "POST" });
     localStorage.removeItem("teksanor_organization");
     window.location.href = "/";
-  }
-
-  async function goHome(event: MouseEvent<HTMLAnchorElement>) {
-    event.preventDefault();
-    try {
-      await fetch("/api/auth/logout", { method: "POST" });
-    } finally {
-      localStorage.removeItem("teksanor_organization");
-      window.location.href = "/";
-    }
   }
 
   async function remove(id: string) {
@@ -210,7 +218,7 @@ export default function Dashboard() {
     <div className="dashboard-shell">
       <aside className={`dashboard-sidebar ${mobileNav ? "open" : ""}`}>
         <div className="sidebar-brand">
-          <a className="sidebar-home" href="/" onClick={goHome} aria-label="Güvenli çıkış yaparak Teksanor ana sayfasına git"><img src="/assets/teksanor-logo.png" alt="Teksanor" /></a>
+          <a className="sidebar-home" href="/" aria-label="Teksanor ana sayfasına git"><img src="/assets/teksanor-logo.png" alt="Teksanor" /></a>
           <button type="button" className="mobile-close" onClick={() => setMobileNav(false)} aria-label="Menüyü kapat"><X size={19} /></button>
         </div>
         <div className="sidebar-context">
@@ -235,7 +243,23 @@ export default function Dashboard() {
         <header className="dashboard-topbar">
           <button type="button" className="mobile-menu" onClick={() => setMobileNav(true)} aria-label="Menüyü aç"><Menu size={21} /></button>
           <div className="topbar-search"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Banka, kişi veya not ara..." /></div>
-          <div className="topbar-actions"><button type="button" title="Bildirimler" aria-label="Bildirimler" onClick={() => notify("Yeni bildiriminiz yok.")}><Bell size={19} /><i /></button><button type="button" title="Parolayı değiştir" aria-label="Parolayı değiştir" onClick={() => setModal("password")}><Settings size={19} /></button></div>
+          <div className="topbar-actions" ref={topbarActionsRef}>
+            <button type="button" className={topbarPanel === "notifications" ? "active" : ""} title="Bildirimler" aria-label="Bildirimleri aç" aria-expanded={topbarPanel === "notifications"} onClick={() => setTopbarPanel((value) => value === "notifications" ? null : "notifications")}><Bell size={19} />{data.attentionCount > 0 && <i />}</button>
+            <button type="button" className={topbarPanel === "settings" ? "active" : ""} title="Ayarlar" aria-label="Ayarları aç" aria-expanded={topbarPanel === "settings"} onClick={() => setTopbarPanel((value) => value === "settings" ? null : "settings")}><Settings size={19} /></button>
+            {topbarPanel === "notifications" && <div className="topbar-popover notification-popover">
+              <div className="popover-head"><div><span>Bildirim merkezi</span><b>Güncel durum</b></div><button type="button" onClick={() => setTopbarPanel(null)} aria-label="Bildirimleri kapat"><X size={17} /></button></div>
+              <div className="notification-summary"><ShieldCheck size={19} /><span><b>Sistem ve veriler erişilebilir</b><small>Çalışma alanınız güvenli oturumla korunuyor.</small></span></div>
+              {data.attentionCount > 0 ? <button type="button" className="notification-row" onClick={() => { setActive("payments"); setTopbarPanel(null); }}><span className="notification-mark warning" /><span><b>{data.attentionCount} finansal kayıt takip bekliyor</b><small>Ödemeler ve borçlar bölümünü açın.</small></span><ArrowRight size={16} /></button> : <div className="notification-empty"><Check size={20} /><span><b>Bekleyen önemli bildirim yok</b><small>Yeni gelişmeler burada gösterilecek.</small></span></div>}
+              {data.activity.slice(0, 2).map((item) => <div className="notification-row static" key={item.id}><span className="notification-mark" /><span><b>{item.details || "Çalışma alanında işlem yapıldı"}</b><small>{new Date(item.created_at).toLocaleString("tr-TR")}</small></span></div>)}
+            </div>}
+            {topbarPanel === "settings" && <div className="topbar-popover settings-popover">
+              <div className="popover-head"><div><span>Hesap ve çalışma alanı</span><b>Ayarlar</b></div><button type="button" onClick={() => setTopbarPanel(null)} aria-label="Ayarları kapat"><X size={17} /></button></div>
+              <div className="settings-profile"><div>{data.user.fullName.split(" ").map((item) => item[0]).join("").slice(0, 2)}</div><span><b>{data.user.fullName}</b><small>{data.organization.name} · {roleLabel}</small></span></div>
+              <button type="button" className="settings-row" onClick={() => { setActive("company"); setTopbarPanel(null); }}><Building2 size={18} /><span><b>Firma bilgileri</b><small>Kurumsal profil ve iletişim bilgileri</small></span><ArrowRight size={16} /></button>
+              <button type="button" className="settings-row" onClick={() => { setModal("password"); setTopbarPanel(null); }}><ShieldCheck size={18} /><span><b>Parolayı değiştir</b><small>Hesabınızın giriş güvenliğini yönetin</small></span><ArrowRight size={16} /></button>
+              <button type="button" className="settings-row danger" onClick={logout}><LogOut size={18} /><span><b>Güvenli çıkış</b><small>Yalnızca bu seçenek oturumu kapatır</small></span></button>
+            </div>}
+          </div>
         </header>
 
         <div className="dashboard-content">
