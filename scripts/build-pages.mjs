@@ -21,10 +21,25 @@ await build({
         async fetch(request, env, context) {
           if (request.method === "GET" || request.method === "HEAD") {
             const asset = await env.ASSETS.fetch(request);
-            if (asset.status !== 404) return asset;
+            if (asset.status !== 404) {
+              const contentType = asset.headers.get("content-type") || "";
+              if (contentType.includes("text/html")) {
+                const headers = new Headers(asset.headers);
+                headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
+                headers.set("Pragma", "no-cache");
+                return new Response(asset.body, { status: asset.status, statusText: asset.statusText, headers });
+              }
+              return asset;
+            }
           }
 
-          return app.fetch(request, env, context);
+          const response = await app.fetch(request, env, context);
+          const contentType = response.headers.get("content-type") || "";
+          if (!contentType.includes("text/html")) return response;
+          const headers = new Headers(response.headers);
+          headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
+          headers.set("Pragma", "no-cache");
+          return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
         },
       };
     `,
