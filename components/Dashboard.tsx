@@ -95,6 +95,12 @@ export default function Dashboard() {
     }
   }
 
+  async function refreshTreasury(targetOrganizationId = organizationId) {
+    if (!targetOrganizationId) return;
+    const response = await fetch("/api/treasury", { cache: "no-store", headers: { "X-Organization-Id": targetOrganizationId } });
+    if (response.ok) setTreasury(await response.json() as TreasuryData);
+  }
+
   useEffect(() => { void load(); }, []);
 
   useEffect(() => {
@@ -126,6 +132,20 @@ export default function Dashboard() {
       window.removeEventListener("keydown", closeOnEscape);
     };
   }, [topbarPanel]);
+
+  useEffect(() => {
+    if (active !== "treasury" || !organizationId) return;
+    void refreshTreasury(organizationId);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void refreshTreasury(organizationId);
+    };
+    const timer = window.setInterval(() => void refreshTreasury(organizationId), 15 * 60 * 1000);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [active, organizationId]);
 
   const latest = data?.summaries.at(-1);
   const previous = data?.summaries.at(-2);
@@ -271,7 +291,7 @@ export default function Dashboard() {
           {active === "overview" && <Overview data={data} latest={latest} previous={previous} debtChange={debtChange} payments={filteredPayments} canManage={canManage} onDelete={remove} />}
           {active === "payments" && <PaymentsView payments={filteredPayments} isAdmin={canManage} onDelete={remove} />}
           {active === "expenses" && <ExpensesView expenses={data.expenses} latest={latest} />}
-          {active === "treasury" && treasury && <TreasuryView data={treasury} isAdmin={canManage} onBalance={() => setModal("balance")} onDebt={() => setModal("manualDebt")} onRates={() => setModal("rates")} />}
+          {active === "treasury" && treasury && <TreasuryView data={treasury} onBalance={() => setModal("balance")} onDebt={() => setModal("manualDebt")} />}
           {active === "reports" && <ReportsView summaries={data.summaries} />}
           {active === "files" && <FilesView files={files} organizationId={organizationId} onUpload={() => uploadRef.current?.click()} />}
           {active === "company" && <CompanyView organization={data.organization} profile={data.profile} canManage={canManage} onEdit={() => setModal("company")} />}
@@ -358,31 +378,9 @@ function originalAmount(amount: number, currency: string) {
   return `${number.format(amount)} ${currency}`;
 }
 
-function TreasuryView({ data, isAdmin, onBalance, onDebt, onRates }: { data: TreasuryData; isAdmin: boolean; onBalance: () => void; onDebt: () => void; onRates: () => void }) {
+function TreasuryView({ data, onBalance, onDebt }: { data: TreasuryData; onBalance: () => void; onDebt: () => void }) {
   const negative = data.summary.netAfterDebtAndExpense < 0;
   return <>
-    <section className="treasury-ratebar">
-      <div><span>USD / TRY</span><b>{data.fx.USD.toLocaleString("tr-TR", { minimumFractionDigits: 4 })} ₺</b></div>
-      <div><span>EUR / TRY</span><b>{data.fx.EUR.toLocaleString("tr-TR", { minimumFractionDigits: 4 })} ₺</b></div>
-      <div><span>GBP / TRY</span><b>{data.fx.rates.GBP ? `${data.fx.rates.GBP.toLocaleString("tr-TR", { minimumFractionDigits: 4 })} ₺` : "Bekleniyor"}</b></div>
-      <p><i className={data.fx.live ? "live" : ""} />{data.fx.sourceLabel} · {data.fx.sourceDate} · {Object.keys(data.fx.rates).length - 1} döviz</p>
-    </section>
-    <section className="currency-rate-panel">
-      <div className="market-panel-heading"><div><CircleDollarSign size={19} /><span><b>TCMB döviz kurları</b><small>Resmî günlük satış kurları · Türk lirası karşılığı</small></span></div><em>{data.fx.sourceDate}</em></div>
-      <div className="currency-rate-grid">
-        {fiatCodes.filter((code) => code !== "TRY").map((code) => <article key={code}><span>{currencyLabels[code]} <em>{code}</em></span><b>{data.fx.rates[code] ? `${data.fx.rates[code].toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ₺` : "Yayımlanmadı"}</b></article>)}
-      </div>
-      <p className="market-source-note"><ShieldCheck size={14} /> Kaynak: Türkiye Cumhuriyet Merkez Bankası. Kurlar TCMB yayımlama takvimine göre güncellenir; anlık piyasa veya yatırım fiyatı değildir.</p>
-    </section>
-    <section className="gold-rate-panel">
-      <div className="gold-rate-heading">
-        <div><Coins size={19} /><span><b>Altın referans fiyatları</b><small>Firmanızın kullandığı birim satış fiyatları</small></span></div>
-        {isAdmin && <button type="button" className="outline-button" onClick={onRates}>Fiyatları güncelle</button>}
-      </div>
-      <div className="gold-rate-grid">
-        {goldCodes.map((code) => <article key={code}><span>{currencyLabels[code]}</span><b>{data.references[code] ? formatMoney(data.references[code]) : "Fiyat girilmedi"}</b></article>)}
-      </div>
-    </section>
     <section className="treasury-summary">
       <article><div className="treasury-icon cash"><Banknote /></div><span>Eldeki toplam</span><strong>{formatMoney(data.summary.totalCashTL)}</strong><small>Dövizler TL karşılığına çevrildi</small></article>
       <article><div className="treasury-icon debt"><HandCoins /></div><span>Elden ve ziynet borcu</span><strong>{formatMoney(data.summary.totalManualDebtTL)}</strong><small>{data.summary.unresolvedGoldCount ? `${data.summary.unresolvedGoldCount} altın kaydı için fiyat gerekli` : "Tüm kayıtların TL karşılığı hazır"}</small></article>
@@ -394,7 +392,7 @@ function TreasuryView({ data, isAdmin, onBalance, onDebt, onRates }: { data: Tre
       <article className="table-card"><div className="table-heading"><div><h3>Eldeki nakit, döviz ve altın</h3><p>Kasa, banka veya elde tutulan varlıklar</p></div><span>{data.balances.length} kayıt</span></div>{data.balances.length ? <div className="responsive-table"><table><thead><tr><th>Hesap</th><th>Orijinal tutar</th><th>Kur / fiyat</th><th>TL karşılığı</th></tr></thead><tbody>{data.balances.map((item) => <tr key={item.id}><td><b>{item.account_name}</b><small className="cell-note">{item.note}</small></td><td>{originalAmount(item.amount, item.currency)}</td><td>{item.rate_ready ? item.rate_used.toLocaleString("tr-TR", { maximumFractionDigits: 4 }) : <span className="rate-missing">Fiyat gerekli</span>}</td><td>{item.rate_ready ? <b>{formatMoney(item.tl_equivalent)}</b> : "—"}</td></tr>)}</tbody></table></div> : <EmptyState icon={Banknote} title="Henüz varlık girilmedi" text="Para veya altın birimini seçip tutarı eklediğinizde TL karşılığı burada görünür." />}</article>
       <article className="table-card"><div className="table-heading"><div><h3>Elden alınan borçlar</h3><p>Nakit, döviz ve ziynet borçları</p></div><span>{data.debts.length} kayıt</span></div><div className="responsive-table"><table><thead><tr><th>Kişi / kurum</th><th>Borç</th><th>TL karşılığı</th><th>Not</th></tr></thead><tbody>{data.debts.map((item) => <tr key={item.id}><td><b>{item.lender_name}</b></td><td>{originalAmount(item.amount, item.currency)}</td><td>{item.rate_ready ? <b>{formatMoney(item.tl_equivalent)}</b> : <span className="rate-missing">Fiyat girilmeli</span>}</td><td><small className="cell-note">{item.note || "—"}</small></td></tr>)}</tbody></table></div></article>
     </section>
-    <p className="treasury-disclaimer">Döviz karşılıkları TCMB gösterge kuruyla, altın karşılıkları yöneticinin girdiği referans fiyatla hesaplanır. Bu görünüm iç finansal analiz içindir; resmî muhasebe veya yatırım tavsiyesi değildir.</p>
+    <p className="treasury-disclaimer"><ShieldCheck size={14} /> Dövizli varlık ve borçların TL karşılığı, ekran açıldığında ve kayıtlar güncellendiğinde {data.fx.sourceLabel.toLocaleLowerCase("tr-TR")} ile otomatik yeniden hesaplanır. Kur tarihi: {data.fx.sourceDate}. Bu görünüm iç finansal analiz içindir; resmî muhasebe veya yatırım tavsiyesi değildir.</p>
   </>;
 }
 
