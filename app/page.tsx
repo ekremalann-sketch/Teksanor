@@ -134,6 +134,30 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="platform-showcase" aria-label="Teksanor yönetim platformu">
+        <div className="platform-showcase-copy">
+          <span className="section-kicker">Kurumsal yönetim altyapısı</span>
+          <h2>Dağınık kayıtları, güvenilir bir yönetim sistemine dönüştürün.</h2>
+          <p>Finansal takipten belge yönetimine kadar günlük operasyonlar tek bir çalışma alanında birleşir. Her kullanıcı yalnızca yetkili olduğu firma verisine ulaşır.</p>
+          <div className="platform-points">
+            <span><LockKeyhole size={19} /><b>Firma bazlı veri ayrımı</b><small>Her şirketin kayıtları diğerlerinden tamamen ayrılır.</small></span>
+            <span><BarChart3 size={19} /><b>Karar vermeyi kolaylaştıran görünüm</b><small>Borç, gider ve nakit bilgileri anlaşılır özetlere dönüşür.</small></span>
+            <span><Workflow size={19} /><b>Kontrollü iş akışı</b><small>Kullanıcı ve yönetici yetkileri tek merkezden yönetilir.</small></span>
+          </div>
+        </div>
+        <div className="platform-preview" aria-label="Yönetim paneli ön izlemesi">
+          <div className="preview-bar"><i /><i /><i /><span>TEKSANOR / YÖNETİM MERKEZİ</span></div>
+          <div className="preview-layout">
+            <div className="preview-sidebar"><b /><span /><span /><span /><span /></div>
+            <div className="preview-content">
+              <div className="preview-heading"><span /><i /></div>
+              <div className="preview-cards"><i /><i /><i /></div>
+              <div className="preview-chart"><span /><span /><span /><span /><span /></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section className="approach-section" id="yaklasim">
         <div className="approach-copy">
           <span className="section-kicker">Teksanor yaklaşımı</span>
