@@ -343,13 +343,22 @@ function TreasuryView({ data, isAdmin, onBalance, onDebt, onRates }: { data: Tre
       <div><span>GBP / TRY</span><b>{data.fx.rates.GBP ? `${data.fx.rates.GBP.toLocaleString("tr-TR", { minimumFractionDigits: 4 })} ₺` : "Bekleniyor"}</b></div>
       <p><i className={data.fx.live ? "live" : ""} />{data.fx.sourceLabel} · {data.fx.sourceDate} · {Object.keys(data.fx.rates).length - 1} döviz</p>
     </section>
+    <section className="gold-rate-panel">
+      <div className="gold-rate-heading">
+        <div><Coins size={19} /><span><b>Altın referans fiyatları</b><small>Firmanızın kullandığı birim satış fiyatları</small></span></div>
+        {isAdmin && <button type="button" className="outline-button" onClick={onRates}>Fiyatları güncelle</button>}
+      </div>
+      <div className="gold-rate-grid">
+        {goldCodes.map((code) => <article key={code}><span>{currencyLabels[code]}</span><b>{data.references[code] ? formatMoney(data.references[code]) : "Fiyat girilmedi"}</b></article>)}
+      </div>
+    </section>
     <section className="treasury-summary">
       <article><div className="treasury-icon cash"><Banknote /></div><span>Eldeki toplam</span><strong>{formatMoney(data.summary.totalCashTL)}</strong><small>Dövizler TL karşılığına çevrildi</small></article>
       <article><div className="treasury-icon debt"><HandCoins /></div><span>Elden ve ziynet borcu</span><strong>{formatMoney(data.summary.totalManualDebtTL)}</strong><small>{data.summary.unresolvedGoldCount ? `${data.summary.unresolvedGoldCount} altın kaydı için fiyat gerekli` : "Tüm kayıtların TL karşılığı hazır"}</small></article>
       <article><div className="treasury-icon expense"><WalletCards /></div><span>Son dönem gideri</span><strong>{formatMoney(data.summary.latestExpenseTL)}</strong><small>PDF dönem özetinden</small></article>
       <article className={negative ? "negative" : "positive"}><div className="treasury-icon net"><CircleDollarSign /></div><span>Net kullanılabilir görünüm</span><strong>{formatMoney(data.summary.netAfterDebtAndExpense)}</strong><small>Eldeki − elden borç − dönem gideri</small></article>
     </section>
-    <div className="treasury-actions"><button className="panel-primary" onClick={onBalance}><Plus size={16} /> Eldeki tutarı ekle</button><button className="panel-primary" onClick={onDebt}><Plus size={16} /> Elden borç ekle</button>{isAdmin && <button className="outline-button" onClick={onRates}><Coins size={16} /> Altın fiyatlarını gir</button>}</div>
+    <div className="treasury-actions"><button className="panel-primary" onClick={onBalance}><Plus size={16} /> Eldeki tutarı ekle</button><button className="panel-primary" onClick={onDebt}><Plus size={16} /> Elden borç ekle</button></div>
     <section className="treasury-grid">
       <article className="table-card"><div className="table-heading"><div><h3>Eldeki nakit, döviz ve altın</h3><p>Kasa, banka veya elde tutulan varlıklar</p></div><span>{data.balances.length} kayıt</span></div>{data.balances.length ? <div className="responsive-table"><table><thead><tr><th>Hesap</th><th>Orijinal tutar</th><th>Kur / fiyat</th><th>TL karşılığı</th></tr></thead><tbody>{data.balances.map((item) => <tr key={item.id}><td><b>{item.account_name}</b><small className="cell-note">{item.note}</small></td><td>{originalAmount(item.amount, item.currency)}</td><td>{item.rate_ready ? item.rate_used.toLocaleString("tr-TR", { maximumFractionDigits: 4 }) : <span className="rate-missing">Fiyat gerekli</span>}</td><td>{item.rate_ready ? <b>{formatMoney(item.tl_equivalent)}</b> : "—"}</td></tr>)}</tbody></table></div> : <EmptyState icon={Banknote} title="Henüz varlık girilmedi" text="Para veya altın birimini seçip tutarı eklediğinizde TL karşılığı burada görünür." />}</article>
       <article className="table-card"><div className="table-heading"><div><h3>Elden alınan borçlar</h3><p>Nakit, döviz ve ziynet borçları</p></div><span>{data.debts.length} kayıt</span></div><div className="responsive-table"><table><thead><tr><th>Kişi / kurum</th><th>Borç</th><th>TL karşılığı</th><th>Not</th></tr></thead><tbody>{data.debts.map((item) => <tr key={item.id}><td><b>{item.lender_name}</b></td><td>{originalAmount(item.amount, item.currency)}</td><td>{item.rate_ready ? <b>{formatMoney(item.tl_equivalent)}</b> : <span className="rate-missing">Fiyat girilmeli</span>}</td><td><small className="cell-note">{item.note || "—"}</small></td></tr>)}</tbody></table></div></article>
