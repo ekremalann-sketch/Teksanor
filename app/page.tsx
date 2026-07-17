@@ -13,6 +13,7 @@ import {
   LockKeyhole,
   Settings2,
   Sparkles,
+  UserRound,
   Workflow,
 } from "lucide-react";
 
@@ -68,7 +69,9 @@ export default function Home() {
           <a href="#kurumsal">Kurumsal</a>
         </nav>
         <Link className="login-link" href={authenticated ? "/panel" : "/giris"}>
-          {authenticated ? "Panele dön" : "Giriş / Kayıt"} <ArrowRight size={16} />
+          <span className="login-link-icon"><UserRound size={17} /></span>
+          <span className="login-link-label">{authenticated ? "Panel" : "Giriş"}</span>
+          <ArrowRight className="login-link-arrow" size={16} />
         </Link>
       </header>
 
