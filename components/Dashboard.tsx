@@ -396,6 +396,13 @@ function TreasuryView({ data, onBalance, onDebt }: { data: TreasuryData; onBalan
       <article><div className="treasury-icon expense"><WalletCards /></div><span>Son dönem gideri</span><strong>{formatMoney(data.summary.latestExpenseTL)}</strong><small>PDF dönem özetinden</small></article>
       <article className={negative ? "negative" : "positive"}><div className="treasury-icon net"><CircleDollarSign /></div><span>Net kullanılabilir görünüm</span><strong>{formatMoney(data.summary.netAfterDebtAndExpense)}</strong><small>Eldeki − elden borç − dönem gideri</small></article>
     </section>
+    <section className="currency-rate-panel tcmb-compact-panel">
+      <div className="market-panel-heading"><div><CircleDollarSign size={20} /><span><b>Türkiye Cumhuriyet Merkez Bankası döviz kurları</b><small>Resmî günlük döviz satış kurları · Türk lirası karşılığı</small></span></div><em>{data.fx.sourceDate}</em></div>
+      <div className="currency-rate-grid tcmb-main-rates">
+        {["USD", "EUR", "GBP"].map((code) => <article key={code}><span>{currencyLabels[code]} <em>{code} / TRY</em></span><b>{Number(data.fx.rates?.[code] ?? 0).toLocaleString("tr-TR", { minimumFractionDigits: 4, maximumFractionDigits: 4 })} ₺</b></article>)}
+      </div>
+      <p className="market-source-note"><i className={data.fx.live ? "live" : ""} /> Kaynak: {data.fx.sourceLabel}. Dövizli varlık ve borçların TL karşılığı bu kur verisiyle otomatik güncellenir.</p>
+    </section>
     <div className="treasury-actions"><button className="panel-primary" onClick={onBalance}><Plus size={16} /> Eldeki tutarı ekle</button><button className="panel-primary" onClick={onDebt}><Plus size={16} /> Elden borç ekle</button></div>
     <section className="treasury-grid">
       <article className="table-card"><div className="table-heading"><div><h3>Eldeki nakit, döviz ve altın</h3><p>Kasa, banka veya elde tutulan varlıklar</p></div><span>{data.balances.length} kayıt</span></div>{data.balances.length ? <div className="responsive-table"><table><thead><tr><th>Hesap</th><th>Orijinal tutar</th><th>Kur / fiyat</th><th>TL karşılığı</th></tr></thead><tbody>{data.balances.map((item) => <tr key={item.id}><td><b>{item.account_name}</b><small className="cell-note">{item.note}</small></td><td>{originalAmount(item.amount, item.currency)}</td><td>{item.rate_ready ? item.rate_used.toLocaleString("tr-TR", { maximumFractionDigits: 4 }) : <span className="rate-missing">Fiyat gerekli</span>}</td><td>{item.rate_ready ? <b>{formatMoney(item.tl_equivalent)}</b> : "—"}</td></tr>)}</tbody></table></div> : <EmptyState icon={Banknote} title="Henüz varlık girilmedi" text="Para veya altın birimini seçip tutarı eklediğinizde TL karşılığı burada görünür." />}</article>
