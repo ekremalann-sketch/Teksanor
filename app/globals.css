@@ -405,6 +405,10 @@ td b { color: #30445c; }
 .currency-rate-grid span { overflow: hidden; color: #7a8a9d; font-size: 9px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .currency-rate-grid span em { margin-left: 4px; color: #3f73aa; font-style: normal; }
 .currency-rate-grid b { margin-top: 5px; color: #233b54; font-size: 13px; }
+.tcmb-compact-panel { margin-bottom: 16px; }
+.tcmb-main-rates { max-height: none; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.tcmb-main-rates article { min-height: 78px; padding: 13px 15px; }
+.tcmb-main-rates b { font-size: 18px; letter-spacing: -.02em; }
 .market-source-note { margin: 0; padding: 10px 14px; display: flex; align-items: center; gap: 7px; border-top: 1px solid #e8edf3; color: #78899c; background: #f8fafc; font-size: 10px; line-height: 1.5; }
 .gold-rate-panel { margin-bottom: 16px; overflow: hidden; border: 1px solid #e3d5b7; border-radius: 11px; background: linear-gradient(135deg, #fffdf8, #fbf6eb); }
 .gold-rate-heading { min-height: 66px; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; gap: 14px; border-bottom: 1px solid #eadfc8; }
