@@ -7,13 +7,11 @@ import {
   BarChart3,
   BrainCircuit,
   CheckCircle2,
-  Database,
   LockKeyhole,
   Settings2,
   UserRound,
   Workflow,
 } from "lucide-react";
-import "./home.css";
 
 const solutions = [
   {
