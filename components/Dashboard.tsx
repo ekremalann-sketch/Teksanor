@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
-  AlertTriangle, ArrowDownRight, ArrowUpRight, Banknote, BarChart3, Bell, Building2, Check,
+  AlertTriangle, ArrowDownRight, ArrowRight, ArrowUpRight, Banknote, BarChart3, Bell, Building2, Check,
   CircleDollarSign, Coins, CreditCard, Database, Download, FileSpreadsheet, Files,
   Gauge, HandCoins, LayoutDashboard, LogOut, Menu, MoreHorizontal, Plus, Search,
   Settings, ShieldCheck, Trash2, Upload, UserPlus, Users, WalletCards, X,
@@ -102,6 +102,12 @@ export default function Dashboard() {
   }
 
   useEffect(() => { void load(); }, []);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    document.querySelector(".dashboard-main")?.scrollTo({ top: 0, behavior: "smooth" });
+    setTopbarPanel(null);
+  }, [active]);
 
   useEffect(() => {
     if (!mobileNav) return;
@@ -271,11 +277,14 @@ export default function Dashboard() {
               <div className="notification-summary"><ShieldCheck size={19} /><span><b>Sistem ve veriler erişilebilir</b><small>Çalışma alanınız güvenli oturumla korunuyor.</small></span></div>
               {data.attentionCount > 0 ? <button type="button" className="notification-row" onClick={() => { setActive("payments"); setTopbarPanel(null); }}><span className="notification-mark warning" /><span><b>{data.attentionCount} finansal kayıt takip bekliyor</b><small>Ödemeler ve borçlar bölümünü açın.</small></span><ArrowRight size={16} /></button> : <div className="notification-empty"><Check size={20} /><span><b>Bekleyen önemli bildirim yok</b><small>Yeni gelişmeler burada gösterilecek.</small></span></div>}
               {data.activity.slice(0, 2).map((item) => <div className="notification-row static" key={item.id}><span className="notification-mark" /><span><b>{item.details || "Çalışma alanında işlem yapıldı"}</b><small>{new Date(item.created_at).toLocaleString("tr-TR")}</small></span></div>)}
+              <button type="button" className="popover-footer-action" onClick={() => { setActive("overview"); setTopbarPanel(null); }}><span>Yönetim özetine git</span><ArrowRight size={16} /></button>
             </div>}
             {topbarPanel === "settings" && <div className="topbar-popover settings-popover">
               <div className="popover-head"><div><span>Hesap ve çalışma alanı</span><b>Ayarlar</b></div><button type="button" onClick={() => setTopbarPanel(null)} aria-label="Ayarları kapat"><X size={17} /></button></div>
               <div className="settings-profile"><div>{data.user.fullName.split(" ").map((item) => item[0]).join("").slice(0, 2)}</div><span><b>{data.user.fullName}</b><small>{data.organization.name} · {roleLabel}</small></span></div>
               <button type="button" className="settings-row" onClick={() => { setActive("company"); setTopbarPanel(null); }}><Building2 size={18} /><span><b>Firma bilgileri</b><small>Kurumsal profil ve iletişim bilgileri</small></span><ArrowRight size={16} /></button>
+              <button type="button" className="settings-row" onClick={() => { setActive("overview"); setTopbarPanel(null); }}><LayoutDashboard size={18} /><span><b>Çalışma alanı özeti</b><small>Plan, dönem ve finansal görünüm</small></span><ArrowRight size={16} /></button>
+              {canManage && <button type="button" className="settings-row" onClick={() => { setActive("users"); setTopbarPanel(null); }}><Users size={18} /><span><b>Kullanıcı ve yetkiler</b><small>Ekip erişimlerini güvenle yönetin</small></span><ArrowRight size={16} /></button>}
               <button type="button" className="settings-row" onClick={() => { setModal("password"); setTopbarPanel(null); }}><ShieldCheck size={18} /><span><b>Parolayı değiştir</b><small>Hesabınızın giriş güvenliğini yönetin</small></span><ArrowRight size={16} /></button>
               <button type="button" className="settings-row danger" onClick={logout}><LogOut size={18} /><span><b>Güvenli çıkış</b><small>Yalnızca bu seçenek oturumu kapatır</small></span></button>
             </div>}
