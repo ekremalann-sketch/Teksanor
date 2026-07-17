@@ -106,6 +106,13 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="executive-strip" aria-label="Teksanor platform özellikleri">
+        <article><div><ShieldCheck size={21} /></div><span><b>Şirket bazlı güvenli alan</b><small>Her firma yalnızca kendi kayıtlarına erişir.</small></span></article>
+        <article><div><Gauge size={21} /></div><span><b>Tek ekranda finansal görünüm</b><small>Borç, gider, nakit ve belgeler birlikte izlenir.</small></span></article>
+        <article><div><Workflow size={21} /></div><span><b>İzlenebilir operasyon</b><small>Yetkiler ve işlem geçmişi merkezi olarak yönetilir.</small></span></article>
+        <article><div><Database size={21} /></div><span><b>Excel’den düzenli veriye</b><small>Dağınık tablolar anlaşılır kayıtlara dönüşür.</small></span></article>
+      </section>
+
       <section className="section-block" id="cozumler">
         <div className="section-heading">
           <div>
