@@ -65,9 +65,10 @@ export default function Home() {
           <img src="/assets/teksanor-logo.png" alt="Teksanor" className="header-logo" />
         </Link>
         <nav className="desktop-nav" aria-label="Ana menü">
-          <a href="#cozumler">Çözümler</a>
-          <a href="#yaklasim">Yaklaşım</a>
-          <a href="#kurumsal">Kurumsal</a>
+          <Link href="/cozumler">Çözümler</Link>
+          <Link href="/muhendislik">Mühendislik</Link>
+          <Link href="/yapay-zeka">Yapay Zekâ</Link>
+          <Link href="/hakkimizda">Hakkımızda</Link>
         </nav>
         <Link className="login-link" href={authenticated ? "/panel" : "/giris"}>
           <span className="login-link-icon"><UserRound size={17} /></span>
