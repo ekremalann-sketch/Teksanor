@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./home.css";
 
 export const metadata: Metadata = {
   title: "Teksanor | Mühendislik, Veri ve Yapay Zekâ",
@@ -14,4 +15,3 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     </html>
   );
 }
-
