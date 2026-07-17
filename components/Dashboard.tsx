@@ -62,6 +62,7 @@ export default function Dashboard() {
   const [active, setActive] = useState("overview");
   const [mobileNav, setMobileNav] = useState(false);
   const [topbarPanel, setTopbarPanel] = useState<"notifications" | "settings" | null>(null);
+  const [notificationUnread, setNotificationUnread] = useState(false);
   const [search, setSearch] = useState("");
   const [modal, setModal] = useState<"payment" | "expense" | "user" | "balance" | "manualDebt" | "rates" | "password" | "company" | null>(null);
   const [message, setMessage] = useState("");
@@ -102,6 +103,13 @@ export default function Dashboard() {
   }
 
   useEffect(() => { void load(); }, []);
+
+  const notificationKey = data ? `${data.activity[0]?.id ?? "none"}:${data.attentionCount}` : "";
+
+  useEffect(() => {
+    if (!data || !notificationKey) return;
+    setNotificationUnread(data.attentionCount > 0 && localStorage.getItem("teksanor_notifications_read") !== notificationKey);
+  }, [data, notificationKey]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -171,6 +179,12 @@ export default function Dashboard() {
     await fetch("/api/auth/logout", { method: "POST" });
     localStorage.removeItem("teksanor_organization");
     window.location.href = "/";
+  }
+
+  function toggleNotifications() {
+    setTopbarPanel((value) => value === "notifications" ? null : "notifications");
+    if (notificationKey) localStorage.setItem("teksanor_notifications_read", notificationKey);
+    setNotificationUnread(false);
   }
 
   async function remove(id: string) {
@@ -270,7 +284,7 @@ export default function Dashboard() {
           <button type="button" className="mobile-menu" onClick={() => setMobileNav(true)} aria-label="Menüyü aç"><Menu size={21} /></button>
           <div className="topbar-search"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Banka, kişi veya not ara..." /></div>
           <div className="topbar-actions" ref={topbarActionsRef}>
-            <button type="button" className={topbarPanel === "notifications" ? "active" : ""} title="Bildirimler" aria-label="Bildirimleri aç" aria-expanded={topbarPanel === "notifications"} onClick={() => setTopbarPanel((value) => value === "notifications" ? null : "notifications")}><Bell size={19} />{data.attentionCount > 0 && <i />}</button>
+            <button type="button" className={topbarPanel === "notifications" ? "active" : ""} title="Bildirimler" aria-label="Bildirimleri aç" aria-expanded={topbarPanel === "notifications"} onClick={toggleNotifications}><Bell size={19} />{notificationUnread && <i />}</button>
             <button type="button" className={topbarPanel === "settings" ? "active" : ""} title="Ayarlar" aria-label="Ayarları aç" aria-expanded={topbarPanel === "settings"} onClick={() => setTopbarPanel((value) => value === "settings" ? null : "settings")}><Settings size={19} /></button>
             {topbarPanel === "notifications" && <div className="topbar-popover notification-popover">
               <div className="popover-head"><div><span>Bildirim merkezi</span><b>Güncel durum</b></div><button type="button" onClick={() => setTopbarPanel(null)} aria-label="Bildirimleri kapat"><X size={17} /></button></div>
