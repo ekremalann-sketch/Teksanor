@@ -112,7 +112,7 @@ export async function ensureDefaultAdminAccounts() {
     const secrets = env as unknown as { ADMIN1_PASSWORD?: string; ADMIN2_PASSWORD?: string };
     const admin1Password = secrets.ADMIN1_PASSWORD ?? "";
     const admin2Password = secrets.ADMIN2_PASSWORD ?? "";
-    if (admin1Password.length !== 6 || admin2Password.length !== 6) throw new Error("Portal giriş bilgileri hazır değil.");
+    if (admin1Password.length < 6 || admin2Password.length < 6) throw new Error("Portal giriş bilgileri hazır değil.");
 
     const admin1Id = createId("user");
     const admin2Id = createId("user");
