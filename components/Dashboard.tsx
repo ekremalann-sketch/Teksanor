@@ -367,6 +367,13 @@ function TreasuryView({ data, isAdmin, onBalance, onDebt, onRates }: { data: Tre
       <div><span>GBP / TRY</span><b>{data.fx.rates.GBP ? `${data.fx.rates.GBP.toLocaleString("tr-TR", { minimumFractionDigits: 4 })} ₺` : "Bekleniyor"}</b></div>
       <p><i className={data.fx.live ? "live" : ""} />{data.fx.sourceLabel} · {data.fx.sourceDate} · {Object.keys(data.fx.rates).length - 1} döviz</p>
     </section>
+    <section className="currency-rate-panel">
+      <div className="market-panel-heading"><div><CircleDollarSign size={19} /><span><b>TCMB döviz kurları</b><small>Resmî günlük satış kurları · Türk lirası karşılığı</small></span></div><em>{data.fx.sourceDate}</em></div>
+      <div className="currency-rate-grid">
+        {fiatCodes.filter((code) => code !== "TRY").map((code) => <article key={code}><span>{currencyLabels[code]} <em>{code}</em></span><b>{data.fx.rates[code] ? `${data.fx.rates[code].toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ₺` : "Yayımlanmadı"}</b></article>)}
+      </div>
+      <p className="market-source-note"><ShieldCheck size={14} /> Kaynak: Türkiye Cumhuriyet Merkez Bankası. Kurlar TCMB yayımlama takvimine göre güncellenir; anlık piyasa veya yatırım fiyatı değildir.</p>
+    </section>
     <section className="gold-rate-panel">
       <div className="gold-rate-heading">
         <div><Coins size={19} /><span><b>Altın referans fiyatları</b><small>Firmanızın kullandığı birim satış fiyatları</small></span></div>
