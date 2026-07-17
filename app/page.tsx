@@ -12,6 +12,7 @@ import {
   Layers3,
   LockKeyhole,
   Settings2,
+  ShieldCheck,
   Sparkles,
   UserRound,
   Workflow,
