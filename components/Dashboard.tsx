@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from "react";
 import {
   AlertTriangle, ArrowDownRight, ArrowUpRight, Banknote, BarChart3, Bell, Building2, Check,
   CircleDollarSign, Coins, CreditCard, Database, Download, FileSpreadsheet, Files,
@@ -125,7 +125,18 @@ export default function Dashboard() {
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
+    localStorage.removeItem("teksanor_organization");
     window.location.href = "/";
+  }
+
+  async function goHome(event: MouseEvent<HTMLAnchorElement>) {
+    event.preventDefault();
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      localStorage.removeItem("teksanor_organization");
+      window.location.href = "/";
+    }
   }
 
   async function remove(id: string) {
@@ -199,7 +210,7 @@ export default function Dashboard() {
     <div className="dashboard-shell">
       <aside className={`dashboard-sidebar ${mobileNav ? "open" : ""}`}>
         <div className="sidebar-brand">
-          <a className="sidebar-home" href="/" aria-label="Teksanor ana sayfasına git"><img src="/assets/teksanor-logo.png" alt="Teksanor" /></a>
+          <a className="sidebar-home" href="/" onClick={goHome} aria-label="Güvenli çıkış yaparak Teksanor ana sayfasına git"><img src="/assets/teksanor-logo.png" alt="Teksanor" /></a>
           <button type="button" className="mobile-close" onClick={() => setMobileNav(false)} aria-label="Menüyü kapat"><X size={19} /></button>
         </div>
         <div className="sidebar-context">
