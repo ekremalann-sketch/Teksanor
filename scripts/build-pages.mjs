@@ -13,7 +13,25 @@ await mkdir(pagesDir, { recursive: true });
 // Pages serves the client assets and loads one bundled Vinext Worker in advanced mode.
 await cp(clientDir, pagesDir, { recursive: true });
 await build({
-  entryPoints: [join(serverDir, "index.js")],
+  stdin: {
+    contents: `
+      import app from "./dist/server/index.js";
+
+      export default {
+        async fetch(request, env, context) {
+          if (request.method === "GET" || request.method === "HEAD") {
+            const asset = await env.ASSETS.fetch(request);
+            if (asset.status !== 404) return asset;
+          }
+
+          return app.fetch(request, env, context);
+        },
+      };
+    `,
+    resolveDir: root,
+    sourcefile: "pages-entry.js",
+    loader: "js",
+  },
   outfile: join(pagesDir, "_worker.js"),
   bundle: true,
   format: "esm",
