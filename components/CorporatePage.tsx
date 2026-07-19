@@ -1,5 +1,9 @@
-import Link from "next/link";
+import type { AnchorHTMLAttributes } from "react";
 import { ArrowRight, BarChart3, BrainCircuit, CheckCircle2, Cpu, Database, Settings2, ShieldCheck, Workflow } from "lucide-react";
+
+function Link({ href, ...props }: AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) {
+  return <a href={href} {...props} />;
+}
 
 const content = {
   cozumler: { kicker: "Çözüm portföyü", title: "İşletmeler için ölçülebilir teknoloji çözümleri.", text: "Dağınık verileri, manuel takip yükünü ve karar gecikmelerini azaltan sistemleri ihtiyaca göre tasarlarız.", cards: [["Finansal yönetim", "Borç, gider, nakit ve belgeleri tek görünümde izleyin."], ["Veri analitiği", "Excel ve operasyon verilerini anlaşılır göstergelere dönüştürün."], ["Süreç otomasyonu", "Tekrarlanan işleri kontrollü dijital akışlara taşıyın."], ["Kurumsal portal", "Her firma için ayrılmış güvenli çalışma alanı oluşturun."]] },
