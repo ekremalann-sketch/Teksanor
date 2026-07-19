@@ -5,11 +5,35 @@ import { requireOrganization } from "@/lib/tenancy";
 
 function text(value: unknown, max = 180) { return String(value ?? "").trim().slice(0, max); }
 
+async function ensureProjectsTable() {
+  const database = getDb();
+  await database.prepare(`CREATE TABLE IF NOT EXISTS projects (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    code TEXT,
+    department TEXT NOT NULL,
+    owner_name TEXT,
+    status TEXT NOT NULL CHECK (status IN ('planning', 'active', 'on_hold', 'completed')) DEFAULT 'planning',
+    priority TEXT NOT NULL CHECK (priority IN ('low', 'normal', 'high', 'critical')) DEFAULT 'normal',
+    start_date TEXT,
+    target_date TEXT,
+    budget REAL NOT NULL DEFAULT 0,
+    progress INTEGER NOT NULL DEFAULT 0,
+    description TEXT,
+    created_by TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`).run();
+  await database.prepare("CREATE INDEX IF NOT EXISTS idx_projects_org ON projects(organization_id, status)").run();
+}
+
 export async function GET(request: Request) {
   const user = await getCurrentUser(request);
   if (!user) return NextResponse.json({ error: "Oturum gerekli." }, { status: 401 });
   try {
     const context = await requireOrganization(request, user);
+    await ensureProjectsTable();
     const result = await getDb().prepare("SELECT * FROM projects WHERE organization_id = ? ORDER BY CASE status WHEN 'active' THEN 1 WHEN 'planning' THEN 2 WHEN 'on_hold' THEN 3 ELSE 4 END, created_at DESC")
       .bind(context.organization.id).all();
     return NextResponse.json({ projects: result.results });
@@ -23,6 +47,7 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: "Oturum gerekli." }, { status: 401 });
   try {
     const context = await requireOrganization(request, user);
+    await ensureProjectsTable();
     const body = await request.json() as Record<string, unknown>;
     const name = text(body.name);
     const department = text(body.department);
