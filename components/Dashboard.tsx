@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
-  AlertTriangle, ArrowDownRight, ArrowRight, ArrowUpRight, Banknote, BarChart3, Bell, Building2, Check,
+  AlertTriangle, ArrowDownRight, ArrowRight, ArrowUpRight, Banknote, BarChart3, Bell, BriefcaseBusiness, Building2, Check,
   CircleDollarSign, Coins, CreditCard, Database, Download, FileSpreadsheet, Files,
-  Gauge, HandCoins, LayoutDashboard, LogOut, Menu, MoreHorizontal, Plus, Search,
-  Settings, ShieldCheck, Trash2, Upload, UserPlus, Users, WalletCards, X,
+  Gauge, HandCoins, Landmark, LayoutDashboard, LogOut, Menu, MoreHorizontal, Plus, Search,
+  Settings, ShieldCheck, Trash2, Upload, UserPlus, Users, WalletCards, Workflow, X,
 } from "lucide-react";
 
 type User = { id: string; username: string; fullName: string; role: "admin" | "user" };
@@ -36,9 +36,13 @@ type TreasuryData = {
   debts: ManualDebt[];
   summary: { totalCashTL: number; totalManualDebtTL: number; latestExpenseTL: number; netAfterDebtAndExpense: number; unresolvedGoldCount: number };
 };
+type Project = { id: string; name: string; code?: string; department: string; owner_name?: string; status: "planning" | "active" | "on_hold" | "completed"; priority: string; start_date?: string; target_date?: string; budget: number; progress: number; description?: string };
 
 const navItems = [
-  { id: "overview", label: "Genel görünüm", icon: LayoutDashboard },
+  { id: "overview", label: "Şirket merkezi", icon: LayoutDashboard },
+  { id: "departments", label: "Departmanlar", icon: Building2 },
+  { id: "projects", label: "Projeler", icon: BriefcaseBusiness },
+  { id: "financial", label: "Finansal durum", icon: Landmark },
   { id: "payments", label: "Ödemeler ve borçlar", icon: CreditCard },
   { id: "expenses", label: "Gelir ve giderler", icon: WalletCards },
   { id: "treasury", label: "Nakit ve elden borç", icon: HandCoins },
@@ -59,12 +63,13 @@ export default function Dashboard() {
   const [organizationId, setOrganizationId] = useState("");
   const [treasury, setTreasury] = useState<TreasuryData | null>(null);
   const [files, setFiles] = useState<FileItem[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [active, setActive] = useState("overview");
   const [mobileNav, setMobileNav] = useState(false);
   const [topbarPanel, setTopbarPanel] = useState<"notifications" | "settings" | null>(null);
   const [notificationUnread, setNotificationUnread] = useState(false);
   const [search, setSearch] = useState("");
-  const [modal, setModal] = useState<"payment" | "expense" | "user" | "balance" | "manualDebt" | "rates" | "password" | "company" | null>(null);
+  const [modal, setModal] = useState<"payment" | "expense" | "user" | "balance" | "manualDebt" | "rates" | "password" | "company" | "project" | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -89,6 +94,8 @@ export default function Dashboard() {
       if (treasuryResponse.ok) setTreasury(await treasuryResponse.json() as TreasuryData);
       const fileResponse = await fetch("/api/uploads", { cache: "no-store", headers: organizationHeaders });
       if (fileResponse.ok) setFiles(((await fileResponse.json()) as { files: FileItem[] }).files);
+      const projectResponse = await fetch("/api/projects", { cache: "no-store", headers: organizationHeaders });
+      if (projectResponse.ok) setProjects(((await projectResponse.json()) as { projects: Project[] }).projects);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Bir hata oluştu.");
     } finally {
@@ -245,7 +252,7 @@ export default function Dashboard() {
   }
 
   if (loading && !data) return <LoadingScreen />;
-  if (!data || !latest) return <div className="fatal-state"><AlertTriangle /><h1>Panel açılamadı</h1><p>{error || "Lütfen daha sonra tekrar deneyin."}</p><button onClick={load}>Tekrar dene</button></div>;
+  if (!data || !latest) return <div className="fatal-state"><AlertTriangle /><h1>Panel açılamadı</h1><p>{error || "Lütfen daha sonra tekrar deneyin."}</p><button onClick={() => void load()}>Tekrar dene</button></div>;
 
   const canManage = data.user.role === "admin" || ["owner", "admin"].includes(data.organization.membership_role);
   const roleLabel = data.user.role === "admin"
@@ -308,10 +315,13 @@ export default function Dashboard() {
         <div className="dashboard-content">
           {error && <div className="panel-alert error"><AlertTriangle size={17} />{error}<button type="button" onClick={() => setError("")} aria-label="Uyarıyı kapat"><X size={16} /></button></div>}
           {message && <div className="panel-alert success"><Check size={17} />{message}</div>}
-          <PageHeader active={active} period={latest.period} organization={data.organization} onNew={() => setModal(active === "expenses" ? "expense" : "payment")} onImport={() => importRef.current?.click()} canAdd={["overview", "payments", "expenses"].includes(active)} />
+          <PageHeader active={active} period={latest.period} organization={data.organization} onNew={() => setModal(active === "projects" ? "project" : active === "expenses" ? "expense" : "payment")} onImport={() => importRef.current?.click()} canAdd={["financial", "payments", "expenses", "projects"].includes(active)} />
           <input ref={importRef} hidden type="file" accept=".xlsx,.xls,.csv" onChange={(event) => event.target.files?.[0] && void importExcel(event.target.files[0])} />
 
-          {active === "overview" && <Overview data={data} latest={latest} previous={previous} debtChange={debtChange} payments={filteredPayments} canManage={canManage} onDelete={remove} onNavigate={setActive} />}
+          {active === "overview" && <CompanyHome data={data} projects={projects} onNavigate={setActive} />}
+          {active === "departments" && <DepartmentsView onNavigate={setActive} />}
+          {active === "projects" && <ProjectsView projects={projects} onAdd={() => setModal("project")} />}
+          {active === "financial" && <FinancialOverview data={data} latest={latest} previous={previous} debtChange={debtChange} payments={filteredPayments} canManage={canManage} onDelete={remove} onNavigate={setActive} />}
           {active === "payments" && <PaymentsView payments={filteredPayments} isAdmin={canManage} onDelete={remove} />}
           {active === "expenses" && <ExpensesView expenses={data.expenses} latest={latest} />}
           {active === "treasury" && treasury && <TreasuryView data={treasury} onBalance={() => setModal("balance")} onDebt={() => setModal("manualDebt")} />}
@@ -334,7 +344,10 @@ function LoadingScreen() {
 
 function PageHeader({ active, period, organization, onNew, onImport, canAdd }: { active: string; period: string; organization: Organization; onNew: () => void; onImport: () => void; canAdd: boolean }) {
   const titles: Record<string, [string, string]> = {
-    overview: ["Genel görünüm", "Finansal durumunuzu tek bakışta değerlendirin."],
+    overview: ["Şirket merkezi", "Kurumunuzun profili, departmanları, projeleri ve son faaliyetleri tek bakışta görün."],
+    departments: ["Departmanlar", "Sorumluluk alanlarını ve günlük çalışma akışlarını düzenli bir kurum yapısında inceleyin."],
+    projects: ["Proje portföyü", "Planlanan ve devam eden çalışmaları sorumlu, bütçe, tarih ve ilerleme bilgisiyle yönetin."],
+    financial: ["Finansal durum", "Borç, ödeme, limit ve dönemsel değişimleri ayrı finans çalışma alanında değerlendirin."],
     payments: ["Ödemeler ve borçlar", "Kart, yapılandırma, KMH ve ödeme planlarını yönetin."],
     expenses: ["Gelir ve giderler", "Dönemsel giderleri sade biçimde kaydedin ve izleyin."],
     treasury: ["Finansal analiz", "Eldeki nakdi, dövizleri, elden ve ziynet borçlarını TL karşılığıyla birlikte izleyin."],
@@ -344,10 +357,42 @@ function PageHeader({ active, period, organization, onNew, onImport, canAdd }: {
     users: ["Kullanıcı yönetimi", "Veri girecek kişileri oluşturun ve yetkilerini yönetin."],
   };
   const current = titles[active] ?? titles.overview;
-  return <><div className="organization-strip"><div><Building2 size={16} /><span><b>{organization.name}</b>{organization.kind === "business" ? "Firma çalışma alanı" : "Kişisel çalışma alanı"}</span></div><em className={`subscription-badge ${organization.subscription_status}`}>{organization.subscription_status === "trialing" ? "14 günlük deneme" : organization.subscription_status === "active" ? "Aktif" : "Ödeme bekleniyor"}</em></div><div className="panel-heading"><div><span className="breadcrumb">TEKSANOR / {organization.name.toLocaleUpperCase("tr-TR")} / {period.toLocaleUpperCase("tr-TR")}</span><h1>{current[0]}</h1><p>{current[1]}</p></div><div className="heading-actions">{["overview", "payments"].includes(active) && <button className="outline-button" onClick={onImport}><FileSpreadsheet size={17} /> Excel aktar</button>}{canAdd && <button className="panel-primary" onClick={onNew}><Plus size={17} /> Yeni kayıt</button>}</div></div></>;
+  return <><div className="organization-strip"><div><Building2 size={16} /><span><b>{organization.name}</b>{organization.kind === "business" ? "Firma çalışma alanı" : "Kişisel çalışma alanı"}</span></div><em className={`subscription-badge ${organization.subscription_status}`}>{organization.subscription_status === "trialing" ? "14 günlük deneme" : organization.subscription_status === "active" ? "Aktif" : "Ödeme bekleniyor"}</em></div><div className="panel-heading"><div><span className="breadcrumb">TEKSANOR / {organization.name.toLocaleUpperCase("tr-TR")} / {period.toLocaleUpperCase("tr-TR")}</span><h1>{current[0]}</h1><p>{current[1]}</p></div><div className="heading-actions">{["financial", "payments"].includes(active) && <button className="outline-button" onClick={onImport}><FileSpreadsheet size={17} /> Excel aktar</button>}{canAdd && <button className="panel-primary" onClick={onNew}><Plus size={17} /> {active === "projects" ? "Yeni proje" : "Yeni kayıt"}</button>}</div></div></>;
 }
 
-function Overview({ data, latest, previous, debtChange, payments, canManage, onDelete, onNavigate }: { data: DashboardData; latest: Summary; previous?: Summary; debtChange: number; payments: Payment[]; canManage: boolean; onDelete: (id: string) => void; onNavigate: (page: string) => void }) {
+function CompanyHome({ data, projects, onNavigate }: { data: DashboardData; projects: Project[]; onNavigate: (page: string) => void }) {
+  const activeProjects = projects.filter((item) => item.status === "active").length;
+  return <>
+    <section className="company-command-hero"><div><span>KURUMSAL ÇALIŞMA ALANI</span><h2>{data.profile?.legal_name || data.organization.name}</h2><p>{data.profile?.about || "Şirket profilinizi tamamlayarak ekibinize ortak ve güvenilir bir çalışma alanı oluşturun."}</p><button type="button" onClick={() => onNavigate("company")}>Kurumsal profili incele <ArrowRight size={16} /></button></div><div className="command-hero-mark"><Building2 size={42} /><span>Faaliyet alanı</span><b>{data.profile?.sector || "Henüz tanımlanmadı"}</b></div></section>
+    <section className="company-command-grid">
+      <button onClick={() => onNavigate("departments")}><Building2 size={22} /><span><b>Departman yapısı</b><small>Finans, operasyon, proje, insan ve yönetim kademeleri</small></span><ArrowRight size={17} /></button>
+      <button onClick={() => onNavigate("projects")}><BriefcaseBusiness size={22} /><span><b>Proje portföyü</b><small>{projects.length} proje · {activeProjects} aktif çalışma</small></span><ArrowRight size={17} /></button>
+      <button onClick={() => onNavigate("financial")}><Landmark size={22} /><span><b>Finansal durum</b><small>Borç, ödeme, nakit ve dönemsel yönetim görünümü</small></span><ArrowRight size={17} /></button>
+      <button onClick={() => onNavigate("files")}><Files size={22} /><span><b>Kurumsal belgeler</b><small>Sözleşme, dekont, tablo ve proje dosyaları</small></span><ArrowRight size={17} /></button>
+    </section>
+    <section className="company-activity-board"><div><span>SON FAALİYETLER</span><h3>Çalışma alanındaki güncel hareketler</h3></div><div>{data.activity.length ? data.activity.slice(0, 5).map((item) => <article key={item.id}><i /><span><b>{item.details || "Çalışma alanında işlem yapıldı"}</b><small>{new Date(item.created_at).toLocaleString("tr-TR")}</small></span></article>) : <p>Henüz faaliyet kaydı bulunmuyor.</p>}</div></section>
+  </>;
+}
+
+const departmentCatalog = [
+  { name: "Yönetim ve strateji", icon: Gauge, description: "Hedefler, yönetim kararları, performans göstergeleri ve şirket genelindeki öncelikler.", roles: ["Firma sahibi / üst yönetim", "Yönetim asistanı", "Strateji ve raporlama"] },
+  { name: "Finans ve mali işler", icon: Landmark, description: "Nakit planlama, bütçe, borç ve alacak takibi, iç finansal kontrol ve mali müşavir koordinasyonu.", roles: ["Finans yöneticisi", "Ön muhasebe", "Bütçe ve raporlama"] },
+  { name: "Proje ve mühendislik", icon: BriefcaseBusiness, description: "Proje kapsamı, görevler, kilometre taşları, teknik dokümanlar, kaynak ve ilerleme takibi.", roles: ["Proje yöneticisi", "Mühendis / uzman", "Saha ve teknik ekip"] },
+  { name: "Operasyon ve satın alma", icon: Workflow, description: "Günlük iş akışları, tedarikçi ilişkileri, talepler, satın alma ve teslimat koordinasyonu.", roles: ["Operasyon sorumlusu", "Satın alma", "Tedarik ve lojistik"] },
+  { name: "İnsan ve organizasyon", icon: Users, description: "Çalışan kayıtları, rol ve yetki tanımları, işe alım, izin ve gelişim süreçleri.", roles: ["İnsan kaynakları", "Birim yöneticisi", "Çalışan deneyimi"] },
+  { name: "Satış ve müşteri ilişkileri", icon: UserPlus, description: "Fırsat, teklif, müşteri iletişimi, sözleşme başlangıcı ve satış sonrası takip.", roles: ["Satış yöneticisi", "Müşteri temsilcisi", "Teklif ve sözleşme"] },
+];
+
+function DepartmentsView({ onNavigate }: { onNavigate: (page: string) => void }) {
+  return <section className="department-grid">{departmentCatalog.map(({ name, icon: Icon, description, roles }) => <article key={name}><div><Icon size={23} /><span>DEPARTMAN</span></div><h3>{name}</h3><p>{description}</p><ul>{roles.map((role) => <li key={role}><Check size={13} />{role}</li>)}</ul>{name === "Finans ve mali işler" && <button type="button" onClick={() => onNavigate("financial")}>Finans çalışma alanını aç <ArrowRight size={15} /></button>}{name === "Proje ve mühendislik" && <button type="button" onClick={() => onNavigate("projects")}>Proje portföyünü aç <ArrowRight size={15} /></button>}</article>)}</section>;
+}
+
+function ProjectsView({ projects, onAdd }: { projects: Project[]; onAdd: () => void }) {
+  const statusLabel = { planning: "Planlama", active: "Devam ediyor", on_hold: "Beklemede", completed: "Tamamlandı" };
+  return <section className="projects-workspace"><div className="project-portfolio-head"><div><span>PROJE PORTFÖYÜ</span><h2>Çalışmaları görünür ve sorumlu hâle getirin.</h2><p>Her proje için kapsam, departman, sorumlu, hedef tarih, bütçe ve ilerleme bilgisi aynı yerde tutulur.</p></div><button className="panel-primary" onClick={onAdd}><Plus size={17} /> Proje oluştur</button></div>{projects.length ? <div className="project-card-grid">{projects.map((project) => <article key={project.id}><div className="project-card-top"><span>{project.department}</span><em className={project.status}>{statusLabel[project.status]}</em></div><h3>{project.name}</h3><p>{project.description || "Proje açıklaması henüz eklenmedi."}</p><div className="project-progress"><span><b>İlerleme</b><em>%{project.progress}</em></span><i><b style={{ width: `${project.progress}%` }} /></i></div><dl><div><dt>Sorumlu</dt><dd>{project.owner_name || "Atanmadı"}</dd></div><div><dt>Hedef tarih</dt><dd>{project.target_date || "Belirlenmedi"}</dd></div><div><dt>Bütçe</dt><dd>{project.budget ? formatMoney(project.budget) : "Belirlenmedi"}</dd></div></dl></article>)}</div> : <div className="project-empty"><BriefcaseBusiness size={34} /><h3>İlk projenizi oluşturun</h3><p>Şirket içi çalışma, müşteri işi, mühendislik geliştirmesi veya yatırım projesi ekleyebilirsiniz.</p><button className="panel-primary" onClick={onAdd}><Plus size={17} /> Yeni proje</button></div>}</section>;
+}
+
+function FinancialOverview({ data, latest, previous, debtChange, payments, canManage, onDelete, onNavigate }: { data: DashboardData; latest: Summary; previous?: Summary; debtChange: number; payments: Payment[]; canManage: boolean; onDelete: (id: string) => void; onNavigate: (page: string) => void }) {
   const utilization = latest.total_limit ? (latest.total_debt / latest.total_limit) * 100 : 0;
   const cards = [
     { label: "Toplam borç", value: shortMoney(latest.total_debt), change: debtChange, note: "Önceki döneme göre", icon: CircleDollarSign, tone: "blue", target: "payments" },
@@ -448,7 +493,7 @@ function UsersView({ onAdd }: { onAdd: () => void }) { return <section className
 
 function EmptyState({ icon: Icon, title, text }: { icon: typeof Files; title: string; text: string }) { return <div className="empty-state"><Icon size={26} /><b>{title}</b><p>{text}</p></div>; }
 
-type ModalType = "payment" | "expense" | "user" | "balance" | "manualDebt" | "rates" | "password" | "company";
+type ModalType = "payment" | "expense" | "user" | "balance" | "manualDebt" | "rates" | "password" | "company" | "project";
 
 function EntryModal({ type, latestPeriod, treasury, profile, organizationId, close, complete, setError }: { type: ModalType; latestPeriod: string; treasury: TreasuryData | null; profile: CompanyProfile; organizationId: string; close: () => void; complete: (text: string) => Promise<void>; setError: (text: string) => void }) {
   const [saving, setSaving] = useState(false);
@@ -458,7 +503,7 @@ function EntryModal({ type, latestPeriod, treasury, profile, organizationId, clo
     if (type === "password" && payload.newPassword !== payload.confirmPassword) {
       setSaving(false); setError("Yeni parolalar birbiriyle aynı olmalıdır."); return;
     }
-    const endpoint = type === "payment" ? "/api/payments" : type === "expense" ? "/api/expenses" : type === "user" ? "/api/users" : type === "password" ? "/api/auth/password" : type === "company" ? "/api/organization" : "/api/treasury";
+    const endpoint = type === "project" ? "/api/projects" : type === "payment" ? "/api/payments" : type === "expense" ? "/api/expenses" : type === "user" ? "/api/users" : type === "password" ? "/api/auth/password" : type === "company" ? "/api/organization" : "/api/treasury";
     if (type === "balance") payload.action = "balance";
     if (type === "manualDebt") payload.action = "debt";
     if (type === "rates") payload.action = "rates";
@@ -466,7 +511,7 @@ function EntryModal({ type, latestPeriod, treasury, profile, organizationId, clo
     const result = await response.json() as { error?: string };
     setSaving(false);
     if (!response.ok) { setError(result.error ?? "Kayıt eklenemedi."); close(); return; }
-    await complete(type === "user" ? "Kullanıcı oluşturuldu." : type === "rates" ? "Altın referans fiyatları güncellendi." : type === "password" ? "Parolanız güvenle değiştirildi." : type === "company" ? "Firma bilgileri güncellendi." : "Kayıt doğrudan sisteme eklendi.");
+    await complete(type === "project" ? "Proje çalışma alanına eklendi." : type === "user" ? "Kullanıcı oluşturuldu." : type === "rates" ? "Altın referans fiyatları güncellendi." : type === "password" ? "Parolanız güvenle değiştirildi." : type === "company" ? "Firma bilgileri güncellendi." : "Kayıt doğrudan sisteme eklendi.");
   }
   const headings: Record<ModalType, [string, string]> = {
     payment: ["FİNANS KAYDI", "Yeni ödeme veya borç"], expense: ["GİDER KAYDI", "Yeni gider"],
@@ -474,9 +519,12 @@ function EntryModal({ type, latestPeriod, treasury, profile, organizationId, clo
     manualDebt: ["ELDEN BORÇ", "Elden alınan borç ekle"], rates: ["REFERANS FİYAT", "Altın TL karşılıklarını güncelle"],
     password: ["HESAP GÜVENLİĞİ", "Parolanızı değiştirin"],
     company: ["KURUMSAL PROFİL", "Firma bilgilerini düzenleyin"],
+    project: ["PROJE PORTFÖYÜ", "Yeni proje oluşturun"],
   };
-  return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && close()}><form className="entry-modal" onSubmit={submit}><div className="modal-head"><div><span>{headings[type][0]}</span><h2>{headings[type][1]}</h2></div><button type="button" onClick={close} aria-label="Pencereyi kapat"><X size={19} /></button></div>{type === "payment" && <PaymentFields period={latestPeriod} />}{type === "expense" && <ExpenseFields period={latestPeriod} />}{type === "user" && <UserFields />}{type === "balance" && <BalanceFields />}{type === "manualDebt" && <ManualDebtFields />}{type === "rates" && <RateFields references={treasury?.references ?? {}} />}{type === "password" && <PasswordFields />}{type === "company" && <CompanyFields profile={profile} />}<div className="modal-actions"><button className="outline-button" type="button" onClick={close}>Vazgeç</button><button className="panel-primary" disabled={saving}>{saving ? "Kaydediliyor..." : type === "password" ? "Parolayı değiştir" : "Kaydı tamamla"}</button></div></form></div>;
+  return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && close()}><form className="entry-modal" onSubmit={submit}><div className="modal-head"><div><span>{headings[type][0]}</span><h2>{headings[type][1]}</h2></div><button type="button" onClick={close} aria-label="Pencereyi kapat"><X size={19} /></button></div>{type === "payment" && <PaymentFields period={latestPeriod} />}{type === "expense" && <ExpenseFields period={latestPeriod} />}{type === "user" && <UserFields />}{type === "balance" && <BalanceFields />}{type === "manualDebt" && <ManualDebtFields />}{type === "rates" && <RateFields references={treasury?.references ?? {}} />}{type === "password" && <PasswordFields />}{type === "company" && <CompanyFields profile={profile} />}{type === "project" && <ProjectFields />}<div className="modal-actions"><button className="outline-button" type="button" onClick={close}>Vazgeç</button><button className="panel-primary" disabled={saving}>{saving ? "Kaydediliyor..." : type === "password" ? "Parolayı değiştir" : "Kaydı tamamla"}</button></div></form></div>;
 }
+
+function ProjectFields() { return <div className="form-grid"><label className="full"><span>Proje adı</span><input name="name" placeholder="Örn. Üretim hattı veri izleme sistemi" required /></label><label><span>Proje kodu</span><input name="code" placeholder="Örn. PRJ-2026-01" /></label><label><span>Departman</span><select name="department" required><option>Proje ve mühendislik</option><option>Finans ve mali işler</option><option>Operasyon ve satın alma</option><option>Satış ve müşteri ilişkileri</option><option>İnsan ve organizasyon</option><option>Yönetim ve strateji</option></select></label><label><span>Proje sorumlusu</span><input name="ownerName" placeholder="Ad soyad veya ekip" /></label><label><span>Durum</span><select name="status"><option value="planning">Planlama</option><option value="active">Devam ediyor</option><option value="on_hold">Beklemede</option><option value="completed">Tamamlandı</option></select></label><label><span>Öncelik</span><select name="priority"><option value="normal">Normal</option><option value="high">Yüksek</option><option value="critical">Kritik</option><option value="low">Düşük</option></select></label><label><span>Başlangıç tarihi</span><input name="startDate" type="date" /></label><label><span>Hedef tarih</span><input name="targetDate" type="date" /></label><label><span>Planlanan bütçe</span><div className="money-input"><input name="budget" type="number" min="0" step="0.01" /><em>₺</em></div></label><label><span>İlerleme (%)</span><input name="progress" type="number" min="0" max="100" defaultValue="0" /></label><label className="full"><span>Kapsam ve beklenen sonuç</span><textarea name="description" rows={4} placeholder="Projenin amacı, teslim edilecek işler ve başarı ölçütleri..." /></label></div>; }
 
 function PaymentFields({ period }: { period: string }) { return <div className="form-grid"><label><span>Dönem</span><input name="period" defaultValue={period} required /></label><label><span>Kişi / sorumlu</span><input name="ownerName" placeholder="Örn. Finans sorumlusu" required /></label><label><span>Banka</span><input name="bankName" placeholder="Örn. Garanti" required /></label><label><span>Hesap veya kart adı</span><input name="accountName" placeholder="Örn. Kredi kartı" required /></label><MoneyInput name="totalLimit" label="Toplam limit" /><MoneyInput name="totalDebt" label="Toplam borç" /><MoneyInput name="restructuring" label="Yapılandırma" /><MoneyInput name="monthlyPayment" label="Aylık ödeme" /><MoneyInput name="nextInstallment" label="Gelecek dönem taksit" /><MoneyInput name="overdraftDebt" label="KMH borcu" /><MoneyInput name="overdraftLimit" label="KMH limiti" /><MoneyInput name="minimumPayment" label="Asgari ödeme" /><label><span>Son ödeme tarihi</span><input type="date" name="dueDate" /></label><label className="full"><span>Önemli not</span><textarea name="importantNote" rows={3} placeholder="Gecikme, ödeme planı veya takip notu..." /></label></div>; }
 function MoneyInput({ name, label }: { name: string; label: string }) { return <label><span>{label}</span><div className="money-input"><input name={name} type="number" min="0" step="0.01" placeholder="0" /><em>₺</em></div></label>; }
