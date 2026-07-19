@@ -290,7 +290,7 @@ export default function Dashboard() {
       <main className="dashboard-main">
         <header className="dashboard-topbar">
           <button type="button" className="mobile-menu" onClick={() => setMobileNav(true)} aria-label="Menüyü aç"><Menu size={21} /></button>
-          <div className="topbar-search"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Banka, kişi veya not ara..." /></div>
+          <div className="topbar-search"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Kayıt ara..." /></div>
           <div className="topbar-actions" ref={topbarActionsRef}>
             <button type="button" className={topbarPanel === "notifications" ? "active" : ""} title="Bildirimler" aria-label="Bildirimleri aç" aria-expanded={topbarPanel === "notifications"} onClick={toggleNotifications}><Bell size={19} />{notificationUnread && <i />}</button>
             <button type="button" className={topbarPanel === "settings" ? "active" : ""} title="Ayarlar" aria-label="Ayarları aç" aria-expanded={topbarPanel === "settings"} onClick={() => setTopbarPanel((value) => value === "settings" ? null : "settings")}><Settings size={19} /></button>
@@ -366,13 +366,13 @@ function PageHeader({ active, period, organization, onNew, onImport, canAdd }: {
 function CompanyHome({ data, projects, onNavigate }: { data: DashboardData; projects: Project[]; onNavigate: (page: string) => void }) {
   const activeProjects = projects.filter((item) => item.status === "active").length;
   return <>
-    <section className="company-command-hero"><div><span>KURUMSAL ÇALIŞMA ALANI</span><h2>{data.profile?.legal_name || data.organization.name}</h2><p>{data.profile?.about || "Şirket profilinizi tamamlayarak ekibinize ortak ve güvenilir bir çalışma alanı oluşturun."}</p><button type="button" onClick={() => onNavigate("company")}>Kurumsal profili incele <ArrowRight size={16} /></button></div><div className="command-hero-mark"><Building2 size={42} /><span>Faaliyet alanı</span><b>{data.profile?.sector || "Henüz tanımlanmadı"}</b></div></section>
+    <section className="company-command-hero"><div><span>KURUMSAL ÇALIŞMA ALANI</span><h2>{data.profile?.legal_name || data.organization.name}</h2><p>{data.profile?.about || "Firmanızın temel bilgilerini, projelerini ve günlük çalışmalarını burada bir arada tutun."}</p><button type="button" onClick={() => onNavigate("company")}>Firma bilgilerini aç <ArrowRight size={16} /></button></div><div className="command-hero-mark"><Building2 size={42} /><span>Faaliyet alanı</span><b>{data.profile?.sector || "Henüz eklenmedi"}</b></div></section>
     <section className="company-command-grid">
-      <button onClick={() => onNavigate("departments")}><Building2 size={22} /><span><b>Departman yapısı</b><small>Finans, operasyon, proje, insan ve yönetim kademeleri</small></span><ArrowRight size={17} /></button>
+      <button onClick={() => onNavigate("departments")}><Building2 size={22} /><span><b>Departmanlar</b><small>Şirket birimleri ve görev alanları</small></span><ArrowRight size={17} /></button>
       <button onClick={() => onNavigate("projects")}><BriefcaseBusiness size={22} /><span><b>Proje portföyü</b><small>{projects.length} proje · {activeProjects} aktif çalışma</small></span><ArrowRight size={17} /></button>
-      <button onClick={() => onNavigate("financial")}><Landmark size={22} /><span><b>Finansal durum</b><small>Borç, ödeme, nakit ve dönemsel yönetim görünümü</small></span><ArrowRight size={17} /></button>
+      <button onClick={() => onNavigate("financial")}><Landmark size={22} /><span><b>Finansal durum</b><small>Borç, ödeme ve nakit özeti</small></span><ArrowRight size={17} /></button>
       <button onClick={() => onNavigate("files")}><Files size={22} /><span><b>Kurumsal belgeler</b><small>Sözleşme, dekont, tablo ve proje dosyaları</small></span><ArrowRight size={17} /></button>
-      <button onClick={() => onNavigate("agents")}><Bot size={22} /><span><b>Yapay zekâ ekibi</b><small>Departman görevlerine göre kontrollü ajan profilleri</small></span><ArrowRight size={17} /></button>
+      <button onClick={() => onNavigate("agents")}><Bot size={22} /><span><b>Akıllı asistanlar</b><small>Onayınızla çalışan görev yardımcıları</small></span><ArrowRight size={17} /></button>
     </section>
     <section className="company-activity-board"><div><span>SON FAALİYETLER</span><h3>Çalışma alanındaki güncel hareketler</h3></div><div>{data.activity.length ? data.activity.slice(0, 5).map((item) => <article key={item.id}><i /><span><b>{item.details || "Çalışma alanında işlem yapıldı"}</b><small>{new Date(item.created_at).toLocaleString("tr-TR")}</small></span></article>) : <p>Henüz faaliyet kaydı bulunmuyor.</p>}</div></section>
   </>;
