@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
-  AlertTriangle, ArrowDownRight, ArrowRight, ArrowUpRight, Banknote, BarChart3, Bell, BriefcaseBusiness, Building2, Check,
+  AlertTriangle, ArrowDownRight, ArrowRight, ArrowUpRight, Banknote, BarChart3, Bell, Bot, BriefcaseBusiness, Building2, Check,
   CircleDollarSign, Coins, CreditCard, Database, Download, FileSpreadsheet, Files,
   Gauge, HandCoins, Landmark, LayoutDashboard, LogOut, Menu, MoreHorizontal, Plus, Search,
   Settings, ShieldCheck, Trash2, Upload, UserPlus, Users, WalletCards, Workflow, X,
@@ -42,6 +42,7 @@ const navItems = [
   { id: "overview", label: "Şirket merkezi", icon: LayoutDashboard },
   { id: "departments", label: "Departmanlar", icon: Building2 },
   { id: "projects", label: "Projeler", icon: BriefcaseBusiness },
+  { id: "agents", label: "Yapay zekâ ekibi", icon: Bot },
   { id: "financial", label: "Finansal durum", icon: Landmark },
   { id: "payments", label: "Ödemeler ve borçlar", icon: CreditCard },
   { id: "expenses", label: "Gelir ve giderler", icon: WalletCards },
@@ -321,6 +322,7 @@ export default function Dashboard() {
           {active === "overview" && <CompanyHome data={data} projects={projects} onNavigate={setActive} />}
           {active === "departments" && <DepartmentsView onNavigate={setActive} />}
           {active === "projects" && <ProjectsView projects={projects} onAdd={() => setModal("project")} />}
+          {active === "agents" && <AgentWorkforceView onNavigate={setActive} />}
           {active === "financial" && <FinancialOverview data={data} latest={latest} previous={previous} debtChange={debtChange} payments={filteredPayments} canManage={canManage} onDelete={remove} onNavigate={setActive} />}
           {active === "payments" && <PaymentsView payments={filteredPayments} isAdmin={canManage} onDelete={remove} />}
           {active === "expenses" && <ExpensesView expenses={data.expenses} latest={latest} />}
@@ -347,6 +349,7 @@ function PageHeader({ active, period, organization, onNew, onImport, canAdd }: {
     overview: ["Şirket merkezi", "Kurumunuzun profili, departmanları, projeleri ve son faaliyetleri tek bakışta görün."],
     departments: ["Departmanlar", "Sorumluluk alanlarını ve günlük çalışma akışlarını düzenli bir kurum yapısında inceleyin."],
     projects: ["Proje portföyü", "Planlanan ve devam eden çalışmaları sorumlu, bütçe, tarih ve ilerleme bilgisiyle yönetin."],
+    agents: ["Yapay zekâ ekibi", "Departman görevlerine göre yapılandırılabilen kontrollü ajan prototiplerini inceleyin."],
     financial: ["Finansal durum", "Borç, ödeme, limit ve dönemsel değişimleri ayrı finans çalışma alanında değerlendirin."],
     payments: ["Ödemeler ve borçlar", "Kart, yapılandırma, KMH ve ödeme planlarını yönetin."],
     expenses: ["Gelir ve giderler", "Dönemsel giderleri sade biçimde kaydedin ve izleyin."],
@@ -369,6 +372,7 @@ function CompanyHome({ data, projects, onNavigate }: { data: DashboardData; proj
       <button onClick={() => onNavigate("projects")}><BriefcaseBusiness size={22} /><span><b>Proje portföyü</b><small>{projects.length} proje · {activeProjects} aktif çalışma</small></span><ArrowRight size={17} /></button>
       <button onClick={() => onNavigate("financial")}><Landmark size={22} /><span><b>Finansal durum</b><small>Borç, ödeme, nakit ve dönemsel yönetim görünümü</small></span><ArrowRight size={17} /></button>
       <button onClick={() => onNavigate("files")}><Files size={22} /><span><b>Kurumsal belgeler</b><small>Sözleşme, dekont, tablo ve proje dosyaları</small></span><ArrowRight size={17} /></button>
+      <button onClick={() => onNavigate("agents")}><Bot size={22} /><span><b>Yapay zekâ ekibi</b><small>Departman görevlerine göre kontrollü ajan profilleri</small></span><ArrowRight size={17} /></button>
     </section>
     <section className="company-activity-board"><div><span>SON FAALİYETLER</span><h3>Çalışma alanındaki güncel hareketler</h3></div><div>{data.activity.length ? data.activity.slice(0, 5).map((item) => <article key={item.id}><i /><span><b>{item.details || "Çalışma alanında işlem yapıldı"}</b><small>{new Date(item.created_at).toLocaleString("tr-TR")}</small></span></article>) : <p>Henüz faaliyet kaydı bulunmuyor.</p>}</div></section>
   </>;
@@ -390,6 +394,17 @@ function DepartmentsView({ onNavigate }: { onNavigate: (page: string) => void })
 function ProjectsView({ projects, onAdd }: { projects: Project[]; onAdd: () => void }) {
   const statusLabel = { planning: "Planlama", active: "Devam ediyor", on_hold: "Beklemede", completed: "Tamamlandı" };
   return <section className="projects-workspace"><div className="project-portfolio-head"><div><span>PROJE PORTFÖYÜ</span><h2>Çalışmaları görünür ve sorumlu hâle getirin.</h2><p>Her proje için kapsam, departman, sorumlu, hedef tarih, bütçe ve ilerleme bilgisi aynı yerde tutulur.</p></div><button className="panel-primary" onClick={onAdd}><Plus size={17} /> Proje oluştur</button></div>{projects.length ? <div className="project-card-grid">{projects.map((project) => <article key={project.id}><div className="project-card-top"><span>{project.department}</span><em className={project.status}>{statusLabel[project.status]}</em></div><h3>{project.name}</h3><p>{project.description || "Proje açıklaması henüz eklenmedi."}</p><div className="project-progress"><span><b>İlerleme</b><em>%{project.progress}</em></span><i><b style={{ width: `${project.progress}%` }} /></i></div><dl><div><dt>Sorumlu</dt><dd>{project.owner_name || "Atanmadı"}</dd></div><div><dt>Hedef tarih</dt><dd>{project.target_date || "Belirlenmedi"}</dd></div><div><dt>Bütçe</dt><dd>{project.budget ? formatMoney(project.budget) : "Belirlenmedi"}</dd></div></dl></article>)}</div> : <div className="project-empty"><BriefcaseBusiness size={34} /><h3>İlk projenizi oluşturun</h3><p>Şirket içi çalışma, müşteri işi, mühendislik geliştirmesi veya yatırım projesi ekleyebilirsiniz.</p><button className="panel-primary" onClick={onAdd}><Plus size={17} /> Yeni proje</button></div>}</section>;
+}
+
+const agentCatalog = [
+  { name: "Finans Kontrol Ajanı", department: "Finans ve mali işler", task: "Vade yaklaşan kayıtları özetler, dövizli borçların TL etkisini açıklar ve tutarsızlıkları incelemeye sunar.", boundary: "Ödeme yapamaz, kaydı silemez; finans sorumlusunun onayı olmadan kritik işlem başlatamaz.", target: "financial" },
+  { name: "Proje Koordinasyon Ajanı", department: "Proje ve mühendislik", task: "Hedef tarihleri, ilerleme oranlarını ve eksik sorumlu alanlarını izler; haftalık proje özeti hazırlar.", boundary: "Proje kapsamını veya bütçesini kendi başına değiştiremez.", target: "projects" },
+  { name: "Operasyon Takip Ajanı", department: "Operasyon ve satın alma", task: "Tekrarlanan talepleri sınıflandırır, geciken işleri işaretler ve sorumlu ekip için takip listesi oluşturur.", boundary: "Sipariş veremez veya tedarikçi adına taahhütte bulunamaz.", target: "departments" },
+  { name: "Yönetim Raporlama Ajanı", department: "Yönetim ve strateji", task: "Departmanlardan gelen doğrulanmış bilgileri sade bir yönetim notunda birleştirir ve karar bekleyen konuları ayırır.", boundary: "Nihai karar vermez; yalnızca kaynak gösteren bir taslak hazırlar.", target: "overview" },
+];
+
+function AgentWorkforceView({ onNavigate }: { onNavigate: (page: string) => void }) {
+  return <section className="agent-workforce"><div className="agent-prototype-banner"><div><Bot size={30} /><span>PROTOTİP MODU</span></div><h2>Her departman için aynı botu değil, o işin sınırlarını bilen bir çalışma profili tasarlıyoruz.</h2><p>Bu ekranda ajanların görev tanımları ve yetki sınırları gösterilir. Gerçek OpenAI bağlantısı ancak firma yetkilisi hizmeti etkinleştirdiğinde, kullanım bütçesini onayladığında ve veri işleme koşullarını kabul ettiğinde açılır.</p><a href="/yapay-zeka-hizmeti" target="_blank" rel="noreferrer">Hizmet ve fiyatlandırma modelini incele <ArrowRight size={16} /></a></div><div className="agent-card-grid">{agentCatalog.map((agent) => <article key={agent.name}><div className="agent-avatar"><Bot size={22} /></div><span>{agent.department}</span><h3>{agent.name}</h3><b>Görevi</b><p>{agent.task}</p><b>Yetki sınırı</b><p>{agent.boundary}</p><div><em>İnsan onayı zorunlu</em><button type="button" onClick={() => onNavigate(agent.target)}>Departmanı aç <ArrowRight size={14} /></button></div></article>)}</div><div className="agent-commercial-note"><ShieldCheck size={22} /><div><b>Şeffaf ücret ve kontrollü veri kullanımı</b><p>Toplam bedel; Teksanor platform hizmeti, ajan kurulum/yönetim hizmeti, onaylanan OpenAI API kullanımı ve vergilerden oluşur. Satın alma öncesinde toplam ücret gösterilir; gizli komisyon veya habersiz kullanım yapılmaz.</p></div></div></section>;
 }
 
 function FinancialOverview({ data, latest, previous, debtChange, payments, canManage, onDelete, onNavigate }: { data: DashboardData; latest: Summary; previous?: Summary; debtChange: number; payments: Payment[]; canManage: boolean; onDelete: (id: string) => void; onNavigate: (page: string) => void }) {
