@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import PublicMarket from "@/components/PublicMarket";
 import {
   ArrowRight,
   BarChart3,
@@ -69,9 +70,9 @@ export default function Home() {
           <img src="/assets/teksanor-logo.png" alt="Teksanor" className="header-logo" />
         </Link>
         <nav className="desktop-nav" aria-label="Ana menü">
-          <Link href="/cozumler">Çözümler</Link>
-          <Link href="/muhendislik">Mühendislik</Link>
-          <Link href="/yapay-zeka">Yapay Zekâ</Link>
+          <Link href="#cozumler">Çözümler</Link>
+          <Link href="#yaklasim">Mühendislik</Link>
+          <Link href="#icgoruler">Yapay Zekâ</Link>
           <Link href="/hakkimizda">Hakkımızda</Link>
         </nav>
         <Link className="login-link" href={authenticated ? "/panel" : "/giris"}>
@@ -190,7 +191,9 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="insights-section">
+      <PublicMarket />
+
+      <section className="insights-section" id="icgoruler">
         <div className="insights-preview">
           <span className="section-kicker">Teksanor içgörüleri</span>
           <h2>Teknolojiyi değil, dönüşen işi anlatıyoruz.</h2>
