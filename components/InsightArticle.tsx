@@ -1,5 +1,9 @@
-import Link from "next/link";
+import type { AnchorHTMLAttributes } from "react";
 import { ArrowLeft, ArrowRight, Clock3, ShieldCheck } from "lucide-react";
+
+function Link({ href, ...props }: AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) {
+  return <a href={href} {...props} />;
+}
 
 type Section = { title: string; paragraphs: string[] };
 type Article = {
