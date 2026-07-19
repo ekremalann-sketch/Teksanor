@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
-  AlertTriangle, ArrowDownRight, ArrowRight, ArrowUpRight, Banknote, BarChart3, Bell, Building2, Check,
-  CircleDollarSign, Coins, CreditCard, Database, Download, FileSpreadsheet, Files,
-  Gauge, HandCoins, LayoutDashboard, LogOut, Menu, MoreHorizontal, Plus, Search,
+  AlertTriangle, ArrowDownRight, ArrowRight, ArrowUpRight, Banknote, BarChart3, Bell, Briefcase, Building2, Check,
+  CircleDollarSign, ClipboardList, CreditCard, Database, Download, FileSpreadsheet, Files, FolderKanban,
+  Gauge, HandCoins, LayoutDashboard, LogOut, Menu, MoreHorizontal, Network, Plus, Search,
   Settings, ShieldCheck, Trash2, Upload, UserPlus, Users, WalletCards, X,
 } from "lucide-react";
 
@@ -29,6 +29,22 @@ type CompanyProfile = { legal_name?: string; tax_office?: string; tax_number?: s
 type DashboardData = { user: User; organization: Organization; organizations: Organization[]; profile: CompanyProfile; summaries: Summary[]; payments: Payment[]; expenses: Expense[]; attentionCount: number; activity: Activity[] };
 type CashBalance = { id: string; account_name: string; currency: string; amount: number; note?: string; rate_used: number; rate_ready: boolean; tl_equivalent: number };
 type ManualDebt = { id: string; lender_name: string; debt_type: string; currency: string; amount: number; due_date?: string; note?: string; status: string; rate_used: number; rate_ready: boolean; tl_equivalent: number };
+type Project = {
+  id: string; name: string; description: string | null; status: "planned" | "active" | "on_hold" | "completed" | "canceled";
+  owner_name: string | null; department_id: string | null; department_name: string | null;
+  budget: number; progress: number; start_date: string | null; due_date: string | null; created_at: string;
+};
+type Department = { id: string; name: string; description: string | null; lead_name: string | null; created_at: string };
+type Employee = {
+  id: string; department_id: string | null; department_name: string | null; full_name: string;
+  position_title: string | null; seniority: string; email: string | null; phone: string | null; status: string;
+};
+type WorkItem = {
+  id: string; department_id: string | null; department_name: string | null; employee_id: string | null; employee_name: string | null;
+  project_id: string | null; project_name: string | null; title: string; description: string | null;
+  priority: "low" | "normal" | "high" | "urgent"; status: "todo" | "in_progress" | "done" | "blocked"; due_date: string | null; created_at: string;
+};
+type OrgStructure = { departments: Department[]; employees: Employee[]; workItems: WorkItem[] };
 type TreasuryData = {
   fx: { TRY: number; USD: number; EUR: number; rates: Record<string, number>; sourceDate: string; sourceLabel: string; live: boolean };
   references: Record<string, number>;
@@ -39,9 +55,12 @@ type TreasuryData = {
 
 const navItems = [
   { id: "overview", label: "Genel görünüm", icon: LayoutDashboard },
+  { id: "finance", label: "Finansal durum", icon: Gauge },
   { id: "payments", label: "Ödemeler ve borçlar", icon: CreditCard },
   { id: "expenses", label: "Gelir ve giderler", icon: WalletCards },
   { id: "treasury", label: "Nakit ve elden borç", icon: HandCoins },
+  { id: "projects", label: "Projeler", icon: FolderKanban },
+  { id: "departments", label: "Departmanlar", icon: Network },
   { id: "reports", label: "Raporlar", icon: BarChart3 },
   { id: "files", label: "Belgeler", icon: Files },
   { id: "company", label: "Firma bilgileri", icon: Building2 },
@@ -59,12 +78,14 @@ export default function Dashboard() {
   const [organizationId, setOrganizationId] = useState("");
   const [treasury, setTreasury] = useState<TreasuryData | null>(null);
   const [files, setFiles] = useState<FileItem[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [structure, setStructure] = useState<OrgStructure>({ departments: [], employees: [], workItems: [] });
   const [active, setActive] = useState("overview");
   const [mobileNav, setMobileNav] = useState(false);
   const [topbarPanel, setTopbarPanel] = useState<"notifications" | "settings" | null>(null);
   const [notificationUnread, setNotificationUnread] = useState(false);
   const [search, setSearch] = useState("");
-  const [modal, setModal] = useState<"payment" | "expense" | "user" | "balance" | "manualDebt" | "rates" | "password" | "company" | null>(null);
+  const [modal, setModal] = useState<"payment" | "expense" | "user" | "balance" | "manualDebt" | "rates" | "password" | "company" | "project" | "department" | "employee" | "workItem" | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -89,6 +110,10 @@ export default function Dashboard() {
       if (treasuryResponse.ok) setTreasury(await treasuryResponse.json() as TreasuryData);
       const fileResponse = await fetch("/api/uploads", { cache: "no-store", headers: organizationHeaders });
       if (fileResponse.ok) setFiles(((await fileResponse.json()) as { files: FileItem[] }).files);
+      const projectResponse = await fetch("/api/projects", { cache: "no-store", headers: organizationHeaders });
+      if (projectResponse.ok) setProjects(((await projectResponse.json()) as { projects: Project[] }).projects);
+      const structureResponse = await fetch("/api/departments", { cache: "no-store", headers: organizationHeaders });
+      if (structureResponse.ok) setStructure(await structureResponse.json() as OrgStructure);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Bir hata oluştu.");
     } finally {
@@ -193,6 +218,22 @@ export default function Dashboard() {
     if (response.ok) { notify("Kayıt silindi."); await load(organizationId); }
   }
 
+  async function updateProject(id: string, patch: { status?: string; progress?: number }) {
+    const response = await fetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json", "X-Organization-Id": organizationId }, body: JSON.stringify(patch) });
+    if (response.ok) { notify("Proje güncellendi."); await load(organizationId); }
+  }
+
+  async function removeProject(id: string) {
+    if (!window.confirm("Bu projeyi kalıcı olarak silmek istediğinizden emin misiniz?")) return;
+    const response = await fetch(`/api/projects/${id}`, { method: "DELETE", headers: { "X-Organization-Id": organizationId } });
+    if (response.ok) { notify("Proje silindi."); await load(organizationId); }
+  }
+
+  async function updateWorkStatus(id: string, status: string) {
+    const response = await fetch("/api/departments", { method: "POST", headers: { "Content-Type": "application/json", "X-Organization-Id": organizationId }, body: JSON.stringify({ action: "workStatus", id, status }) });
+    if (response.ok) { notify("İş durumu güncellendi."); await load(organizationId); }
+  }
+
   async function importExcel(file: File) {
     setError("");
     try {
@@ -245,7 +286,7 @@ export default function Dashboard() {
   }
 
   if (loading && !data) return <LoadingScreen />;
-  if (!data || !latest) return <div className="fatal-state"><AlertTriangle /><h1>Panel açılamadı</h1><p>{error || "Lütfen daha sonra tekrar deneyin."}</p><button onClick={load}>Tekrar dene</button></div>;
+  if (!data || !latest) return <div className="fatal-state"><AlertTriangle /><h1>Panel açılamadı</h1><p>{error || "Lütfen daha sonra tekrar deneyin."}</p><button onClick={() => void load()}>Tekrar dene</button></div>;
 
   const canManage = data.user.role === "admin" || ["owner", "admin"].includes(data.organization.membership_role);
   const roleLabel = data.user.role === "admin"
@@ -308,13 +349,16 @@ export default function Dashboard() {
         <div className="dashboard-content">
           {error && <div className="panel-alert error"><AlertTriangle size={17} />{error}<button type="button" onClick={() => setError("")} aria-label="Uyarıyı kapat"><X size={16} /></button></div>}
           {message && <div className="panel-alert success"><Check size={17} />{message}</div>}
-          <PageHeader active={active} period={latest.period} organization={data.organization} onNew={() => setModal(active === "expenses" ? "expense" : "payment")} onImport={() => importRef.current?.click()} canAdd={["overview", "payments", "expenses"].includes(active)} />
+          <PageHeader active={active} period={latest.period} organization={data.organization} onNew={() => setModal(active === "expenses" ? "expense" : active === "projects" ? "project" : "payment")} onImport={() => importRef.current?.click()} canAdd={["finance", "payments", "expenses", "projects"].includes(active)} />
           <input ref={importRef} hidden type="file" accept=".xlsx,.xls,.csv" onChange={(event) => event.target.files?.[0] && void importExcel(event.target.files[0])} />
 
-          {active === "overview" && <Overview data={data} latest={latest} previous={previous} debtChange={debtChange} payments={filteredPayments} canManage={canManage} onDelete={remove} onNavigate={setActive} />}
+          {active === "overview" && <CompanyOverview data={data} projects={projects} structure={structure} onNavigate={setActive} />}
+          {active === "finance" && <Overview data={data} latest={latest} previous={previous} debtChange={debtChange} payments={filteredPayments} canManage={canManage} onDelete={remove} onNavigate={setActive} />}
           {active === "payments" && <PaymentsView payments={filteredPayments} isAdmin={canManage} onDelete={remove} />}
           {active === "expenses" && <ExpensesView expenses={data.expenses} latest={latest} />}
           {active === "treasury" && treasury && <TreasuryView data={treasury} onBalance={() => setModal("balance")} onDebt={() => setModal("manualDebt")} />}
+          {active === "projects" && <ProjectsView projects={projects} canManage={canManage} onAdd={() => setModal("project")} onUpdate={updateProject} onDelete={removeProject} />}
+          {active === "departments" && <DepartmentsView structure={structure} onAddDepartment={() => setModal("department")} onAddEmployee={() => setModal("employee")} onAddWork={() => setModal("workItem")} onWorkStatus={updateWorkStatus} />}
           {active === "reports" && <ReportsView summaries={data.summaries} />}
           {active === "files" && <FilesView files={files} organizationId={organizationId} onUpload={() => uploadRef.current?.click()} />}
           {active === "company" && <CompanyView organization={data.organization} profile={data.profile} canManage={canManage} onEdit={() => setModal("company")} />}
@@ -323,7 +367,7 @@ export default function Dashboard() {
         </div>
       </main>
 
-      {modal && <EntryModal type={modal} latestPeriod={latest.period} treasury={treasury} profile={data.profile} organizationId={organizationId} close={() => setModal(null)} complete={async (text) => { setModal(null); notify(text); await load(organizationId); }} setError={setError} />}
+      {modal && <EntryModal type={modal} latestPeriod={latest.period} treasury={treasury} profile={data.profile} organizationId={organizationId} structure={structure} projects={projects} close={() => setModal(null)} complete={async (text) => { setModal(null); notify(text); await load(organizationId); }} setError={setError} />}
     </div>
   );
 }
@@ -334,7 +378,10 @@ function LoadingScreen() {
 
 function PageHeader({ active, period, organization, onNew, onImport, canAdd }: { active: string; period: string; organization: Organization; onNew: () => void; onImport: () => void; canAdd: boolean }) {
   const titles: Record<string, [string, string]> = {
-    overview: ["Genel görünüm", "Finansal durumunuzu tek bakışta değerlendirin."],
+    overview: ["Genel görünüm", "Şirketinizi, ekiplerinizi ve projelerinizi tek bakışta değerlendirin."],
+    finance: ["Finansal durum", "Borç, ödeme ve limit göstergelerini bir arada inceleyin."],
+    projects: ["Projeler", "Şirket projelerini planlayın, ilerlemeyi ve durumu takip edin."],
+    departments: ["Departmanlar", "Ekipleri, kademeleri ve iş takibini tek ekrandan yönetin."],
     payments: ["Ödemeler ve borçlar", "Kart, yapılandırma, KMH ve ödeme planlarını yönetin."],
     expenses: ["Gelir ve giderler", "Dönemsel giderleri sade biçimde kaydedin ve izleyin."],
     treasury: ["Finansal analiz", "Eldeki nakdi, dövizleri, elden ve ziynet borçlarını TL karşılığıyla birlikte izleyin."],
@@ -344,7 +391,7 @@ function PageHeader({ active, period, organization, onNew, onImport, canAdd }: {
     users: ["Kullanıcı yönetimi", "Veri girecek kişileri oluşturun ve yetkilerini yönetin."],
   };
   const current = titles[active] ?? titles.overview;
-  return <><div className="organization-strip"><div><Building2 size={16} /><span><b>{organization.name}</b>{organization.kind === "business" ? "Firma çalışma alanı" : "Kişisel çalışma alanı"}</span></div><em className={`subscription-badge ${organization.subscription_status}`}>{organization.subscription_status === "trialing" ? "14 günlük deneme" : organization.subscription_status === "active" ? "Aktif" : "Ödeme bekleniyor"}</em></div><div className="panel-heading"><div><span className="breadcrumb">TEKSANOR / {organization.name.toLocaleUpperCase("tr-TR")} / {period.toLocaleUpperCase("tr-TR")}</span><h1>{current[0]}</h1><p>{current[1]}</p></div><div className="heading-actions">{["overview", "payments"].includes(active) && <button className="outline-button" onClick={onImport}><FileSpreadsheet size={17} /> Excel aktar</button>}{canAdd && <button className="panel-primary" onClick={onNew}><Plus size={17} /> Yeni kayıt</button>}</div></div></>;
+  return <><div className="organization-strip"><div><Building2 size={16} /><span><b>{organization.name}</b>{organization.kind === "business" ? "Firma çalışma alanı" : "Kişisel çalışma alanı"}</span></div><em className={`subscription-badge ${organization.subscription_status}`}>{organization.subscription_status === "trialing" ? "14 günlük deneme" : organization.subscription_status === "active" ? "Aktif" : "Ödeme bekleniyor"}</em></div><div className="panel-heading"><div><span className="breadcrumb">TEKSANOR / {organization.name.toLocaleUpperCase("tr-TR")} / {period.toLocaleUpperCase("tr-TR")}</span><h1>{current[0]}</h1><p>{current[1]}</p></div><div className="heading-actions">{["finance", "payments"].includes(active) && <button className="outline-button" onClick={onImport}><FileSpreadsheet size={17} /> Excel aktar</button>}{canAdd && <button className="panel-primary" onClick={onNew}><Plus size={17} /> {active === "projects" ? "Yeni proje" : "Yeni kayıt"}</button>}</div></div></>;
 }
 
 function Overview({ data, latest, previous, debtChange, payments, canManage, onDelete, onNavigate }: { data: DashboardData; latest: Summary; previous?: Summary; debtChange: number; payments: Payment[]; canManage: boolean; onDelete: (id: string) => void; onNavigate: (page: string) => void }) {
@@ -444,13 +491,95 @@ function CompanyView({ organization, profile, canManage, onEdit }: { organizatio
   return <section className="company-panel"><div className="company-profile-head"><div className="company-avatar"><Building2 size={30} /></div><div><span>{organization.kind === "business" ? "FİRMA PROFİLİ" : "BİREYSEL PROFİL"}</span><h2>{profile?.legal_name || organization.name}</h2><p>{profile?.about || "Profil bilgileri henüz tamamlanmadı."}</p></div>{canManage && <button className="panel-primary" onClick={onEdit}><Settings size={16} /> Bilgileri düzenle</button>}</div><div className="company-info-grid">{items.map(([label, value]) => <div key={label}><span>{label}</span><b>{value || "Henüz girilmedi"}</b></div>)}</div><div className="company-privacy"><ShieldCheck size={19} /><span><b>Şirkete özel kayıt</b>Bu bilgiler yalnızca bu çalışma alanına erişimi olan kişiler ve Teksanor platform yetkilileri tarafından görülebilir.</span></div></section>;
 }
 
+const projectStatusText: Record<Project["status"], string> = { planned: "Planlandı", active: "Devam ediyor", on_hold: "Beklemede", completed: "Tamamlandı", canceled: "İptal edildi" };
+const seniorityText: Record<string, string> = { stajyer: "Stajyer", "uzman-yardimcisi": "Uzman yardımcısı", uzman: "Uzman", "kidemli-uzman": "Kıdemli uzman", yonetici: "Yönetici", direktor: "Direktör" };
+const workStatusText: Record<WorkItem["status"], string> = { todo: "Yapılacak", in_progress: "Devam ediyor", done: "Tamamlandı", blocked: "Engellendi" };
+const priorityText: Record<WorkItem["priority"], string> = { low: "Düşük", normal: "Normal", high: "Yüksek", urgent: "Acil" };
+
+function CompanyOverview({ data, projects, structure, onNavigate }: { data: DashboardData; projects: Project[]; structure: OrgStructure; onNavigate: (page: string) => void }) {
+  const { organization, profile } = data;
+  const activeProjects = projects.filter((item) => item.status === "active").length;
+  const openWork = structure.workItems.filter((item) => item.status !== "done").length;
+  const infoItems = [
+    ["Faaliyet alanı", profile?.sector], ["Telefon", profile?.phone], ["E-posta", profile?.email],
+    ["İnternet sitesi", profile?.website], ["Adres", profile?.address],
+  ];
+  const stats = [
+    { label: "Proje", value: projects.length, note: `${activeProjects} aktif proje`, icon: FolderKanban, tone: "blue", target: "projects" },
+    { label: "Departman", value: structure.departments.length, note: "Organizasyon birimi", icon: Network, tone: "gold", target: "departments" },
+    { label: "Çalışan", value: structure.employees.length, note: "Kayıtlı ekip üyesi", icon: Users, tone: "violet", target: "departments" },
+    { label: "Açık iş", value: openWork, note: "Takipteki görev", icon: ClipboardList, tone: "green", target: "departments" },
+  ];
+  return <>
+    <section className="stat-grid">{stats.map(({ label, value, note, icon: Icon, tone, target }) => <button type="button" className="stat-card clickable" key={label} onClick={() => onNavigate(target)}><div className={`stat-icon ${tone}`}><Icon size={20} /></div><span className="card-menu-icon" aria-hidden="true"><ArrowRight size={18} /></span><span>{label}</span><strong>{number.format(value)}</strong><small className="positive"><em>{note}</em></small></button>)}</section>
+    <section className="overview-company-grid">
+      <article className="company-panel">
+        <div className="company-profile-head"><div className="company-avatar"><Building2 size={30} /></div><div><span>{organization.kind === "business" ? "FİRMA PROFİLİ" : "BİREYSEL PROFİL"}</span><h2>{profile?.legal_name || organization.name}</h2><p>{profile?.about || "Şirket tanıtımı henüz eklenmedi. Firma bilgileri sayfasından tamamlayabilirsiniz."}</p></div></div>
+        <div className="company-info-grid">{infoItems.map(([label, value]) => <div key={label}><span>{label}</span><b>{value || "Henüz girilmedi"}</b></div>)}</div>
+      </article>
+      <article className="chart-card">
+        <CardTitle title="Hızlı erişim" subtitle="Sık kullanılan bölümler" />
+        <div className="overview-quick-links">
+          <button type="button" className="overview-quick-link" onClick={() => onNavigate("projects")}><FolderKanban size={20} /><b>Projeler</b><small>Proje planlama ve ilerleme takibi</small></button>
+          <button type="button" className="overview-quick-link" onClick={() => onNavigate("departments")}><Network size={20} /><b>Departmanlar</b><small>Ekipler, kademeler ve iş takibi</small></button>
+          <button type="button" className="overview-quick-link" onClick={() => onNavigate("finance")}><Gauge size={20} /><b>Finansal durum</b><small>Borç ve ödeme göstergeleri</small></button>
+          <button type="button" className="overview-quick-link" onClick={() => onNavigate("company")}><Building2 size={20} /><b>Firma bilgileri</b><small>Kurumsal kimlik ve iletişim</small></button>
+        </div>
+      </article>
+    </section>
+    <section className="table-card"><div className="table-heading"><div><h3>Son hareketler</h3><p>Çalışma alanındaki güncel işlemler</p></div><span>{data.activity.length} kayıt</span></div><div className="responsive-table"><table><thead><tr><th>İşlem</th><th>Tarih</th></tr></thead><tbody>{data.activity.slice(0, 6).map((item) => <tr key={item.id}><td><b>{item.details || "Çalışma alanında işlem yapıldı"}</b></td><td>{new Date(item.created_at).toLocaleString("tr-TR")}</td></tr>)}</tbody></table></div></section>
+  </>;
+}
+
+function ProjectsView({ projects, canManage, onAdd, onUpdate, onDelete }: { projects: Project[]; canManage: boolean; onAdd: () => void; onUpdate: (id: string, patch: { status?: string; progress?: number }) => void; onDelete: (id: string) => void }) {
+  if (!projects.length) return <section className="files-panel"><EmptyState icon={FolderKanban} title="Henüz proje eklenmedi" text="Şirket projelerinizi ekleyerek durum ve ilerlemeyi buradan takip edebilirsiniz." /><div className="section-toolbar"><button className="panel-primary" onClick={onAdd}><Plus size={17} /> İlk projeyi ekle</button></div></section>;
+  return <section className="project-grid">{projects.map((project) => <article className="project-card" key={project.id}>
+    <div className="project-card-head"><h3>{project.name}</h3><span className={`project-status ${project.status}`}>{projectStatusText[project.status]}</span></div>
+    {project.description && <p>{project.description}</p>}
+    <div className="project-meta">{project.department_name && <span><Network size={12} /> {project.department_name}</span>}{project.owner_name && <span><Briefcase size={12} /> {project.owner_name}</span>}{project.budget > 0 && <span><CircleDollarSign size={12} /> {formatMoney(project.budget)}</span>}{project.due_date && <span>Bitiş: {new Date(project.due_date).toLocaleDateString("tr-TR")}</span>}</div>
+    <div className="project-progress"><div className="project-progress-track"><div className="project-progress-fill" style={{ width: `${project.progress}%` }} /></div><b>%{project.progress}</b></div>
+    {canManage && <div className="project-actions">
+      <select aria-label="Proje durumu" value={project.status} onChange={(event) => onUpdate(project.id, { status: event.target.value })}>{Object.entries(projectStatusText).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+      <select aria-label="İlerleme" value={String(project.progress)} onChange={(event) => onUpdate(project.id, { progress: Number(event.target.value) })}>{[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map((value) => <option key={value} value={value}>%{value}</option>)}</select>
+      <button type="button" className="danger" title="Projeyi sil" aria-label="Projeyi sil" onClick={() => onDelete(project.id)}><Trash2 size={15} /></button>
+    </div>}
+  </article>)}</section>;
+}
+
+function DepartmentsView({ structure, onAddDepartment, onAddEmployee, onAddWork, onWorkStatus }: { structure: OrgStructure; onAddDepartment: () => void; onAddEmployee: () => void; onAddWork: () => void; onWorkStatus: (id: string, status: string) => void }) {
+  const { departments, employees, workItems } = structure;
+  return <>
+    <div className="section-toolbar">
+      <button className="panel-primary" onClick={onAddDepartment}><Plus size={16} /> Yeni departman</button>
+      <button className="outline-button" onClick={onAddEmployee}><UserPlus size={16} /> Çalışan ekle</button>
+      <button className="outline-button" onClick={onAddWork}><ClipboardList size={16} /> İş oluştur</button>
+    </div>
+    {departments.length ? <section className="department-grid">{departments.map((department) => {
+      const staff = employees.filter((employee) => employee.department_id === department.id);
+      return <article className="department-card" key={department.id}>
+        <div className="department-card-head"><div><Network size={19} /></div><div><h3>{department.name}</h3><small>{staff.length} çalışan{department.lead_name ? ` · Yönetici: ${department.lead_name}` : ""}</small></div></div>
+        {department.description && <p>{department.description}</p>}
+        <div className="department-staff">{staff.length ? staff.map((employee) => <div className="department-staff-row" key={employee.id}><span>{employee.full_name.split(" ").map((part) => part[0]).join("").slice(0, 2).toLocaleUpperCase("tr-TR")}</span><div><b>{employee.full_name}</b><small>{employee.position_title || "Görev tanımı yok"} · {seniorityText[employee.seniority] ?? employee.seniority}</small></div></div>) : <span className="department-empty-note">Bu departmana henüz çalışan atanmadı.</span>}</div>
+      </article>;
+    })}</section> : <EmptyState icon={Network} title="Henüz departman eklenmedi" text="Departman oluşturup çalışanları kademeleriyle birlikte kaydedebilirsiniz." />}
+    {employees.some((employee) => !employee.department_id) && <section className="table-card"><div className="table-heading"><div><h3>Departmansız çalışanlar</h3><p>Henüz bir departmana atanmamış ekip üyeleri</p></div></div><div className="responsive-table"><table><thead><tr><th>Ad soyad</th><th>Görev</th><th>Kademe</th></tr></thead><tbody>{employees.filter((employee) => !employee.department_id).map((employee) => <tr key={employee.id}><td><b>{employee.full_name}</b></td><td>{employee.position_title || "-"}</td><td>{seniorityText[employee.seniority] ?? employee.seniority}</td></tr>)}</tbody></table></div></section>}
+    <section className="table-card"><div className="table-heading"><div><h3>İş takibi</h3><p>Departman ve çalışan bazında görev durumları</p></div><span>{workItems.length} iş</span></div><div className="responsive-table">{workItems.length ? <table><thead><tr><th>İş</th><th>Departman</th><th>Sorumlu</th><th>Proje</th><th>Öncelik</th><th>Termin</th><th>Durum</th></tr></thead><tbody>{workItems.map((item) => <tr key={item.id}>
+      <td><b>{item.title}</b>{item.description && <small style={{ display: "block", color: "#78899c" }}>{item.description}</small>}</td>
+      <td>{item.department_name || "-"}</td><td>{item.employee_name || "-"}</td><td>{item.project_name || "-"}</td>
+      <td><span className={`workitem-priority ${item.priority}`}>{priorityText[item.priority]}</span></td>
+      <td>{item.due_date ? new Date(item.due_date).toLocaleDateString("tr-TR") : "-"}</td>
+      <td><select className="workitem-status-select" aria-label="İş durumu" value={item.status} onChange={(event) => onWorkStatus(item.id, event.target.value)}>{Object.entries(workStatusText).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></td>
+    </tr>)}</tbody></table> : <EmptyState icon={ClipboardList} title="Henüz iş kaydı yok" text="İş oluşturarak departman ve çalışan bazında görev takibi yapabilirsiniz." />}</div></section>
+  </>;
+}
+
 function UsersView({ onAdd }: { onAdd: () => void }) { return <section className="users-panel"><div className="users-illustration"><Users size={34} /></div><h2>Ekibiniz için kontrollü erişim</h2><p>admin1, admin2 ve diğer kullanıcılar aynı kurumsal giriş ekranını kullanır; yetkiler arka planda uygulanır.</p><div className="role-grid"><div><ShieldCheck /><b>Yönetici</b><span>Tüm kayıtları görür, silebilir, altın referans fiyatlarını ve kullanıcıları yönetir.</span></div><div><Database /><b>Kullanıcı</b><span>Veri ve belge ekler; kayıtları ayrıca onay beklemeden doğrudan sisteme işlenir.</span></div></div><button className="panel-primary" onClick={onAdd}><UserPlus size={17} /> Kullanıcı oluştur</button></section>; }
 
 function EmptyState({ icon: Icon, title, text }: { icon: typeof Files; title: string; text: string }) { return <div className="empty-state"><Icon size={26} /><b>{title}</b><p>{text}</p></div>; }
 
-type ModalType = "payment" | "expense" | "user" | "balance" | "manualDebt" | "rates" | "password" | "company";
+type ModalType = "payment" | "expense" | "user" | "balance" | "manualDebt" | "rates" | "password" | "company" | "project" | "department" | "employee" | "workItem";
 
-function EntryModal({ type, latestPeriod, treasury, profile, organizationId, close, complete, setError }: { type: ModalType; latestPeriod: string; treasury: TreasuryData | null; profile: CompanyProfile; organizationId: string; close: () => void; complete: (text: string) => Promise<void>; setError: (text: string) => void }) {
+function EntryModal({ type, latestPeriod, treasury, profile, organizationId, structure, projects, close, complete, setError }: { type: ModalType; latestPeriod: string; treasury: TreasuryData | null; profile: CompanyProfile; organizationId: string; structure: OrgStructure; projects: Project[]; close: () => void; complete: (text: string) => Promise<void>; setError: (text: string) => void }) {
   const [saving, setSaving] = useState(false);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setSaving(true); setError("");
@@ -458,15 +587,16 @@ function EntryModal({ type, latestPeriod, treasury, profile, organizationId, clo
     if (type === "password" && payload.newPassword !== payload.confirmPassword) {
       setSaving(false); setError("Yeni parolalar birbiriyle aynı olmalıdır."); return;
     }
-    const endpoint = type === "payment" ? "/api/payments" : type === "expense" ? "/api/expenses" : type === "user" ? "/api/users" : type === "password" ? "/api/auth/password" : type === "company" ? "/api/organization" : "/api/treasury";
+    const endpoint = type === "payment" ? "/api/payments" : type === "expense" ? "/api/expenses" : type === "user" ? "/api/users" : type === "password" ? "/api/auth/password" : type === "company" ? "/api/organization" : type === "project" ? "/api/projects" : ["department", "employee", "workItem"].includes(type) ? "/api/departments" : "/api/treasury";
     if (type === "balance") payload.action = "balance";
     if (type === "manualDebt") payload.action = "debt";
     if (type === "rates") payload.action = "rates";
+    if (["department", "employee", "workItem"].includes(type)) payload.action = type;
     const response = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json", "X-Organization-Id": organizationId }, body: JSON.stringify(payload) });
     const result = await response.json() as { error?: string };
     setSaving(false);
     if (!response.ok) { setError(result.error ?? "Kayıt eklenemedi."); close(); return; }
-    await complete(type === "user" ? "Kullanıcı oluşturuldu." : type === "rates" ? "Altın referans fiyatları güncellendi." : type === "password" ? "Parolanız güvenle değiştirildi." : type === "company" ? "Firma bilgileri güncellendi." : "Kayıt doğrudan sisteme eklendi.");
+    await complete(type === "user" ? "Kullanıcı oluşturuldu." : type === "rates" ? "Altın referans fiyatları güncellendi." : type === "password" ? "Parolanız güvenle değiştirildi." : type === "company" ? "Firma bilgileri güncellendi." : type === "project" ? "Proje oluşturuldu." : type === "department" ? "Departman oluşturuldu." : type === "employee" ? "Çalışan kaydedildi." : type === "workItem" ? "İş kaydı oluşturuldu." : "Kayıt doğrudan sisteme eklendi.");
   }
   const headings: Record<ModalType, [string, string]> = {
     payment: ["FİNANS KAYDI", "Yeni ödeme veya borç"], expense: ["GİDER KAYDI", "Yeni gider"],
@@ -474,8 +604,10 @@ function EntryModal({ type, latestPeriod, treasury, profile, organizationId, clo
     manualDebt: ["ELDEN BORÇ", "Elden alınan borç ekle"], rates: ["REFERANS FİYAT", "Altın TL karşılıklarını güncelle"],
     password: ["HESAP GÜVENLİĞİ", "Parolanızı değiştirin"],
     company: ["KURUMSAL PROFİL", "Firma bilgilerini düzenleyin"],
+    project: ["PROJE", "Yeni proje oluştur"], department: ["DEPARTMAN", "Yeni departman oluştur"],
+    employee: ["ÇALIŞAN", "Yeni çalışan ekle"], workItem: ["İŞ TAKİBİ", "Yeni iş oluştur"],
   };
-  return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && close()}><form className="entry-modal" onSubmit={submit}><div className="modal-head"><div><span>{headings[type][0]}</span><h2>{headings[type][1]}</h2></div><button type="button" onClick={close} aria-label="Pencereyi kapat"><X size={19} /></button></div>{type === "payment" && <PaymentFields period={latestPeriod} />}{type === "expense" && <ExpenseFields period={latestPeriod} />}{type === "user" && <UserFields />}{type === "balance" && <BalanceFields />}{type === "manualDebt" && <ManualDebtFields />}{type === "rates" && <RateFields references={treasury?.references ?? {}} />}{type === "password" && <PasswordFields />}{type === "company" && <CompanyFields profile={profile} />}<div className="modal-actions"><button className="outline-button" type="button" onClick={close}>Vazgeç</button><button className="panel-primary" disabled={saving}>{saving ? "Kaydediliyor..." : type === "password" ? "Parolayı değiştir" : "Kaydı tamamla"}</button></div></form></div>;
+  return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && close()}><form className="entry-modal" onSubmit={submit}><div className="modal-head"><div><span>{headings[type][0]}</span><h2>{headings[type][1]}</h2></div><button type="button" onClick={close} aria-label="Pencereyi kapat"><X size={19} /></button></div>{type === "payment" && <PaymentFields period={latestPeriod} />}{type === "expense" && <ExpenseFields period={latestPeriod} />}{type === "user" && <UserFields />}{type === "balance" && <BalanceFields />}{type === "manualDebt" && <ManualDebtFields />}{type === "rates" && <RateFields references={treasury?.references ?? {}} />}{type === "password" && <PasswordFields />}{type === "company" && <CompanyFields profile={profile} />}{type === "project" && <ProjectFields departments={structure.departments} />}{type === "department" && <DepartmentFields />}{type === "employee" && <EmployeeFields departments={structure.departments} />}{type === "workItem" && <WorkItemFields departments={structure.departments} employees={structure.employees} projects={projects} />}<div className="modal-actions"><button className="outline-button" type="button" onClick={close}>Vazgeç</button><button className="panel-primary" disabled={saving}>{saving ? "Kaydediliyor..." : type === "password" ? "Parolayı değiştir" : "Kaydı tamamla"}</button></div></form></div>;
 }
 
 function PaymentFields({ period }: { period: string }) { return <div className="form-grid"><label><span>Dönem</span><input name="period" defaultValue={period} required /></label><label><span>Kişi / sorumlu</span><input name="ownerName" placeholder="Örn. Finans sorumlusu" required /></label><label><span>Banka</span><input name="bankName" placeholder="Örn. Garanti" required /></label><label><span>Hesap veya kart adı</span><input name="accountName" placeholder="Örn. Kredi kartı" required /></label><MoneyInput name="totalLimit" label="Toplam limit" /><MoneyInput name="totalDebt" label="Toplam borç" /><MoneyInput name="restructuring" label="Yapılandırma" /><MoneyInput name="monthlyPayment" label="Aylık ödeme" /><MoneyInput name="nextInstallment" label="Gelecek dönem taksit" /><MoneyInput name="overdraftDebt" label="KMH borcu" /><MoneyInput name="overdraftLimit" label="KMH limiti" /><MoneyInput name="minimumPayment" label="Asgari ödeme" /><label><span>Son ödeme tarihi</span><input type="date" name="dueDate" /></label><label className="full"><span>Önemli not</span><textarea name="importantNote" rows={3} placeholder="Gecikme, ödeme planı veya takip notu..." /></label></div>; }
@@ -488,3 +620,10 @@ function BalanceFields() { return <div className="form-grid"><label><span>Hesap 
 function ManualDebtFields() { return <div className="form-grid"><label><span>Borç alınan kişi / kurum</span><input name="lenderName" required /></label><label><span>Borç türü</span><select name="debtType"><option value="cash">Nakit / döviz</option><option value="gold">Altın / ziynet</option><option value="other">Diğer</option></select></label><label><span>Para veya altın birimi</span><select name="currency"><CurrencyOptions /></select></label><label><span>Miktar / adet</span><input name="amount" type="number" min="0.01" step="0.01" required /></label><label><span>Bu kayda özel TL birim fiyatı</span><input name="manualRate" type="number" min="0" step="0.0001" placeholder="Boşsa otomatik kur/referans" /></label><label><span>Vade</span><input name="dueDate" type="date" /></label><label className="full"><span>Not</span><textarea name="note" rows={3} placeholder="Borç açıklaması veya ödeme planı" /></label></div>; }
 function RateFields({ references }: { references: Record<string, number> }) { return <div className="form-grid">{[["gramGold", "GRAM_GOLD"], ["quarterGold", "QUARTER_GOLD"], ["halfGold", "HALF_GOLD"], ["fullGold", "FULL_GOLD"], ["republicGold", "REPUBLIC_GOLD"], ["ataGold", "ATA_GOLD"], ["bracelet22kGram", "BRACELET_22K_GRAM"]].map(([name, code]) => <label key={code}><span>{currencyLabels[code]} TL birim fiyatı</span><input name={name} type="number" min="0" step="0.01" defaultValue={references[code] || ""} placeholder="Güncel satış fiyatı" /></label>)}<div className="full form-help">Altın için tek ve resmî bir muhasebe kuru bulunmadığından, kullandığınız kuyumcu veya banka satış fiyatını referans olarak girin.</div></div>; }
 function CompanyFields({ profile }: { profile: CompanyProfile }) { return <div className="form-grid"><label className="full"><span>Ticari unvan</span><input name="legalName" defaultValue={profile?.legal_name ?? ""} /></label><label><span>Faaliyet alanı</span><input name="sector" defaultValue={profile?.sector ?? ""} placeholder="Örn. Mühendislik ve teknoloji" /></label><label><span>Vergi dairesi</span><input name="taxOffice" defaultValue={profile?.tax_office ?? ""} /></label><label><span>Vergi numarası</span><input name="taxNumber" defaultValue={profile?.tax_number ?? ""} inputMode="numeric" /></label><label><span>MERSİS numarası</span><input name="mersisNumber" defaultValue={profile?.mersis_number ?? ""} inputMode="numeric" /></label><label><span>Ticaret sicil numarası</span><input name="tradeRegistryNumber" defaultValue={profile?.trade_registry_number ?? ""} /></label><label><span>Telefon</span><input name="phone" defaultValue={profile?.phone ?? ""} type="tel" /></label><label><span>E-posta</span><input name="email" defaultValue={profile?.email ?? ""} type="email" /></label><label className="full"><span>İnternet sitesi</span><input name="website" defaultValue={profile?.website ?? ""} placeholder="https://..." /></label><label className="full"><span>Adres</span><textarea name="address" defaultValue={profile?.address ?? ""} rows={3} /></label><label className="full"><span>Kısa şirket tanıtımı</span><textarea name="about" defaultValue={profile?.about ?? ""} rows={4} placeholder="Şirketinizi sade ve gerçek bilgilerle tanıtın." /></label><div className="full form-help">Resmî kayıt yoksa vergi, MERSİS ve sicil alanlarını boş bırakabilirsiniz. Doğrulanmamış bilgi eklemeyin.</div></div>; }
+
+
+function DepartmentOptions({ departments }: { departments: Department[] }) { return <><option value="">Departman seçilmedi</option>{departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</>; }
+function ProjectFields({ departments }: { departments: Department[] }) { return <div className="form-grid"><label className="full"><span>Proje adı</span><input name="name" placeholder="Örn. Fabrika otomasyon projesi" required /></label><label><span>Durum</span><select name="status" defaultValue="planned"><option value="planned">Planlandı</option><option value="active">Devam ediyor</option><option value="on_hold">Beklemede</option><option value="completed">Tamamlandı</option><option value="canceled">İptal edildi</option></select></label><label><span>Sorumlu kişi</span><input name="ownerName" placeholder="Örn. Proje yöneticisi" /></label><label><span>Departman</span><select name="departmentId"><DepartmentOptions departments={departments} /></select></label><MoneyInput name="budget" label="Bütçe" /><label><span>Başlangıç tarihi</span><input type="date" name="startDate" /></label><label><span>Hedef bitiş tarihi</span><input type="date" name="dueDate" /></label><label className="full"><span>Açıklama</span><textarea name="description" rows={3} placeholder="Projenin kapsamı ve hedefleri..." /></label><div className="full form-help">Proje eklendikten sonra durum ve ilerlemeyi proje kartı üzerinden güncelleyebilirsiniz.</div></div>; }
+function DepartmentFields() { return <div className="form-grid"><label className="full"><span>Departman adı</span><input name="name" placeholder="Örn. Mühendislik" required /></label><label className="full"><span>Departman yöneticisi</span><input name="leadName" placeholder="Örn. Mühendislik direktörü" /></label><label className="full"><span>Açıklama</span><textarea name="description" rows={3} placeholder="Departmanın sorumluluk alanı..." /></label></div>; }
+function EmployeeFields({ departments }: { departments: Department[] }) { return <div className="form-grid"><label><span>Ad soyad</span><input name="fullName" placeholder="Örn. Ayşe Yılmaz" required /></label><label><span>Görev / unvan</span><input name="positionTitle" placeholder="Örn. Makine mühendisi" /></label><label><span>Kademe</span><select name="seniority" defaultValue="uzman"><option value="stajyer">Stajyer</option><option value="uzman-yardimcisi">Uzman yardımcısı</option><option value="uzman">Uzman</option><option value="kidemli-uzman">Kıdemli uzman</option><option value="yonetici">Yönetici</option><option value="direktor">Direktör</option></select></label><label><span>Departman</span><select name="departmentId"><DepartmentOptions departments={departments} /></select></label><label><span>E-posta</span><input name="email" type="email" placeholder="ornek@firma.com" /></label><label><span>Telefon</span><input name="phone" type="tel" /></label><div className="full form-help">Çalışanı bir departmana atayarak departman kartında ve iş takibinde görebilirsiniz.</div></div>; }
+function WorkItemFields({ departments, employees, projects }: { departments: Department[]; employees: Employee[]; projects: Project[] }) { return <div className="form-grid"><label className="full"><span>İş başlığı</span><input name="title" placeholder="Örn. Saha keşif raporunun hazırlanması" required /></label><label><span>Departman</span><select name="departmentId"><DepartmentOptions departments={departments} /></select></label><label><span>Sorumlu çalışan</span><select name="employeeId"><option value="">Sorumlu seçilmedi</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.full_name}</option>)}</select></label><label><span>İlgili proje</span><select name="projectId"><option value="">Proje seçilmedi</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label><label><span>Öncelik</span><select name="priority" defaultValue="normal"><option value="low">Düşük</option><option value="normal">Normal</option><option value="high">Yüksek</option><option value="urgent">Acil</option></select></label><label><span>Termin tarihi</span><input type="date" name="dueDate" /></label><label className="full"><span>Açıklama</span><textarea name="description" rows={3} placeholder="İşin kapsamı ve beklentiler..." /></label><div className="full form-help">İş oluşturulduktan sonra durumu (Yapılacak, Devam ediyor, Tamamlandı, Engellendi) tablo üzerinden güncelleyebilirsiniz.</div></div>; }

@@ -6,7 +6,10 @@ import {
   ArrowRight,
   BarChart3,
   BrainCircuit,
+  Building2,
   CheckCircle2,
+  CircleDollarSign,
+  Clock3,
   Database,
   Gauge,
   Layers3,
@@ -52,14 +55,31 @@ const principles = [
   "İhtiyaca göre büyüyebilen sistemler",
 ];
 
+type PublicRates = {
+  rates: { code: string; rate: number }[];
+  sourceDate: string;
+  sourceLabel: string;
+  live: boolean;
+};
+
+const rateNames: Record<string, string> = {
+  USD: "ABD Doları", EUR: "Euro", GBP: "İngiliz Sterlini", CHF: "İsviçre Frangı",
+  JPY: "Japon Yeni", SAR: "Suudi Riyali", AED: "BAE Dirhemi", RUB: "Rus Rublesi",
+};
+
 export default function Home() {
   const [authenticated, setAuthenticated] = useState(false);
+  const [fx, setFx] = useState<PublicRates | null>(null);
 
   useEffect(() => {
     fetch("/api/auth/status", { cache: "no-store" })
       .then((response) => response.json())
       .then((result: { authenticated?: boolean }) => setAuthenticated(Boolean(result.authenticated)))
       .catch(() => setAuthenticated(false));
+    fetch("/api/rates")
+      .then((response) => response.json())
+      .then((result: PublicRates) => result.rates?.length && setFx(result))
+      .catch(() => setFx(null));
   }, []);
 
   return (
@@ -110,6 +130,24 @@ export default function Home() {
           <div className="metric-float metric-two"><Gauge size={19} /><span><b>Anlık görünürlük</b>Kararlar için</span></div>
         </div>
       </section>
+
+      {fx && (
+        <section className="fx-ticker-section" aria-label="Güncel döviz kurları">
+          <div className="fx-ticker-head">
+            <span className="fx-ticker-title"><CircleDollarSign size={17} /> Güncel döviz kurları <em>· {fx.sourceLabel} · {fx.sourceDate}</em></span>
+            {fx.live && <span className="fx-live-badge"><i /> Canlı</span>}
+          </div>
+          <div className="fx-ticker-grid">
+            {fx.rates.map(({ code, rate }) => (
+              <article key={code}>
+                <span className="fx-code">{code} / TRY</span>
+                <b>{rate.toLocaleString("tr-TR", { minimumFractionDigits: 4, maximumFractionDigits: 4 })} ₺</b>
+                <small>{rateNames[code] ?? code}</small>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="executive-strip" aria-label="Teksanor platform özellikleri">
         <article><div><ShieldCheck size={21} /></div><span><b>Şirket bazlı güvenli alan</b><small>Her firma yalnızca kendi kayıtlarına erişir.</small></span></article>
@@ -201,6 +239,13 @@ export default function Home() {
             <Link href="/icerikler/veri-karar-destek"><span>FİNANSAL GÖRÜNÜRLÜK</span><b>Dağınık Excel kayıtları yönetim görünümüne nasıl dönüşür?</b><em>9 dakikalık yazıyı oku <ArrowRight size={15} /></em></Link>
           </div>
         </div>
+      </section>
+
+      <section className="impact-strip" aria-label="Teksanor platform yetkinlikleri">
+        <article><Building2 size={22} /><b>Çok şirketli yapı</b><small>Her firma için izole ve güvenli çalışma alanı</small></article>
+        <article><CircleDollarSign size={22} /><b>23+ para birimi</b><small>TCMB kurları ve altın referanslarıyla TL karşılığı</small></article>
+        <article><Clock3 size={22} /><b>Anlık güncel veri</b><small>Kurlar ve finansal özetler otomatik yenilenir</small></article>
+        <article><ShieldCheck size={22} /><b>Uçtan uca izlenebilirlik</b><small>Her işlem denetim kaydıyla saklanır</small></article>
       </section>
 
       <section className="portal-callout">

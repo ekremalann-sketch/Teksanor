@@ -208,12 +208,71 @@ const schemaStatements = [
   details TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 )`,
+`CREATE TABLE IF NOT EXISTS projects (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT,
+  status TEXT NOT NULL CHECK (status IN ('planned', 'active', 'on_hold', 'completed', 'canceled')) DEFAULT 'planned',
+  owner_name TEXT,
+  department_id TEXT,
+  budget REAL NOT NULL DEFAULT 0,
+  progress INTEGER NOT NULL DEFAULT 0,
+  start_date TEXT,
+  due_date TEXT,
+  created_by TEXT REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+)`,
+`CREATE TABLE IF NOT EXISTS departments (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT,
+  lead_name TEXT,
+  created_by TEXT REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+)`,
+`CREATE TABLE IF NOT EXISTS employees (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  department_id TEXT REFERENCES departments(id) ON DELETE SET NULL,
+  full_name TEXT NOT NULL,
+  position_title TEXT,
+  seniority TEXT NOT NULL CHECK (seniority IN ('stajyer', 'uzman-yardimcisi', 'uzman', 'kidemli-uzman', 'yonetici', 'direktor')) DEFAULT 'uzman',
+  email TEXT,
+  phone TEXT,
+  status TEXT NOT NULL CHECK (status IN ('active', 'on_leave', 'left')) DEFAULT 'active',
+  created_by TEXT REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+)`,
+`CREATE TABLE IF NOT EXISTS work_items (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  department_id TEXT REFERENCES departments(id) ON DELETE SET NULL,
+  employee_id TEXT REFERENCES employees(id) ON DELETE SET NULL,
+  project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  priority TEXT NOT NULL CHECK (priority IN ('low', 'normal', 'high', 'urgent')) DEFAULT 'normal',
+  status TEXT NOT NULL CHECK (status IN ('todo', 'in_progress', 'done', 'blocked')) DEFAULT 'todo',
+  due_date TEXT,
+  created_by TEXT REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+)`,
 "CREATE INDEX IF NOT EXISTS idx_payment_period ON payment_records(period)",
 "CREATE INDEX IF NOT EXISTS idx_payment_status ON payment_records(workflow_status)",
 "CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)",
 "CREATE INDEX IF NOT EXISTS idx_auth_attempts_window ON auth_attempts(fingerprint_hash, action, created_at)",
 "CREATE INDEX IF NOT EXISTS idx_manual_debt_status ON manual_debts(status)",
 "CREATE INDEX IF NOT EXISTS idx_members_user ON organization_members(user_id)",
+"CREATE INDEX IF NOT EXISTS idx_projects_org ON projects(organization_id)",
+"CREATE INDEX IF NOT EXISTS idx_departments_org ON departments(organization_id)",
+"CREATE INDEX IF NOT EXISTS idx_employees_org ON employees(organization_id)",
+"CREATE INDEX IF NOT EXISTS idx_employees_department ON employees(department_id)",
+"CREATE INDEX IF NOT EXISTS idx_work_items_org ON work_items(organization_id)",
+"CREATE INDEX IF NOT EXISTS idx_work_items_department ON work_items(department_id)",
 ] as const;
 
 export const DEFAULT_ORGANIZATION_ID = "org_alan_group";
@@ -241,7 +300,7 @@ const latestPayments = [
   ["pay-firma-teb-ev", "Firma Yetkilisi", "TEB", "TEB ev", 7000, 7000, 0, 7000, 0, 0, 0, 0, 0, 0, "2026-06-18", ""],
 ] as const;
 
-const CURRENT_SCHEMA_VERSION = "2026-07-17-remove-personal-identifiers-v4";
+const CURRENT_SCHEMA_VERSION = "2026-07-19-projects-departments-v5";
 let schemaPromise: Promise<void> | null = null;
 
 export async function ensureSchema() {
