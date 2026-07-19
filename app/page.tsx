@@ -193,6 +193,24 @@ export default function Home() {
 
       <PublicMarket />
 
+      <section className="home-agent-section" aria-labelledby="agent-heading">
+        <div className="home-agent-copy">
+          <span className="section-kicker">İsteğe bağlı yapay zekâ ekibi</span>
+          <h2 id="agent-heading">Her departmana sohbet kutusu değil, sınırları yazılı bir çalışma arkadaşı.</h2>
+          <p>Finans, proje ve operasyon ekiplerinin tekrar eden takip işlerini inceliyoruz. Ardından yalnızca izin verilen veriyi kullanan, taslağını sorumlu kişiye sunan ve kritik adımlarda insan onayı bekleyen ajan profilleri kuruyoruz.</p>
+          <div className="home-agent-actions">
+            <Link className="primary-action" href="/yapay-zeka-hizmeti">Ajan çalışma modelini incele <ArrowRight size={18} /></Link>
+            <span><ShieldCheck size={17} /> Prototip · İnsan onayı zorunlu</span>
+          </div>
+        </div>
+        <div className="home-agent-visual">
+          <img src="/assets/teksanor-digital-twin.webp" alt="Teksanor kontrollü yapay zekâ çalışma katmanı" />
+          <div><BrainCircuit size={25} /><span><b>Görev tanımı</b>Net çıktı ve sınır</span></div>
+          <div><LockKeyhole size={25} /><span><b>En az erişim</b>Yalnızca gerekli veri</span></div>
+          <div><UserRound size={25} /><span><b>İnsan kararı</b>Kritik işlemde onay</span></div>
+        </div>
+      </section>
+
       <section className="insights-section" id="icgoruler">
         <div className="insights-preview">
           <span className="section-kicker">Teksanor içgörüleri</span>
