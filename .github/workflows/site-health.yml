@@ -1,0 +1,40 @@
+name: Teksanor Site Health
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check public pages
+        id: check
+        shell: bash
+        run: |
+          set -e
+          for url in \
+            https://teksanor.pages.dev/ \
+            https://teksanor.pages.dev/giris \
+            https://teksanor.pages.dev/cozumler \
+            https://teksanor.pages.dev/muhendislik \
+            https://teksanor.pages.dev/yapay-zeka \
+            https://teksanor.pages.dev/hakkimizda
+          do
+            curl --fail --silent --show-error --location --max-time 25 "$url" > /dev/null
+          done
+
+      - name: Open incident issue on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          existing=$(gh issue list --repo "${{ github.repository }}" --state open --search "[Otomatik Kontrol] Site erişim hatası in:title" --json number --jq 'length')
+          if [ "$existing" = "0" ]; then
+            gh issue create --repo "${{ github.repository }}" --title "[Otomatik Kontrol] Site erişim hatası" --body "Teksanor otomatik sağlık kontrolü bir veya daha fazla sayfaya ulaşamadı. Actions kayıtlarını inceleyin: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          fi
