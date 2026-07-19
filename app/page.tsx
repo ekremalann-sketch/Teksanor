@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type AnchorHTMLAttributes } from "react";
 import PublicMarket from "@/components/PublicMarket";
 import {
   ArrowRight,
@@ -18,6 +17,10 @@ import {
   UserRound,
   Workflow,
 } from "lucide-react";
+
+function Link({ href, ...props }: AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) {
+  return <a href={href} {...props} />;
+}
 
 const services = [
   {
