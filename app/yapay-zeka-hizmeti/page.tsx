@@ -1,5 +1,9 @@
-import Link from "next/link";
+import type { AnchorHTMLAttributes } from "react";
 import { ArrowRight, Bot, CheckCircle2, CircleDollarSign, FileCheck2, LockKeyhole, ShieldCheck, Users } from "lucide-react";
+
+function Link({ href, ...props }: AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) {
+  return <a href={href} {...props} />;
+}
 
 const agents = [
   ["Finans Kontrol Ajanı", "Vade, borç, döviz etkisi ve tutarsız kayıtlar için finans ekibine inceleme notu hazırlar."],
