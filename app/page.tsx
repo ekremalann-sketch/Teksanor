@@ -21,25 +21,25 @@ import {
 const services = [
   {
     icon: BrainCircuit,
-    href: "/yapay-zeka",
+    href: "/icerikler/yapay-zeka-is-analizi",
     title: "Yapay zekâ destekli iş analizi",
     text: "Tekrarlanan işleri, dağınık verileri ve karar noktalarını inceler; daha sade ve ölçülebilir bir çalışma modeli tasarlarız.",
   },
   {
     icon: BarChart3,
-    href: "/cozumler",
+    href: "/icerikler/veri-karar-destek",
     title: "Veri ve karar destek sistemleri",
     text: "Excel ve farklı kaynaklardaki verileri anlaşılır panellere, izlenebilir göstergelere ve yönetilebilir raporlara dönüştürürüz.",
   },
   {
     icon: Workflow,
-    href: "/cozumler",
+    href: "/icerikler/surec-otomasyonu",
     title: "Süreç otomasyonu",
     text: "Manuel takip yükünü azaltan, insan kontrolünü koruyan ve iş akışlarını hızlandıran dijital çözümler geliştiririz.",
   },
   {
     icon: Settings2,
-    href: "/muhendislik",
+    href: "/icerikler/muhendislik-danismanligi",
     title: "Mühendislik ve teknoloji danışmanlığı",
     text: "İhtiyacı doğru tanımlar, uygulanabilir teknoloji seçeneklerini karşılaştırır ve sürdürülebilir çözüm yolunu birlikte belirleriz.",
   },
@@ -196,9 +196,9 @@ export default function Home() {
           <h2>Teknolojiyi değil, dönüşen işi anlatıyoruz.</h2>
           <p>Mühendislik, veri ve yapay zekânın işletme problemlerinde nasıl değer ürettiğini özgün ve anlaşılır içeriklerle ele alıyoruz.</p>
           <div className="insights-preview-grid">
-            <Link href="/yapay-zeka"><img src="/assets/teksanor-digital-twin.webp" alt="Endüstriyel dijital ikiz ve veri mühendisliği merkezi" /><span>YAPAY ZEKÂ · DİJİTAL İKİZ</span><b>Bir fabrikanın verisi, karar veren bir sisteme nasıl dönüşür?</b><em>İçeriği keşfet <ArrowRight size={15} /></em></Link>
-            <Link href="/muhendislik"><span>MÜHENDİSLİK YAKLAŞIMI</span><b>İyi bir sistem, önce doğru soruyla başlar.</b><em>Devamını oku <ArrowRight size={15} /></em></Link>
-            <Link href="/cozumler"><span>FİNANSAL GÖRÜNÜRLÜK</span><b>Excel kayıtlarından yönetim görünümüne.</b><em>Çözümü incele <ArrowRight size={15} /></em></Link>
+            <Link href="/icerikler/yapay-zeka-is-analizi"><img src="/assets/teksanor-digital-twin.webp" alt="Endüstriyel dijital ikiz ve veri mühendisliği merkezi" /><span>YAPAY ZEKÂ · İŞ ANALİZİ</span><b>Yapay zekâ bir işletmenin gerçek problemini nasıl anlamlandırır?</b><em>8 dakikalık yazıyı oku <ArrowRight size={15} /></em></Link>
+            <Link href="/icerikler/muhendislik-danismanligi"><span>MÜHENDİSLİK YAKLAŞIMI</span><b>Teknoloji yatırımı yapmadan önce hangi sorular sorulmalı?</b><em>10 dakikalık yazıyı oku <ArrowRight size={15} /></em></Link>
+            <Link href="/icerikler/veri-karar-destek"><span>FİNANSAL GÖRÜNÜRLÜK</span><b>Dağınık Excel kayıtları yönetim görünümüne nasıl dönüşür?</b><em>9 dakikalık yazıyı oku <ArrowRight size={15} /></em></Link>
           </div>
         </div>
       </section>
