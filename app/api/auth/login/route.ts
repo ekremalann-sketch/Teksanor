@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { createSession, enforceAuthRateLimit, ensureDefaultAdminAccounts, loginWithUsername, sessionCookie } from "@/lib/auth";
+import { rejectCrossSiteMutation } from "@/lib/security";
 
 export async function POST(request: Request) {
+  const rejected = rejectCrossSiteMutation(request); if (rejected) return rejected;
   try {
     const body = (await request.json()) as { username?: string; password?: string };
     if (!body.username || !body.password) {
