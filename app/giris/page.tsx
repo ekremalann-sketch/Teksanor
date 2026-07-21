@@ -18,7 +18,8 @@ export default function LoginPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("mode") === "register") setMode("register");
+    const requestedMode = new URLSearchParams(window.location.search).get("mode");
+    if (requestedMode === "register" || window.location.hash === "#kayit") setMode("register");
     fetch("/api/auth/status")
       .then(async (response) => {
         const data = await response.json() as { ready?: boolean; error?: string };
@@ -30,6 +31,7 @@ export default function LoginPage() {
 
   function changeMode(next: "login" | "register") {
     setMode(next); setError(""); setPassword("");
+    window.history.replaceState(null, "", next === "register" ? "/giris#kayit" : "/giris");
   }
 
   async function submit(event: FormEvent) {
