@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { addAudit, getDb, refreshOrganizationPeriodSummary } from "@/lib/db";
 import { canManageOrganization, requireOrganization } from "@/lib/tenancy";
+import { rejectCrossSiteMutation } from "@/lib/security";
 
 export async function PATCH(request: Request, routeContext: { params: Promise<{ id: string }> }) {
+  const rejected = rejectCrossSiteMutation(request); if (rejected) return rejected;
   const user = await getCurrentUser(request);
   if (!user) return NextResponse.json({ error: "Oturum gerekli." }, { status: 401 });
   let orgContext;
@@ -44,6 +46,7 @@ export async function PATCH(request: Request, routeContext: { params: Promise<{ 
 }
 
 export async function DELETE(request: Request, routeContext: { params: Promise<{ id: string }> }) {
+  const rejected = rejectCrossSiteMutation(request); if (rejected) return rejected;
   const user = await getCurrentUser(request);
   if (!user) return NextResponse.json({ error: "Oturum gerekli." }, { status: 401 });
   let orgContext;
