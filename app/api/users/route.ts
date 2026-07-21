@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import { getCurrentUser, hashPassword } from "@/lib/auth";
 import { addAudit, createId, getDb } from "@/lib/db";
 import { canManageOrganization, requireOrganization } from "@/lib/tenancy";
+import { rejectCrossSiteMutation } from "@/lib/security";
 
 export async function POST(request: Request) {
+  const rejected = rejectCrossSiteMutation(request); if (rejected) return rejected;
   const current = await getCurrentUser(request);
   if (!current) return NextResponse.json({ error: "Oturum gerekli." }, { status: 401 });
   let context;
