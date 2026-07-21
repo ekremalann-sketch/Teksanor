@@ -240,9 +240,21 @@ export default function Dashboard() {
   async function importExcel(file: File) {
     setError("");
     try {
-      const XLSX = await import("xlsx");
-      const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
-      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[workbook.SheetNames[0]], { defval: "" });
+      if (!file.name.toLocaleLowerCase("tr-TR").endsWith(".xlsx")) throw new Error("Yalnızca .xlsx biçimindeki Excel dosyaları içe aktarılabilir.");
+      if (file.size > 5 * 1024 * 1024) throw new Error("Excel dosyası en fazla 5 MB olabilir.");
+      const ExcelJS = await import("exceljs");
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(await file.arrayBuffer());
+      const worksheet = workbook.worksheets[0];
+      if (!worksheet) throw new Error("Excel dosyasında okunabilir sayfa bulunamadı.");
+      const headers = (worksheet.getRow(1).values as unknown[]).slice(1).map((value) => String(value ?? "").trim());
+      const rows: Record<string, unknown>[] = [];
+      worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1 || rows.length >= 100) return;
+        const values = (row.values as unknown[]).slice(1);
+        const record = Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ""]));
+        if (Object.values(record).some((value) => String(value).trim() !== "")) rows.push(record);
+      });
       if (!rows.length) throw new Error("Excel dosyasında okunabilir satır bulunamadı.");
       const normalize = (key: string) => key.toLocaleLowerCase("tr-TR").replace(/[^a-z0-9ğüşöçı]+/g, " ").trim();
       const get = (row: Record<string, unknown>, words: string[]) => {
@@ -355,7 +367,7 @@ export default function Dashboard() {
           {error && <div className="panel-alert error"><AlertTriangle size={17} />{error}<button type="button" onClick={() => setError("")} aria-label="Uyarıyı kapat"><X size={16} /></button></div>}
           {message && <div className="panel-alert success"><Check size={17} />{message}</div>}
           <PageHeader active={active} period={latest.period} organization={data.organization} onBack={goBack} onNew={() => { setEditingPayment(null); setModal(active === "projects" ? "project" : active === "expenses" ? "expense" : "payment"); }} onImport={() => importRef.current?.click()} canAdd={["financial", "payments", "expenses", "projects"].includes(active)} />
-          <input ref={importRef} hidden type="file" accept=".xlsx,.xls,.csv" onChange={(event) => event.target.files?.[0] && void importExcel(event.target.files[0])} />
+          <input ref={importRef} hidden type="file" accept=".xlsx" onChange={(event) => event.target.files?.[0] && void importExcel(event.target.files[0])} />
 
           {active === "overview" && <CompanyHome data={data} projects={projects} onNavigate={navigate} />}
           {active === "departments" && <DepartmentsView onNavigate={navigate} />}
