@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { addAudit, DEFAULT_ORGANIZATION_ID, getDb } from "@/lib/db";
+import { rejectCrossSiteMutation } from "@/lib/security";
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+  const rejected = rejectCrossSiteMutation(request); if (rejected) return rejected;
   const user = await getCurrentUser(request);
   if (!user) return NextResponse.json({ error: "Oturum gerekli." }, { status: 401 });
   if (user.role !== "admin") return NextResponse.json({ error: "Platform yetkilisi gerekli." }, { status: 403 });
