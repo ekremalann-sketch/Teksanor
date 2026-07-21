@@ -302,6 +302,7 @@ export default function Dashboard() {
     <div className="dashboard-shell">
       <aside className={`dashboard-sidebar ${mobileNav ? "open" : ""}`}>
         <div className="sidebar-brand">
+          {active !== "overview" && <button type="button" className="sidebar-panel-back" onClick={goBack} title="Önceki bölüme dön" aria-label="Önceki bölüme dön"><ArrowLeft size={20} /></button>}
           <a className="sidebar-home" href="/" aria-label="Teksanor ana sayfasına git"><img src="/assets/teksanor-logo.png" alt="Teksanor" /></a>
           <button type="button" className="mobile-close" onClick={() => setMobileNav(false)} aria-label="Menüyü kapat"><X size={19} /></button>
         </div>
@@ -326,6 +327,7 @@ export default function Dashboard() {
       <main className="dashboard-main">
         <header className="dashboard-topbar">
           <button type="button" className="mobile-menu" onClick={() => setMobileNav(true)} aria-label="Menüyü aç"><Menu size={21} /></button>
+          {active !== "overview" && <button type="button" className="mobile-panel-back" onClick={goBack} aria-label="Önceki bölüme dön"><ArrowLeft size={21} /></button>}
           <div className="topbar-search"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Kayıt ara..." /></div>
           <div className="topbar-actions" ref={topbarActionsRef}>
             <button type="button" className={topbarPanel === "notifications" ? "active" : ""} title="Bildirimler" aria-label="Bildirimleri aç" aria-expanded={topbarPanel === "notifications"} onClick={toggleNotifications}><Bell size={19} />{notificationUnread && <i />}</button>
@@ -360,7 +362,7 @@ export default function Dashboard() {
           {active === "projects" && <ProjectsView projects={projects} onAdd={() => setModal("project")} />}
           {active === "agents" && <AgentWorkforceView onNavigate={navigate} />}
           {active === "financial" && <FinancialOverview data={data} latest={latest} previous={previous} debtChange={debtChange} payments={filteredPayments} canManage={canManage} onDelete={remove} onNavigate={navigate} />}
-          {active === "payments" && <PaymentsView payments={filteredPayments} periods={[...new Set(data.payments.map((item) => item.period))]} selectedPeriod={paymentPeriod} onPeriodChange={setPaymentPeriod} isAdmin={canManage} onEdit={(payment) => { setEditingPayment(payment); setModal("payment"); }} onDelete={remove} />}
+          {active === "payments" && <PaymentsView payments={filteredPayments} periods={[...new Set(data.payments.map((item) => item.period))]} selectedPeriod={paymentPeriod} onPeriodChange={setPaymentPeriod} organizationId={organizationId} isAdmin={canManage} onNew={() => { setEditingPayment(null); setModal("payment"); }} onSaved={async () => { notify("Satır kaydedildi; aylık özet ve raporlar yenilendi."); await load(organizationId); }} onNavigate={navigate} onDelete={remove} />}
           {active === "expenses" && <ExpensesView expenses={data.expenses} latest={latest} />}
           {active === "treasury" && treasury && <TreasuryView data={treasury} onBalance={() => setModal("balance")} onDebt={() => setModal("manualDebt")} />}
           {active === "reports" && <ReportsView summaries={data.summaries} />}
@@ -396,7 +398,7 @@ function PageHeader({ active, period, organization, onBack, onNew, onImport, can
     users: ["Kullanıcı yönetimi", "Veri girecek kişileri oluşturun ve yetkilerini yönetin."],
   };
   const current = titles[active] ?? titles.overview;
-  return <>{active !== "overview" && <button type="button" className="panel-back-button" onClick={onBack}><ArrowLeft size={17} /> Önceki ekrana dön</button>}<div className="organization-strip"><div><Building2 size={16} /><span><b>{organization.name}</b>{organization.kind === "business" ? "Firma çalışma alanı" : "Kişisel çalışma alanı"}</span></div><em className={`subscription-badge ${organization.subscription_status}`}>{organization.subscription_status === "trialing" ? "14 günlük deneme" : organization.subscription_status === "active" ? "Aktif" : "Ödeme bekleniyor"}</em></div><div className="panel-heading"><div><span className="breadcrumb">TEKSANOR / {organization.name.toLocaleUpperCase("tr-TR")} / {period.toLocaleUpperCase("tr-TR")}</span><h1>{current[0]}</h1><p>{current[1]}</p></div><div className="heading-actions">{["financial", "payments"].includes(active) && <button className="outline-button" onClick={onImport}><FileSpreadsheet size={17} /> Excel aktar</button>}{canAdd && <button className="panel-primary" onClick={onNew}><Plus size={17} /> {active === "projects" ? "Yeni proje" : "Yeni kayıt"}</button>}</div></div></>;
+  return <><div className="organization-strip"><div><Building2 size={16} /><span><b>{organization.name}</b>{organization.kind === "business" ? "Firma çalışma alanı" : "Kişisel çalışma alanı"}</span></div><em className={`subscription-badge ${organization.subscription_status}`}>{organization.subscription_status === "trialing" ? "14 günlük deneme" : organization.subscription_status === "active" ? "Aktif" : "Ödeme bekleniyor"}</em></div><div className="panel-heading"><div><span className="breadcrumb">TEKSANOR / {organization.name.toLocaleUpperCase("tr-TR")} / {period.toLocaleUpperCase("tr-TR")}</span><h1>{current[0]}</h1><p>{current[1]}</p></div><div className="heading-actions">{["financial", "payments"].includes(active) && <button className="outline-button" onClick={onImport}><FileSpreadsheet size={17} /> Excel aktar</button>}{canAdd && <button className="panel-primary" onClick={onNew}><Plus size={17} /> {active === "projects" ? "Yeni proje" : "Yeni kayıt"}</button>}</div></div></>;
 }
 
 function CompanyHome({ data, projects, onNavigate }: { data: DashboardData; projects: Project[]; onNavigate: (page: string) => void }) {
@@ -475,8 +477,36 @@ function RecentPayments({ payments, isAdmin, onEdit, onDelete }: { payments: Pay
   return <section className="table-card"><div className="table-heading"><div><h3>Ödeme kayıtları</h3><p>Her kayıt seçilen aya bağlı tutulur; düzeltmeler yalnızca o ayı etkiler.</p></div><span>{payments.length} kayıt</span></div><div className="responsive-table"><table><thead><tr><th>Dönem</th><th>Kişi / hesap</th><th>Banka</th><th>Toplam borç</th><th>Aylık ödeme</th><th>Asgari ödeme</th><th>Durum</th><th /></tr></thead><tbody>{payments.map((item) => <tr key={item.id}><td><b>{item.period}</b></td><td><div className="table-account"><span>{item.owner_name[0]}</span><div><b>{item.owner_name}</b><small>{item.account_name}</small></div></div></td><td>{item.bank_name}</td><td><b>{formatMoney(item.total_debt)}</b></td><td>{formatMoney(item.monthly_payment)}</td><td>{formatMoney(item.minimum_payment)}</td><td><span className={`status-badge ${item.workflow_status}`}>{statusText[item.workflow_status]}</span></td><td>{isAdmin && <div className="row-actions">{onEdit && <button title="Kaydı düzenle" onClick={() => onEdit(item)}><Pencil size={15} /></button>}<button className="danger" title="Sil" onClick={() => onDelete(item.id)}><Trash2 size={16} /></button></div>}</td></tr>)}</tbody></table></div></section>;
 }
 
-function PaymentsView({ payments, periods, selectedPeriod, onPeriodChange, isAdmin, onEdit, onDelete }: { payments: Payment[]; periods: string[]; selectedPeriod: string; onPeriodChange: (period: string) => void; isAdmin: boolean; onEdit: (payment: Payment) => void; onDelete: (id: string) => void }) {
-  return <><section className="payment-period-bar"><div><span>AYLIK TAKİP</span><b>Kart ve borç dönemini seçin</b><small>Ağustos kaydı Ağustos altında, diğer aylar kendi döneminde saklanır.</small></div><label><span>Gösterilen ay</span><select value={selectedPeriod} onChange={(event) => onPeriodChange(event.target.value)}><option value="all">Tüm dönemler</option>{periods.map((period) => <option key={period} value={period}>{period}</option>)}</select></label></section><div className="mini-summary"><span><b>{payments.length}</b> finansal hesap</span><span><b>{shortMoney(payments.reduce((sum, item) => sum + Number(item.total_debt), 0))}</b> kayıtlı borç</span><span><b>{payments.filter((item) => item.important_note).length}</b> yakın takip notu</span></div><RecentPayments payments={payments} isAdmin={isAdmin} onEdit={onEdit} onDelete={onDelete} /></>;
+function PaymentsView({ payments, periods, selectedPeriod, onPeriodChange, organizationId, isAdmin, onNew, onSaved, onNavigate, onDelete }: { payments: Payment[]; periods: string[]; selectedPeriod: string; onPeriodChange: (period: string) => void; organizationId: string; isAdmin: boolean; onNew: () => void; onSaved: () => Promise<void>; onNavigate: (page: string) => void; onDelete: (id: string) => void }) {
+  const totalDebt = payments.reduce((sum, item) => sum + Number(item.total_debt), 0);
+  const monthlyPayment = payments.reduce((sum, item) => sum + Number(item.monthly_payment), 0);
+  const minimumPayment = payments.reduce((sum, item) => sum + Number(item.minimum_payment), 0);
+  return <>
+    <section className="finance-workbook-head">
+      <div><span>FİNANS ÇALIŞMA DEFTERİ</span><h2>Kart ve borç kayıtlarını Excel rahatlığında yönetin.</h2><p>Bir hücreyi değiştirip satırın sonundaki “Kaydet” düğmesine basın. Aylık özetler ve raporlar kendiliğinden yenilenir.</p></div>
+      <div className="workbook-actions"><button type="button" className="outline-button" onClick={() => onNavigate("reports")}><BarChart3 size={17} /> Raporları aç</button><button type="button" className="panel-primary" onClick={onNew}><Plus size={17} /> Yeni satır</button></div>
+    </section>
+    <section className="payment-period-bar"><div><span>AYLIK TAKİP</span><b>Çalışılacak dönemi seçin</b><small>Ağustos kaydı Ağustos altında kalır; seçtiğiniz ayın toplamı ayrı hesaplanır.</small></div><label><span>Gösterilen ay</span><select value={selectedPeriod} onChange={(event) => onPeriodChange(event.target.value)}><option value="all">Tüm dönemler</option>{periods.map((period) => <option key={period} value={period}>{period}</option>)}</select></label></section>
+    <div className="workbook-summary"><article><span>Toplam borç</span><b>{formatMoney(totalDebt)}</b></article><article><span>Aylık ödeme</span><b>{formatMoney(monthlyPayment)}</b></article><article><span>Asgari ödeme</span><b>{formatMoney(minimumPayment)}</b></article><article><span>Kayıt sayısı</span><b>{payments.length}</b></article></div>
+    <section className="finance-sheet-card"><div className="sheet-caption"><div><FileSpreadsheet size={20} /><span><b>Düzenlenebilir finans tablosu</b><small>Değişen hücreler kaydedilene kadar yalnızca bu ekranda kalır.</small></span></div><em>{isAdmin ? "Düzenleme açık" : "Görüntüleme modu"}</em></div><div className="finance-sheet-scroll"><table className="finance-sheet"><thead><tr><th>Dönem</th><th>Kişi</th><th>Banka</th><th>Kart / hesap</th><th>Limit</th><th>Toplam borç</th><th>Aylık ödeme</th><th>Asgari</th><th>Son ödeme</th><th>Takip notu</th><th>İşlem</th></tr></thead><tbody>{payments.map((payment) => <FinanceSheetRow key={payment.id} payment={payment} organizationId={organizationId} editable={isAdmin} onSaved={onSaved} onDelete={onDelete} />)}</tbody></table></div>{!payments.length && <EmptyState icon={CreditCard} title="Bu dönemde kayıt yok" text="Yeni satır düğmesiyle ilk kart veya borç kaydını ekleyin." />}</section>
+  </>;
+}
+
+function FinanceSheetRow({ payment, organizationId, editable, onSaved, onDelete }: { payment: Payment; organizationId: string; editable: boolean; onSaved: () => Promise<void>; onDelete: (id: string) => void }) {
+  const [row, setRow] = useState({ period: payment.period, ownerName: payment.owner_name, bankName: payment.bank_name, accountName: payment.account_name, totalLimit: payment.total_limit, totalDebt: payment.total_debt, monthlyPayment: payment.monthly_payment, minimumPayment: payment.minimum_payment, dueDate: payment.due_date ?? "", importantNote: payment.important_note ?? "" });
+  const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const change = (key: keyof typeof row, value: string) => { setDirty(true); setRow((current) => ({ ...current, [key]: ["totalLimit", "totalDebt", "monthlyPayment", "minimumPayment"].includes(key) ? Number(value) : value })); };
+  async function save() {
+    setSaving(true);
+    const response = await fetch(`/api/payments/${payment.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", "X-Organization-Id": organizationId }, body: JSON.stringify({ ...row, restructuring: payment.restructuring, nextInstallment: payment.next_installment, overdraftDebt: payment.overdraft_debt, overdraftLimit: payment.overdraft_limit }) });
+    setSaving(false);
+    if (!response.ok) return;
+    setDirty(false);
+    await onSaved();
+  }
+  const input = (key: keyof typeof row, type = "text") => <input type={type} value={String(row[key])} disabled={!editable} onChange={(event) => change(key, event.target.value)} />;
+  return <tr className={dirty ? "dirty" : ""}><td>{input("period")}</td><td>{input("ownerName")}</td><td>{input("bankName")}</td><td>{input("accountName")}</td><td>{input("totalLimit", "number")}</td><td>{input("totalDebt", "number")}</td><td>{input("monthlyPayment", "number")}</td><td>{input("minimumPayment", "number")}</td><td>{input("dueDate", "date")}</td><td>{input("importantNote")}</td><td><div className="sheet-row-actions">{editable && <button type="button" className={dirty ? "save ready" : "save"} disabled={!dirty || saving} onClick={() => void save()}>{saving ? "Kaydediliyor" : "Kaydet"}</button>}{editable && <button type="button" className="delete" onClick={() => onDelete(payment.id)} aria-label="Satırı sil"><Trash2 size={15} /></button>}</div></td></tr>;
 }
 
 function ExpensesView({ expenses, latest }: { expenses: Expense[]; latest: Summary }) {
