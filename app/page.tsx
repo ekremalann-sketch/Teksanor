@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, type AnchorHTMLAttributes } from "react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import PublicMarket from "@/components/PublicMarket";
 import {
   ArrowRight,
@@ -17,10 +18,6 @@ import {
   UserRound,
   Workflow,
 } from "lucide-react";
-
-function Link({ href, ...props }: AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) {
-  return <a href={href} {...props} />;
-}
 
 const services = [
   {
@@ -99,7 +96,7 @@ export default function Home() {
           </p>
           <div className="hero-actions">
             <Link className="primary-action" href="/cozumler">Çözümleri keşfet <ArrowRight size={18} /></Link>
-            <Link className="secondary-action" href="/giris?mode=register"><LockKeyhole size={17} /> Ücretsiz deneyin</Link>
+            <Link className="secondary-action" href={authenticated ? "/panel" : "/giris#kayit"}><LockKeyhole size={17} /> {authenticated ? "Panele dön" : "Ücretsiz deneyin"}</Link>
           </div>
           <div className="trust-row">
             <span><CheckCircle2 size={16} /> Ölçülebilir</span>
@@ -233,7 +230,7 @@ export default function Home() {
           <h2>Finansal görünürlüğü Excel karmaşasından çıkarın.</h2>
           <p>Ödeme, borç, gider, belge ve dönemsel değişimleri tek panelde yönetin. Kullanıcılar kolayca veri girsin; kritik değişiklikler yönetici kontrolünden geçsin.</p>
         </div>
-        <Link className="primary-action" href="/giris?mode=register">14 gün ücretsiz deneyin <ArrowRight size={18} /></Link>
+        <Link className="primary-action" href={authenticated ? "/panel" : "/giris#kayit"}>{authenticated ? "Panele dön" : "14 gün ücretsiz deneyin"} <ArrowRight size={18} /></Link>
       </section>
 
       <footer className="site-footer">
