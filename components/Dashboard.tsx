@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
-  AlertTriangle, ArrowDownRight, ArrowRight, ArrowUpRight, Banknote, BarChart3, Bell, Bot, BriefcaseBusiness, Building2, Check,
+  AlertTriangle, ArrowDownRight, ArrowLeft, ArrowRight, ArrowUpRight, Banknote, BarChart3, Bell, Bot, BriefcaseBusiness, Building2, Check,
   CircleDollarSign, Coins, CreditCard, Database, Download, FileSpreadsheet, Files,
   Gauge, HandCoins, Landmark, LayoutDashboard, LogOut, Menu, MoreHorizontal, Plus, Search,
-  Settings, ShieldCheck, Trash2, Upload, UserPlus, Users, WalletCards, Workflow, X,
+  Pencil, Settings, ShieldCheck, Trash2, Upload, UserPlus, Users, WalletCards, Workflow, X,
 } from "lucide-react";
 
 type User = { id: string; username: string; fullName: string; role: "admin" | "user" };
@@ -30,7 +30,10 @@ type DashboardData = { user: User; organization: Organization; organizations: Or
 type CashBalance = { id: string; account_name: string; currency: string; amount: number; note?: string; rate_used: number; rate_ready: boolean; tl_equivalent: number };
 type ManualDebt = { id: string; lender_name: string; debt_type: string; currency: string; amount: number; due_date?: string; note?: string; status: string; rate_used: number; rate_ready: boolean; tl_equivalent: number };
 type TreasuryData = {
-  fx: { TRY: number; USD: number; EUR: number; rates: Record<string, number>; sourceDate: string; sourceLabel: string; live: boolean };
+  fx: {
+    TRY: number; USD: number; EUR: number; rates: Record<string, number>; sourceDate: string; sourceLabel: string; live: boolean;
+    goldRates: Record<string, number>; goldSourceDate: string; goldSourceLabel: string; goldLive: boolean; goldOunceUsd: number;
+  };
   references: Record<string, number>;
   balances: CashBalance[];
   debts: ManualDebt[];
@@ -70,6 +73,8 @@ export default function Dashboard() {
   const [topbarPanel, setTopbarPanel] = useState<"notifications" | "settings" | null>(null);
   const [notificationUnread, setNotificationUnread] = useState(false);
   const [search, setSearch] = useState("");
+  const [paymentPeriod, setPaymentPeriod] = useState("all");
+  const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
   const [modal, setModal] = useState<"payment" | "expense" | "user" | "balance" | "manualDebt" | "rates" | "password" | "company" | "project" | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -111,6 +116,22 @@ export default function Dashboard() {
   }
 
   useEffect(() => { void load(); }, []);
+
+  useEffect(() => {
+    const validPanels = new Set(navItems.map((item) => item.id));
+    const readPanel = () => {
+      const fromState = window.history.state?.teksanorPanel;
+      const fromHash = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("panel");
+      const next = String(fromState || fromHash || "overview");
+      setActive(validPanels.has(next as typeof navItems[number]["id"]) ? next : "overview");
+    };
+    const initialHash = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("panel");
+    const initial = initialHash && validPanels.has(initialHash as typeof navItems[number]["id"]) ? initialHash : "overview";
+    window.history.replaceState({ teksanorPanel: initial, teksanorPrevious: null }, "", `#panel=${initial}`);
+    setActive(initial);
+    window.addEventListener("popstate", readPanel);
+    return () => window.removeEventListener("popstate", readPanel);
+  }, []);
 
   const notificationKey = data ? `${data.activity[0]?.id ?? "none"}:${data.attentionCount}` : "";
 
@@ -161,7 +182,7 @@ export default function Dashboard() {
     const refreshWhenVisible = () => {
       if (document.visibilityState === "visible") void refreshTreasury(organizationId);
     };
-    const timer = window.setInterval(() => void refreshTreasury(organizationId), 15 * 60 * 1000);
+    const timer = window.setInterval(() => void refreshTreasury(organizationId), 60 * 1000);
     document.addEventListener("visibilitychange", refreshWhenVisible);
     return () => {
       window.clearInterval(timer);
@@ -174,13 +195,28 @@ export default function Dashboard() {
   const debtChange = latest && previous ? ((latest.total_debt - previous.total_debt) / previous.total_debt) * 100 : 0;
   const filteredPayments = useMemo(() => {
     const term = search.toLocaleLowerCase("tr-TR").trim();
-    if (!data || !term) return data?.payments ?? [];
-    return data.payments.filter((item) => `${item.owner_name} ${item.bank_name} ${item.account_name} ${item.important_note ?? ""}`.toLocaleLowerCase("tr-TR").includes(term));
-  }, [data, search]);
+    if (!data) return [];
+    return data.payments.filter((item) => {
+      const matchesPeriod = paymentPeriod === "all" || item.period === paymentPeriod;
+      const matchesSearch = !term || `${item.owner_name} ${item.bank_name} ${item.account_name} ${item.important_note ?? ""}`.toLocaleLowerCase("tr-TR").includes(term);
+      return matchesPeriod && matchesSearch;
+    });
+  }, [data, search, paymentPeriod]);
 
   function notify(text: string) {
     setMessage(text);
     window.setTimeout(() => setMessage(""), 3400);
+  }
+
+  function navigate(next: string) {
+    if (next === active) return;
+    window.history.pushState({ teksanorPanel: next, teksanorPrevious: active }, "", `#panel=${next}`);
+    setActive(next);
+  }
+
+  function goBack() {
+    if (window.history.state?.teksanorPrevious) window.history.back();
+    else navigate("overview");
   }
 
   async function logout() {
@@ -279,7 +315,7 @@ export default function Dashboard() {
         <nav className="sidebar-nav">
           <span className="nav-heading">YÖNETİM</span>
           {navItems.filter((item) => !("admin" in item && item.admin && !canManage)).map(({ id, label, icon: Icon }) => (
-            <button key={id} className={active === id ? "active" : ""} onClick={() => { setActive(id); setMobileNav(false); }}><Icon size={18} /><span>{label}</span>{id === "payments" && data.attentionCount > 0 && <em>{data.attentionCount}</em>}</button>
+            <button key={id} className={active === id ? "active" : ""} onClick={() => { navigate(id); setMobileNav(false); }}><Icon size={18} /><span>{label}</span>{id === "payments" && data.attentionCount > 0 && <em>{data.attentionCount}</em>}</button>
           ))}
         </nav>
         <div className="sidebar-security"><ShieldCheck size={19} /><span><b>Güvenli çalışma alanı</b>Finansal veriler şifreli oturumla korunur.</span></div>
@@ -297,16 +333,16 @@ export default function Dashboard() {
             {topbarPanel === "notifications" && <div className="topbar-popover notification-popover">
               <div className="popover-head"><div><span>Bildirim merkezi</span><b>Güncel durum</b></div><button type="button" onClick={() => setTopbarPanel(null)} aria-label="Bildirimleri kapat"><X size={17} /></button></div>
               <div className="notification-summary"><ShieldCheck size={19} /><span><b>Sistem ve veriler erişilebilir</b><small>Çalışma alanınız güvenli oturumla korunuyor.</small></span></div>
-              {data.attentionCount > 0 ? <button type="button" className="notification-row" onClick={() => { setActive("payments"); setTopbarPanel(null); }}><span className="notification-mark warning" /><span><b>{data.attentionCount} finansal kayıt takip bekliyor</b><small>Ödemeler ve borçlar bölümünü açın.</small></span><ArrowRight size={16} /></button> : <div className="notification-empty"><Check size={20} /><span><b>Bekleyen önemli bildirim yok</b><small>Yeni gelişmeler burada gösterilecek.</small></span></div>}
+              {data.attentionCount > 0 ? <button type="button" className="notification-row" onClick={() => { navigate("payments"); setTopbarPanel(null); }}><span className="notification-mark warning" /><span><b>{data.attentionCount} finansal kayıt takip bekliyor</b><small>Ödemeler ve borçlar bölümünü açın.</small></span><ArrowRight size={16} /></button> : <div className="notification-empty"><Check size={20} /><span><b>Bekleyen önemli bildirim yok</b><small>Yeni gelişmeler burada gösterilecek.</small></span></div>}
               {data.activity.slice(0, 2).map((item) => <div className="notification-row static" key={item.id}><span className="notification-mark" /><span><b>{item.details || "Çalışma alanında işlem yapıldı"}</b><small>{new Date(item.created_at).toLocaleString("tr-TR")}</small></span></div>)}
-              <button type="button" className="popover-footer-action" onClick={() => { setActive("overview"); setTopbarPanel(null); }}><span>Yönetim özetine git</span><ArrowRight size={16} /></button>
+              <button type="button" className="popover-footer-action" onClick={() => { navigate("overview"); setTopbarPanel(null); }}><span>Yönetim özetine git</span><ArrowRight size={16} /></button>
             </div>}
             {topbarPanel === "settings" && <div className="topbar-popover settings-popover">
               <div className="popover-head"><div><span>Hesap ve çalışma alanı</span><b>Ayarlar</b></div><button type="button" onClick={() => setTopbarPanel(null)} aria-label="Ayarları kapat"><X size={17} /></button></div>
               <div className="settings-profile"><div>{data.user.fullName.split(" ").map((item) => item[0]).join("").slice(0, 2)}</div><span><b>{data.user.fullName}</b><small>{data.organization.name} · {roleLabel}</small></span></div>
-              <button type="button" className="settings-row" onClick={() => { setActive("company"); setTopbarPanel(null); }}><Building2 size={18} /><span><b>Firma bilgileri</b><small>Kurumsal profil ve iletişim bilgileri</small></span><ArrowRight size={16} /></button>
-              <button type="button" className="settings-row" onClick={() => { setActive("overview"); setTopbarPanel(null); }}><LayoutDashboard size={18} /><span><b>Çalışma alanı özeti</b><small>Plan, dönem ve finansal görünüm</small></span><ArrowRight size={16} /></button>
-              {canManage && <button type="button" className="settings-row" onClick={() => { setActive("users"); setTopbarPanel(null); }}><Users size={18} /><span><b>Kullanıcı ve yetkiler</b><small>Ekip erişimlerini güvenle yönetin</small></span><ArrowRight size={16} /></button>}
+              <button type="button" className="settings-row" onClick={() => { navigate("company"); setTopbarPanel(null); }}><Building2 size={18} /><span><b>Firma bilgileri</b><small>Kurumsal profil ve iletişim bilgileri</small></span><ArrowRight size={16} /></button>
+              <button type="button" className="settings-row" onClick={() => { navigate("overview"); setTopbarPanel(null); }}><LayoutDashboard size={18} /><span><b>Çalışma alanı özeti</b><small>Plan, dönem ve finansal görünüm</small></span><ArrowRight size={16} /></button>
+              {canManage && <button type="button" className="settings-row" onClick={() => { navigate("users"); setTopbarPanel(null); }}><Users size={18} /><span><b>Kullanıcı ve yetkiler</b><small>Ekip erişimlerini güvenle yönetin</small></span><ArrowRight size={16} /></button>}
               <button type="button" className="settings-row" onClick={() => { setModal("password"); setTopbarPanel(null); }}><ShieldCheck size={18} /><span><b>Parolayı değiştir</b><small>Hesabınızın giriş güvenliğini yönetin</small></span><ArrowRight size={16} /></button>
               <button type="button" className="settings-row danger" onClick={logout}><LogOut size={18} /><span><b>Güvenli çıkış</b><small>Yalnızca bu seçenek oturumu kapatır</small></span></button>
             </div>}
@@ -316,15 +352,15 @@ export default function Dashboard() {
         <div className="dashboard-content">
           {error && <div className="panel-alert error"><AlertTriangle size={17} />{error}<button type="button" onClick={() => setError("")} aria-label="Uyarıyı kapat"><X size={16} /></button></div>}
           {message && <div className="panel-alert success"><Check size={17} />{message}</div>}
-          <PageHeader active={active} period={latest.period} organization={data.organization} onNew={() => setModal(active === "projects" ? "project" : active === "expenses" ? "expense" : "payment")} onImport={() => importRef.current?.click()} canAdd={["financial", "payments", "expenses", "projects"].includes(active)} />
+          <PageHeader active={active} period={latest.period} organization={data.organization} onBack={goBack} onNew={() => { setEditingPayment(null); setModal(active === "projects" ? "project" : active === "expenses" ? "expense" : "payment"); }} onImport={() => importRef.current?.click()} canAdd={["financial", "payments", "expenses", "projects"].includes(active)} />
           <input ref={importRef} hidden type="file" accept=".xlsx,.xls,.csv" onChange={(event) => event.target.files?.[0] && void importExcel(event.target.files[0])} />
 
-          {active === "overview" && <CompanyHome data={data} projects={projects} onNavigate={setActive} />}
-          {active === "departments" && <DepartmentsView onNavigate={setActive} />}
+          {active === "overview" && <CompanyHome data={data} projects={projects} onNavigate={navigate} />}
+          {active === "departments" && <DepartmentsView onNavigate={navigate} />}
           {active === "projects" && <ProjectsView projects={projects} onAdd={() => setModal("project")} />}
-          {active === "agents" && <AgentWorkforceView onNavigate={setActive} />}
-          {active === "financial" && <FinancialOverview data={data} latest={latest} previous={previous} debtChange={debtChange} payments={filteredPayments} canManage={canManage} onDelete={remove} onNavigate={setActive} />}
-          {active === "payments" && <PaymentsView payments={filteredPayments} isAdmin={canManage} onDelete={remove} />}
+          {active === "agents" && <AgentWorkforceView onNavigate={navigate} />}
+          {active === "financial" && <FinancialOverview data={data} latest={latest} previous={previous} debtChange={debtChange} payments={filteredPayments} canManage={canManage} onDelete={remove} onNavigate={navigate} />}
+          {active === "payments" && <PaymentsView payments={filteredPayments} periods={[...new Set(data.payments.map((item) => item.period))]} selectedPeriod={paymentPeriod} onPeriodChange={setPaymentPeriod} isAdmin={canManage} onEdit={(payment) => { setEditingPayment(payment); setModal("payment"); }} onDelete={remove} />}
           {active === "expenses" && <ExpensesView expenses={data.expenses} latest={latest} />}
           {active === "treasury" && treasury && <TreasuryView data={treasury} onBalance={() => setModal("balance")} onDebt={() => setModal("manualDebt")} />}
           {active === "reports" && <ReportsView summaries={data.summaries} />}
@@ -335,7 +371,7 @@ export default function Dashboard() {
         </div>
       </main>
 
-      {modal && <EntryModal type={modal} latestPeriod={latest.period} treasury={treasury} profile={data.profile} organizationId={organizationId} close={() => setModal(null)} complete={async (text) => { setModal(null); notify(text); await load(organizationId); }} setError={setError} />}
+      {modal && <EntryModal type={modal} latestPeriod={latest.period} payment={editingPayment} treasury={treasury} profile={data.profile} organizationId={organizationId} close={() => { setModal(null); setEditingPayment(null); }} complete={async (text) => { setModal(null); setEditingPayment(null); notify(text); await load(organizationId); }} setError={setError} />}
     </div>
   );
 }
@@ -344,7 +380,7 @@ function LoadingScreen() {
   return <div className="loading-screen"><img src="/assets/teksanor-logo.png" alt="Teksanor" /><div className="loading-line"><span /></div><p>Güvenli çalışma alanı hazırlanıyor...</p></div>;
 }
 
-function PageHeader({ active, period, organization, onNew, onImport, canAdd }: { active: string; period: string; organization: Organization; onNew: () => void; onImport: () => void; canAdd: boolean }) {
+function PageHeader({ active, period, organization, onBack, onNew, onImport, canAdd }: { active: string; period: string; organization: Organization; onBack: () => void; onNew: () => void; onImport: () => void; canAdd: boolean }) {
   const titles: Record<string, [string, string]> = {
     overview: ["Şirket merkezi", "Kurumunuzun profili, departmanları, projeleri ve son faaliyetleri tek bakışta görün."],
     departments: ["Departmanlar", "Sorumluluk alanlarını ve günlük çalışma akışlarını düzenli bir kurum yapısında inceleyin."],
@@ -360,7 +396,7 @@ function PageHeader({ active, period, organization, onNew, onImport, canAdd }: {
     users: ["Kullanıcı yönetimi", "Veri girecek kişileri oluşturun ve yetkilerini yönetin."],
   };
   const current = titles[active] ?? titles.overview;
-  return <><div className="organization-strip"><div><Building2 size={16} /><span><b>{organization.name}</b>{organization.kind === "business" ? "Firma çalışma alanı" : "Kişisel çalışma alanı"}</span></div><em className={`subscription-badge ${organization.subscription_status}`}>{organization.subscription_status === "trialing" ? "14 günlük deneme" : organization.subscription_status === "active" ? "Aktif" : "Ödeme bekleniyor"}</em></div><div className="panel-heading"><div><span className="breadcrumb">TEKSANOR / {organization.name.toLocaleUpperCase("tr-TR")} / {period.toLocaleUpperCase("tr-TR")}</span><h1>{current[0]}</h1><p>{current[1]}</p></div><div className="heading-actions">{["financial", "payments"].includes(active) && <button className="outline-button" onClick={onImport}><FileSpreadsheet size={17} /> Excel aktar</button>}{canAdd && <button className="panel-primary" onClick={onNew}><Plus size={17} /> {active === "projects" ? "Yeni proje" : "Yeni kayıt"}</button>}</div></div></>;
+  return <>{active !== "overview" && <button type="button" className="panel-back-button" onClick={onBack}><ArrowLeft size={17} /> Önceki ekrana dön</button>}<div className="organization-strip"><div><Building2 size={16} /><span><b>{organization.name}</b>{organization.kind === "business" ? "Firma çalışma alanı" : "Kişisel çalışma alanı"}</span></div><em className={`subscription-badge ${organization.subscription_status}`}>{organization.subscription_status === "trialing" ? "14 günlük deneme" : organization.subscription_status === "active" ? "Aktif" : "Ödeme bekleniyor"}</em></div><div className="panel-heading"><div><span className="breadcrumb">TEKSANOR / {organization.name.toLocaleUpperCase("tr-TR")} / {period.toLocaleUpperCase("tr-TR")}</span><h1>{current[0]}</h1><p>{current[1]}</p></div><div className="heading-actions">{["financial", "payments"].includes(active) && <button className="outline-button" onClick={onImport}><FileSpreadsheet size={17} /> Excel aktar</button>}{canAdd && <button className="panel-primary" onClick={onNew}><Plus size={17} /> {active === "projects" ? "Yeni proje" : "Yeni kayıt"}</button>}</div></div></>;
 }
 
 function CompanyHome({ data, projects, onNavigate }: { data: DashboardData; projects: Project[]; onNavigate: (page: string) => void }) {
@@ -435,12 +471,12 @@ function FinancialOverview({ data, latest, previous, debtChange, payments, canMa
 
 function CardTitle({ title, subtitle }: { title: string; subtitle: string }) { return <div className="card-title"><div><h3>{title}</h3><p>{subtitle}</p></div><span className="card-menu-icon" aria-hidden="true"><MoreHorizontal size={18} /></span></div>; }
 
-function RecentPayments({ payments, isAdmin, onDelete }: { payments: Payment[]; isAdmin: boolean; onDelete: (id: string) => void }) {
-  return <section className="table-card"><div className="table-heading"><div><h3>Ödeme kayıtları</h3><p>Yeni kayıtlar beklemeden doğrudan tabloya eklenir.</p></div><span>{payments.length} kayıt</span></div><div className="responsive-table"><table><thead><tr><th>Kişi / hesap</th><th>Banka</th><th>Toplam borç</th><th>Aylık ödeme</th><th>Asgari ödeme</th><th>Durum</th><th /></tr></thead><tbody>{payments.map((item) => <tr key={item.id}><td><div className="table-account"><span>{item.owner_name[0]}</span><div><b>{item.owner_name}</b><small>{item.account_name}</small></div></div></td><td>{item.bank_name}</td><td><b>{formatMoney(item.total_debt)}</b></td><td>{formatMoney(item.monthly_payment)}</td><td>{formatMoney(item.minimum_payment)}</td><td><span className={`status-badge ${item.workflow_status}`}>{statusText[item.workflow_status]}</span></td><td>{isAdmin && <div className="row-actions"><button className="danger" title="Sil" onClick={() => onDelete(item.id)}><Trash2 size={16} /></button></div>}</td></tr>)}</tbody></table></div></section>;
+function RecentPayments({ payments, isAdmin, onEdit, onDelete }: { payments: Payment[]; isAdmin: boolean; onEdit?: (payment: Payment) => void; onDelete: (id: string) => void }) {
+  return <section className="table-card"><div className="table-heading"><div><h3>Ödeme kayıtları</h3><p>Her kayıt seçilen aya bağlı tutulur; düzeltmeler yalnızca o ayı etkiler.</p></div><span>{payments.length} kayıt</span></div><div className="responsive-table"><table><thead><tr><th>Dönem</th><th>Kişi / hesap</th><th>Banka</th><th>Toplam borç</th><th>Aylık ödeme</th><th>Asgari ödeme</th><th>Durum</th><th /></tr></thead><tbody>{payments.map((item) => <tr key={item.id}><td><b>{item.period}</b></td><td><div className="table-account"><span>{item.owner_name[0]}</span><div><b>{item.owner_name}</b><small>{item.account_name}</small></div></div></td><td>{item.bank_name}</td><td><b>{formatMoney(item.total_debt)}</b></td><td>{formatMoney(item.monthly_payment)}</td><td>{formatMoney(item.minimum_payment)}</td><td><span className={`status-badge ${item.workflow_status}`}>{statusText[item.workflow_status]}</span></td><td>{isAdmin && <div className="row-actions">{onEdit && <button title="Kaydı düzenle" onClick={() => onEdit(item)}><Pencil size={15} /></button>}<button className="danger" title="Sil" onClick={() => onDelete(item.id)}><Trash2 size={16} /></button></div>}</td></tr>)}</tbody></table></div></section>;
 }
 
-function PaymentsView({ payments, isAdmin, onDelete }: { payments: Payment[]; isAdmin: boolean; onDelete: (id: string) => void }) {
-  return <><div className="mini-summary"><span><b>{payments.length}</b> finansal hesap</span><span><b>{shortMoney(payments.reduce((sum, item) => sum + Number(item.total_debt), 0))}</b> kayıtlı borç</span><span><b>{payments.filter((item) => item.important_note).length}</b> yakın takip notu</span></div><RecentPayments payments={payments} isAdmin={isAdmin} onDelete={onDelete} /></>;
+function PaymentsView({ payments, periods, selectedPeriod, onPeriodChange, isAdmin, onEdit, onDelete }: { payments: Payment[]; periods: string[]; selectedPeriod: string; onPeriodChange: (period: string) => void; isAdmin: boolean; onEdit: (payment: Payment) => void; onDelete: (id: string) => void }) {
+  return <><section className="payment-period-bar"><div><span>AYLIK TAKİP</span><b>Kart ve borç dönemini seçin</b><small>Ağustos kaydı Ağustos altında, diğer aylar kendi döneminde saklanır.</small></div><label><span>Gösterilen ay</span><select value={selectedPeriod} onChange={(event) => onPeriodChange(event.target.value)}><option value="all">Tüm dönemler</option>{periods.map((period) => <option key={period} value={period}>{period}</option>)}</select></label></section><div className="mini-summary"><span><b>{payments.length}</b> finansal hesap</span><span><b>{shortMoney(payments.reduce((sum, item) => sum + Number(item.total_debt), 0))}</b> kayıtlı borç</span><span><b>{payments.filter((item) => item.important_note).length}</b> yakın takip notu</span></div><RecentPayments payments={payments} isAdmin={isAdmin} onEdit={onEdit} onDelete={onDelete} /></>;
 }
 
 function ExpensesView({ expenses, latest }: { expenses: Expense[]; latest: Summary }) {
@@ -484,12 +520,19 @@ function TreasuryView({ data, onBalance, onDebt }: { data: TreasuryData; onBalan
       </div>
       <p className="market-source-note"><i className={data.fx.live ? "live" : ""} /> Kaynak: {data.fx.sourceLabel}. Dövizli varlık ve borçların TL karşılığı bu kur verisiyle otomatik güncellenir.</p>
     </section>
+    <section className="gold-rate-panel">
+      <div className="gold-rate-heading"><div><Coins size={20} /><span><b>Altın ve ziynet referans değerleri</b><small>Ons spot fiyatı × TCMB USD/TRY kuru × standart saf altın ağırlığı</small></span></div><em>{data.fx.goldSourceDate}</em></div>
+      <div className="gold-rate-grid">
+        {goldCodes.map((code) => <article key={code}><span>{currencyLabels[code]}</span><b>{Number(data.references?.[code] || data.fx.goldRates?.[code] || 0) > 0 ? Number(data.references?.[code] || data.fx.goldRates?.[code]).toLocaleString("tr-TR", { maximumFractionDigits: 2 }) : "—"} ₺</b></article>)}
+      </div>
+      <p className="market-source-note"><i className={data.fx.goldLive ? "live" : ""} /> Kaynak: {data.fx.goldSourceLabel}. Bunlar kuyumcu satış fiyatı değil, iç finansal takip için teknik referans değerleridir. Firma yetkilisinin onayladığı özel fiyat varsa önceliklidir.</p>
+    </section>
     <div className="treasury-actions"><button className="panel-primary" onClick={onBalance}><Plus size={16} /> Eldeki tutarı ekle</button><button className="panel-primary" onClick={onDebt}><Plus size={16} /> Elden borç ekle</button></div>
     <section className="treasury-grid">
       <article className="table-card"><div className="table-heading"><div><h3>Eldeki nakit, döviz ve altın</h3><p>Kasa, banka veya elde tutulan varlıklar</p></div><span>{data.balances.length} kayıt</span></div>{data.balances.length ? <div className="responsive-table"><table><thead><tr><th>Hesap</th><th>Orijinal tutar</th><th>Kur / fiyat</th><th>TL karşılığı</th></tr></thead><tbody>{data.balances.map((item) => <tr key={item.id}><td><b>{item.account_name}</b><small className="cell-note">{item.note}</small></td><td>{originalAmount(item.amount, item.currency)}</td><td>{item.rate_ready ? item.rate_used.toLocaleString("tr-TR", { maximumFractionDigits: 4 }) : <span className="rate-missing">Fiyat gerekli</span>}</td><td>{item.rate_ready ? <b>{formatMoney(item.tl_equivalent)}</b> : "—"}</td></tr>)}</tbody></table></div> : <EmptyState icon={Banknote} title="Henüz varlık girilmedi" text="Para veya altın birimini seçip tutarı eklediğinizde TL karşılığı burada görünür." />}</article>
       <article className="table-card"><div className="table-heading"><div><h3>Elden alınan borçlar</h3><p>Nakit, döviz ve ziynet borçları</p></div><span>{data.debts.length} kayıt</span></div><div className="responsive-table"><table><thead><tr><th>Kişi / kurum</th><th>Borç</th><th>TL karşılığı</th><th>Not</th></tr></thead><tbody>{data.debts.map((item) => <tr key={item.id}><td><b>{item.lender_name}</b></td><td>{originalAmount(item.amount, item.currency)}</td><td>{item.rate_ready ? <b>{formatMoney(item.tl_equivalent)}</b> : <span className="rate-missing">Fiyat girilmeli</span>}</td><td><small className="cell-note">{item.note || "—"}</small></td></tr>)}</tbody></table></div></article>
     </section>
-    <p className="treasury-disclaimer"><ShieldCheck size={14} /> Dövizli varlık ve borçların TL karşılığı, ekran açıldığında ve kayıtlar güncellendiğinde {data.fx.sourceLabel.toLocaleLowerCase("tr-TR")} ile otomatik yeniden hesaplanır. Kur tarihi: {data.fx.sourceDate}. Bu görünüm iç finansal analiz içindir; resmî muhasebe veya yatırım tavsiyesi değildir.</p>
+    <p className="treasury-disclaimer"><ShieldCheck size={14} /> Döviz ve altın cinsinden varlıklarla borçların TL karşılığı, ekran açıldığında güncel kaynak verileriyle otomatik yeniden hesaplanır. Kur tarihi: {data.fx.sourceDate}. Altın zamanı: {data.fx.goldSourceDate}. Bu görünüm iç finansal analiz içindir; resmî muhasebe kaydı, alım-satım teklifi veya yatırım tavsiyesi değildir.</p>
   </>;
 }
 
@@ -517,7 +560,7 @@ function EmptyState({ icon: Icon, title, text }: { icon: typeof Files; title: st
 
 type ModalType = "payment" | "expense" | "user" | "balance" | "manualDebt" | "rates" | "password" | "company" | "project";
 
-function EntryModal({ type, latestPeriod, treasury, profile, organizationId, close, complete, setError }: { type: ModalType; latestPeriod: string; treasury: TreasuryData | null; profile: CompanyProfile; organizationId: string; close: () => void; complete: (text: string) => Promise<void>; setError: (text: string) => void }) {
+function EntryModal({ type, latestPeriod, payment, treasury, profile, organizationId, close, complete, setError }: { type: ModalType; latestPeriod: string; payment: Payment | null; treasury: TreasuryData | null; profile: CompanyProfile; organizationId: string; close: () => void; complete: (text: string) => Promise<void>; setError: (text: string) => void }) {
   const [saving, setSaving] = useState(false);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setSaving(true); setError("");
@@ -525,31 +568,31 @@ function EntryModal({ type, latestPeriod, treasury, profile, organizationId, clo
     if (type === "password" && payload.newPassword !== payload.confirmPassword) {
       setSaving(false); setError("Yeni parolalar birbiriyle aynı olmalıdır."); return;
     }
-    const endpoint = type === "project" ? "/api/projects" : type === "payment" ? "/api/payments" : type === "expense" ? "/api/expenses" : type === "user" ? "/api/users" : type === "password" ? "/api/auth/password" : type === "company" ? "/api/organization" : "/api/treasury";
+    const endpoint = type === "project" ? "/api/projects" : type === "payment" ? payment ? `/api/payments/${payment.id}` : "/api/payments" : type === "expense" ? "/api/expenses" : type === "user" ? "/api/users" : type === "password" ? "/api/auth/password" : type === "company" ? "/api/organization" : "/api/treasury";
     if (type === "balance") payload.action = "balance";
     if (type === "manualDebt") payload.action = "debt";
     if (type === "rates") payload.action = "rates";
-    const response = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json", "X-Organization-Id": organizationId }, body: JSON.stringify(payload) });
+    const response = await fetch(endpoint, { method: type === "payment" && payment ? "PATCH" : "POST", headers: { "Content-Type": "application/json", "X-Organization-Id": organizationId }, body: JSON.stringify(payload) });
     const result = await response.json() as { error?: string };
     setSaving(false);
     if (!response.ok) { setError(result.error ?? "Kayıt eklenemedi."); close(); return; }
-    await complete(type === "project" ? "Proje çalışma alanına eklendi." : type === "user" ? "Kullanıcı oluşturuldu." : type === "rates" ? "Altın referans fiyatları güncellendi." : type === "password" ? "Parolanız güvenle değiştirildi." : type === "company" ? "Firma bilgileri güncellendi." : "Kayıt doğrudan sisteme eklendi.");
+    await complete(type === "payment" && payment ? "Finans kaydı ve ilgili ayın özeti güncellendi." : type === "project" ? "Proje çalışma alanına eklendi." : type === "user" ? "Kullanıcı oluşturuldu." : type === "rates" ? "Altın referans fiyatları güncellendi." : type === "password" ? "Parolanız güvenle değiştirildi." : type === "company" ? "Firma bilgileri güncellendi." : "Kayıt doğrudan sisteme eklendi.");
   }
   const headings: Record<ModalType, [string, string]> = {
-    payment: ["FİNANS KAYDI", "Yeni ödeme veya borç"], expense: ["GİDER KAYDI", "Yeni gider"],
+    payment: ["FİNANS KAYDI", payment ? "Ödeme veya borç kaydını düzenle" : "Yeni ödeme veya borç"], expense: ["GİDER KAYDI", "Yeni gider"],
     user: ["KULLANICI", "Yeni kullanıcı oluştur"], balance: ["ELDEKİ VARLIK", "Nakit veya döviz ekle"],
     manualDebt: ["ELDEN BORÇ", "Elden alınan borç ekle"], rates: ["REFERANS FİYAT", "Altın TL karşılıklarını güncelle"],
     password: ["HESAP GÜVENLİĞİ", "Parolanızı değiştirin"],
     company: ["KURUMSAL PROFİL", "Firma bilgilerini düzenleyin"],
     project: ["PROJE PORTFÖYÜ", "Yeni proje oluşturun"],
   };
-  return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && close()}><form className="entry-modal" onSubmit={submit}><div className="modal-head"><div><span>{headings[type][0]}</span><h2>{headings[type][1]}</h2></div><button type="button" onClick={close} aria-label="Pencereyi kapat"><X size={19} /></button></div>{type === "payment" && <PaymentFields period={latestPeriod} />}{type === "expense" && <ExpenseFields period={latestPeriod} />}{type === "user" && <UserFields />}{type === "balance" && <BalanceFields />}{type === "manualDebt" && <ManualDebtFields />}{type === "rates" && <RateFields references={treasury?.references ?? {}} />}{type === "password" && <PasswordFields />}{type === "company" && <CompanyFields profile={profile} />}{type === "project" && <ProjectFields />}<div className="modal-actions"><button className="outline-button" type="button" onClick={close}>Vazgeç</button><button className="panel-primary" disabled={saving}>{saving ? "Kaydediliyor..." : type === "password" ? "Parolayı değiştir" : "Kaydı tamamla"}</button></div></form></div>;
+  return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && close()}><form className="entry-modal" onSubmit={submit}><div className="modal-head"><div><span>{headings[type][0]}</span><h2>{headings[type][1]}</h2></div><button type="button" onClick={close} aria-label="Pencereyi kapat"><X size={19} /></button></div>{type === "payment" && <PaymentFields period={latestPeriod} payment={payment} />}{type === "expense" && <ExpenseFields period={latestPeriod} />}{type === "user" && <UserFields />}{type === "balance" && <BalanceFields />}{type === "manualDebt" && <ManualDebtFields />}{type === "rates" && <RateFields references={treasury?.references ?? {}} />}{type === "password" && <PasswordFields />}{type === "company" && <CompanyFields profile={profile} />}{type === "project" && <ProjectFields />}<div className="modal-actions"><button className="outline-button" type="button" onClick={close}>Vazgeç</button><button className="panel-primary" disabled={saving}>{saving ? "Kaydediliyor..." : type === "password" ? "Parolayı değiştir" : "Kaydı tamamla"}</button></div></form></div>;
 }
 
 function ProjectFields() { return <div className="form-grid"><label className="full"><span>Proje adı</span><input name="name" placeholder="Örn. Üretim hattı veri izleme sistemi" required /></label><label><span>Proje kodu</span><input name="code" placeholder="Örn. PRJ-2026-01" /></label><label><span>İş birimi</span><select name="department" required>{departmentCatalog.map((department) => <option key={department.name}>{department.name}</option>)}</select></label><label><span>Proje sorumlusu</span><input name="ownerName" placeholder="Ad soyad veya ekip" /></label><label><span>Durum</span><select name="status"><option value="planning">Planlama</option><option value="active">Devam ediyor</option><option value="on_hold">Beklemede</option><option value="completed">Tamamlandı</option></select></label><label><span>Öncelik</span><select name="priority"><option value="normal">Normal</option><option value="high">Yüksek</option><option value="critical">Kritik</option><option value="low">Düşük</option></select></label><label><span>Başlangıç tarihi</span><input name="startDate" type="date" /></label><label><span>Hedef tarih</span><input name="targetDate" type="date" /></label><label><span>Planlanan bütçe</span><div className="money-input"><input name="budget" type="number" min="0" step="0.01" /><em>₺</em></div></label><label><span>İlerleme (%)</span><input name="progress" type="number" min="0" max="100" defaultValue="0" /></label><label className="full"><span>Kapsam ve beklenen sonuç</span><textarea name="description" rows={4} placeholder="Projenin amacı, teslim edilecek işler ve başarı ölçütleri..." /></label></div>; }
 
-function PaymentFields({ period }: { period: string }) { return <div className="form-grid"><label><span>Dönem</span><input name="period" defaultValue={period} required /></label><label><span>Kişi / sorumlu</span><input name="ownerName" placeholder="Örn. Finans sorumlusu" required /></label><label><span>Banka</span><input name="bankName" placeholder="Örn. Garanti" required /></label><label><span>Hesap veya kart adı</span><input name="accountName" placeholder="Örn. Kredi kartı" required /></label><MoneyInput name="totalLimit" label="Toplam limit" /><MoneyInput name="totalDebt" label="Toplam borç" /><MoneyInput name="restructuring" label="Yapılandırma" /><MoneyInput name="monthlyPayment" label="Aylık ödeme" /><MoneyInput name="nextInstallment" label="Gelecek dönem taksit" /><MoneyInput name="overdraftDebt" label="KMH borcu" /><MoneyInput name="overdraftLimit" label="KMH limiti" /><MoneyInput name="minimumPayment" label="Asgari ödeme" /><label><span>Son ödeme tarihi</span><input type="date" name="dueDate" /></label><label className="full"><span>Önemli not</span><textarea name="importantNote" rows={3} placeholder="Gecikme, ödeme planı veya takip notu..." /></label></div>; }
-function MoneyInput({ name, label }: { name: string; label: string }) { return <label><span>{label}</span><div className="money-input"><input name={name} type="number" min="0" step="0.01" placeholder="0" /><em>₺</em></div></label>; }
+function PaymentFields({ period, payment }: { period: string; payment: Payment | null }) { return <div className="form-grid"><label><span>Dönem / ay</span><input name="period" defaultValue={payment?.period ?? period} placeholder="Örn. Ağustos 2026" required /></label><label><span>Kişi / sorumlu</span><input name="ownerName" defaultValue={payment?.owner_name ?? ""} placeholder="Örn. Finans sorumlusu" required /></label><label><span>Banka</span><input name="bankName" defaultValue={payment?.bank_name ?? ""} placeholder="Örn. Garanti" required /></label><label><span>Hesap veya kart adı</span><input name="accountName" defaultValue={payment?.account_name ?? ""} placeholder="Örn. Kredi kartı" required /></label><MoneyInput name="totalLimit" label="Toplam limit" value={payment?.total_limit} /><MoneyInput name="totalDebt" label="Toplam borç" value={payment?.total_debt} /><MoneyInput name="restructuring" label="Yapılandırma" value={payment?.restructuring} /><MoneyInput name="monthlyPayment" label="Aylık ödeme" value={payment?.monthly_payment} /><MoneyInput name="nextInstallment" label="Gelecek dönem taksit" value={payment?.next_installment} /><MoneyInput name="overdraftDebt" label="KMH borcu" value={payment?.overdraft_debt} /><MoneyInput name="overdraftLimit" label="KMH limiti" value={payment?.overdraft_limit} /><MoneyInput name="minimumPayment" label="Asgari ödeme" value={payment?.minimum_payment} /><label><span>Son ödeme tarihi</span><input type="date" name="dueDate" defaultValue={payment?.due_date ?? ""} /></label><label className="full"><span>Önemli not</span><textarea name="importantNote" rows={3} defaultValue={payment?.important_note ?? ""} placeholder="Gecikme, ödeme planı veya takip notu..." /></label><div className="full form-help">Ay bilgisini “Ağustos 2026” gibi yazın. Kayıt ve o aya ait toplamlar birlikte güncellenir.</div></div>; }
+function MoneyInput({ name, label, value }: { name: string; label: string; value?: number }) { return <label><span>{label}</span><div className="money-input"><input name={name} type="number" min="0" step="0.01" defaultValue={value ?? ""} placeholder="0" /><em>₺</em></div></label>; }
 function ExpenseFields({ period }: { period: string }) { return <div className="form-grid"><label><span>Dönem</span><input name="period" defaultValue={period} required /></label><label><span>Kişi / sorumlu</span><input name="ownerName" required /></label><label><span>Kategori</span><select name="category" required><option>Kira</option><option>Fatura</option><option>Mutfak</option><option>Yakıt</option><option>Şirket harcaması</option><option>Diğer</option></select></label><label><span>Tutar</span><div className="money-input"><input name="amount" type="number" min="0" step="0.01" required /><em>₺</em></div></label><label className="full"><span>Açıklama</span><input name="description" placeholder="Giderin kısa açıklaması" required /></label><label><span>Ödeme tarihi</span><input name="dueDate" type="date" /></label></div>; }
 function UserFields() { return <div className="form-grid"><label><span>Kullanıcı adı</span><input name="username" pattern="[a-zA-Z0-9._-]{3,32}" placeholder="Örn. finans1" required /></label><label><span>Görünen ad</span><input name="fullName" placeholder="Örn. Finans Kullanıcısı" required /></label><label><span>Geçici parola (en az 10 karakter)</span><input name="password" type="password" minLength={10} maxLength={128} required /></label><label><span>Yetki</span><select name="role"><option value="user">Kullanıcı</option><option value="admin">Firma yetkilisi</option></select></label><div className="full form-help">Firma yetkilisi kullanıcı ve kritik finans ayarlarını yönetebilir. Normal kullanıcı veri ve belge ekleyebilir.</div></div>; }
 function PasswordFields() { return <div className="form-grid"><label className="full"><span>Mevcut parola</span><input name="currentPassword" type="password" autoComplete="current-password" required /></label><label><span>Yeni parola</span><input name="newPassword" type="password" minLength={10} maxLength={128} autoComplete="new-password" required /></label><label><span>Yeni parola tekrar</span><input name="confirmPassword" type="password" minLength={10} maxLength={128} autoComplete="new-password" required /></label><div className="full form-help">Yeni parolanız en az 10 karakter olmalı. Değişiklikten sonra diğer cihazlardaki oturumlar kapatılır.</div></div>; }
