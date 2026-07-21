@@ -15,6 +15,11 @@ export type FxRates = {
   sourceDate: string;
   sourceLabel: string;
   live: boolean;
+  goldRates: Record<string, number>;
+  goldSourceDate: string;
+  goldSourceLabel: string;
+  goldLive: boolean;
+  goldOunceUsd: number;
 };
 
 const lastVerified: FxRates = {
@@ -25,7 +30,52 @@ const lastVerified: FxRates = {
   sourceDate: "16.07.2026",
   sourceLabel: "Son doğrulanmış TCMB gösterge kuru",
   live: false,
+  goldRates: {},
+  goldSourceDate: "—",
+  goldSourceLabel: "Altın referans verisi alınamadı",
+  goldLive: false,
+  goldOunceUsd: 0,
 };
+
+const TROY_OUNCE_GRAMS = 31.1034768;
+
+type GoldApiResponse = {
+  price?: number;
+  updatedAt?: string;
+};
+
+async function getGoldRates(usdTry: number) {
+  try {
+    const response = await fetch("https://api.gold-api.com/price/XAU", {
+      headers: { "User-Agent": "Teksanor-Finans-Paneli/1.0" },
+    });
+    if (!response.ok) throw new Error("Altın verisi alınamadı.");
+    const payload = await response.json() as GoldApiResponse;
+    const ounceUsd = Number(payload.price ?? 0);
+    if (!Number.isFinite(ounceUsd) || ounceUsd <= 0 || !Number.isFinite(usdTry) || usdTry <= 0) throw new Error("Altın verisi geçersiz.");
+
+    const pureGramTry = ounceUsd * usdTry / TROY_OUNCE_GRAMS;
+    const rates = {
+      GRAM_GOLD: pureGramTry,
+      QUARTER_GOLD: pureGramTry * 1.608,
+      HALF_GOLD: pureGramTry * 3.216,
+      FULL_GOLD: pureGramTry * 6.432,
+      REPUBLIC_GOLD: pureGramTry * 6.615,
+      ATA_GOLD: pureGramTry * 6.615,
+      BRACELET_22K_GRAM: pureGramTry * (22 / 24),
+    };
+    const updated = payload.updatedAt ? new Date(payload.updatedAt) : new Date();
+    return {
+      rates,
+      sourceDate: Number.isNaN(updated.getTime()) ? new Date().toLocaleString("tr-TR") : updated.toLocaleString("tr-TR"),
+      sourceLabel: "Gold API ons spot fiyatı + TCMB USD/TRY kuru",
+      live: true,
+      ounceUsd,
+    };
+  } catch {
+    return { rates: {}, sourceDate: "—", sourceLabel: "Altın referans verisi alınamadı", live: false, ounceUsd: 0 };
+  }
+}
 
 function readCurrencies(xml: string) {
   const rates: Record<string, number> = { TRY: 1 };
@@ -53,7 +103,12 @@ export async function getFxRates(): Promise<FxRates> {
     const EUR = rates.EUR;
     if (!USD || !EUR) return lastVerified;
     const sourceDate = xml.match(/Tarih="([^"]+)"/)?.[1] ?? new Date().toLocaleDateString("tr-TR");
-    return { TRY: 1, USD, EUR, rates, sourceDate, sourceLabel: "TCMB günlük döviz satış kuru", live: true };
+    const gold = await getGoldRates(USD);
+    return {
+      TRY: 1, USD, EUR, rates, sourceDate, sourceLabel: "TCMB günlük döviz satış kuru", live: true,
+      goldRates: gold.rates, goldSourceDate: gold.sourceDate, goldSourceLabel: gold.sourceLabel,
+      goldLive: gold.live, goldOunceUsd: gold.ounceUsd,
+    };
   } catch {
     return lastVerified;
   }
