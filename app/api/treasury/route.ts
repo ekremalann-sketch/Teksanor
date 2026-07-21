@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { addAudit, createId, getDb } from "@/lib/db";
 import { FIAT_CURRENCIES, GOLD_UNITS, getFxRates } from "@/lib/fx";
 import { canManageOrganization, requireOrganization } from "@/lib/tenancy";
+import { rejectCrossSiteMutation } from "@/lib/security";
 
 type BalanceRow = { id: string; account_name: string; currency: string; amount: number; manual_rate: number | null; note?: string; created_at: string };
 type DebtRow = { id: string; lender_name: string; debt_type: string; currency: string; amount: number; manual_rate: number | null; due_date?: string; note?: string; status: string; created_at: string };
@@ -55,6 +56,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const rejected = rejectCrossSiteMutation(request); if (rejected) return rejected;
   const user = await getCurrentUser(request);
   if (!user) return NextResponse.json({ error: "Oturum gerekli." }, { status: 401 });
   let context;
