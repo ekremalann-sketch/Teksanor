@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { clearSessionCookie, readCookie } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import { rejectCrossSiteMutation } from "@/lib/security";
 
 async function hash(value: string) {
   const bytes = new TextEncoder().encode(value);
@@ -9,10 +10,10 @@ async function hash(value: string) {
 }
 
 export async function POST(request: Request) {
+  const rejected = rejectCrossSiteMutation(request); if (rejected) return rejected;
   const token = readCookie(request, "teksanor_session");
   if (token) await getDb().prepare("DELETE FROM sessions WHERE token_hash = ?").bind(await hash(token)).run();
   const response = NextResponse.json({ ok: true });
   response.headers.set("Set-Cookie", clearSessionCookie());
   return response;
 }
-
