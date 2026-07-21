@@ -11,11 +11,35 @@ export async function PATCH(request: Request, routeContext: { params: Promise<{ 
   catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Erişim reddedildi." }, { status: 403 }); }
   if (!canManageOrganization(user, orgContext.organization)) return NextResponse.json({ error: "Şirket yöneticisi yetkisi gerekli." }, { status: 403 });
   const { id } = await routeContext.params;
-  const body = (await request.json()) as { action?: string };
-  if (body.action !== "approve") return NextResponse.json({ error: "Geçersiz işlem." }, { status: 400 });
-  await getDb().prepare("UPDATE payment_records SET workflow_status = 'approved', updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND organization_id = ?")
-    .bind(user.id, id, orgContext.organization.id).run();
-  await addAudit(user.id, "approve", "payment_record", id, undefined, orgContext.organization.id);
+  const body = (await request.json()) as Record<string, unknown>;
+  if (body.action === "approve") {
+    await getDb().prepare("UPDATE payment_records SET workflow_status = 'approved', updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND organization_id = ?")
+      .bind(user.id, id, orgContext.organization.id).run();
+    await addAudit(user.id, "approve", "payment_record", id, undefined, orgContext.organization.id);
+    return NextResponse.json({ ok: true });
+  }
+  if (!body.period || !body.ownerName || !body.bankName || !body.accountName) {
+    return NextResponse.json({ error: "Dönem, kişi, banka ve hesap adı gereklidir." }, { status: 400 });
+  }
+  const previous = await getDb().prepare("SELECT period FROM payment_records WHERE id = ? AND organization_id = ?")
+    .bind(id, orgContext.organization.id).first<{ period: string }>();
+  if (!previous) return NextResponse.json({ error: "Kayıt bulunamadı." }, { status: 404 });
+  const numberValue = (key: string) => Number(body[key] ?? 0) || 0;
+  await getDb().prepare(`UPDATE payment_records SET
+    period = ?, owner_name = ?, bank_name = ?, account_name = ?, total_limit = ?, total_debt = ?, restructuring = ?,
+    monthly_payment = ?, next_installment = ?, overdraft_debt = ?, overdraft_limit = ?, minimum_payment = ?,
+    due_date = ?, important_note = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ? AND organization_id = ?`)
+    .bind(
+      String(body.period), String(body.ownerName), String(body.bankName), String(body.accountName),
+      numberValue("totalLimit"), numberValue("totalDebt"), numberValue("restructuring"), numberValue("monthlyPayment"),
+      numberValue("nextInstallment"), numberValue("overdraftDebt"), numberValue("overdraftLimit"), numberValue("minimumPayment"),
+      body.dueDate ? String(body.dueDate) : null, body.importantNote ? String(body.importantNote) : null,
+      user.id, id, orgContext.organization.id,
+    ).run();
+  await refreshOrganizationPeriodSummary(orgContext.organization.id, previous.period);
+  if (String(body.period) !== previous.period) await refreshOrganizationPeriodSummary(orgContext.organization.id, String(body.period));
+  await addAudit(user.id, "update", "payment_record", id, `${body.bankName} kaydı güncellendi.`, orgContext.organization.id);
   return NextResponse.json({ ok: true });
 }
 
