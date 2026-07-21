@@ -113,7 +113,7 @@ export default function InsightArticle({ articleKey }: { articleKey: string }) {
             </section>
           ))}
           <div className="article-trust-note"><ShieldCheck size={24} /><div><b>Açık ve ölçülü yaklaşım</b><p>Gerçek ihtiyacı görmeden süre, maliyet veya başarı sözü vermiyoruz. Önce işi inceliyor, sonra ölçülebilir bir hedef belirliyoruz.</p></div></div>
-          <div className="article-conclusion"><span>Bir sonraki adım</span><h2>İhtiyacı sadeleştirin, sonra teknolojiyi seçin.</h2><p>Teksanor Yönetim Portalı’nı inceleyebilir veya diğer çözüm alanlarından araştırmanıza devam edebilirsiniz.</p><div><Link href="/giris?mode=register">Portal çalışma alanını aç <ArrowRight size={16} /></Link><Link href="/cozumler">Tüm çözümler</Link></div></div>
+          <div className="article-conclusion"><span>Bir sonraki adım</span><h2>İhtiyacı sadeleştirin, sonra teknolojiyi seçin.</h2><p>Teksanor Yönetim Portalı’nı inceleyebilir veya diğer çözüm alanlarından araştırmanıza devam edebilirsiniz.</p><div><Link href="/giris#kayit">Portal çalışma alanını aç <ArrowRight size={16} /></Link><Link href="/cozumler">Tüm çözümler</Link></div></div>
         </article>
       </div>
       <footer className="article-footer"><img src="/assets/teksanor-logo.png" alt="Teksanor" /><span>Mühendislik aklı. Yapay zekâ gücü.</span><span>© 2026 Teksanor</span></footer>
