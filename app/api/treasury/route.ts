@@ -26,7 +26,7 @@ export async function GET(request: Request) {
   const references = Object.fromEntries(referenceResult.results.map((item) => [item.code, Number(item.rate_try)]));
   const rateFor = (currency: string, manualRate?: number | null) => {
     if (currency === "TRY") return 1;
-    return Number(manualRate || fx.rates[currency] || references[currency] || 0);
+    return Number(manualRate || references[currency] || fx.goldRates[currency] || fx.rates[currency] || 0);
   };
   const balances = balancesResult.results.map((item) => {
     const rate = rateFor(item.currency);
