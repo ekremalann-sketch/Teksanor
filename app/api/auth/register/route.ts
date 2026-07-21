@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSession, enforceAuthRateLimit, ensureDefaultAdminAccounts, hashPassword, sessionCookie } from "@/lib/auth";
 import { addAudit, createId, getDb } from "@/lib/db";
+import { rejectCrossSiteMutation } from "@/lib/security";
 
 function slugify(value: string) {
   return value.toLocaleLowerCase("tr-TR")
@@ -9,6 +10,7 @@ function slugify(value: string) {
 }
 
 export async function POST(request: Request) {
+  const rejected = rejectCrossSiteMutation(request); if (rejected) return rejected;
   try {
     await ensureDefaultAdminAccounts();
     await enforceAuthRateLimit(request, "register");
