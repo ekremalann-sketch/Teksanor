@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSession, getCurrentUser, hashPassword, readCookie, sessionCookie, verifyPassword } from "@/lib/auth";
 import { addAudit, getDb } from "@/lib/db";
+import { rejectCrossSiteMutation } from "@/lib/security";
 
 async function sha256(value: string) {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
@@ -8,6 +9,7 @@ async function sha256(value: string) {
 }
 
 export async function POST(request: Request) {
+  const rejected = rejectCrossSiteMutation(request); if (rejected) return rejected;
   const user = await getCurrentUser(request);
   if (!user) return NextResponse.json({ error: "Oturum gerekli." }, { status: 401 });
   const body = (await request.json()) as { currentPassword?: string; newPassword?: string };
