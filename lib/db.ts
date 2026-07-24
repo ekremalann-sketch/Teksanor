@@ -130,6 +130,9 @@ const schemaStatements = [
   interest_rate REAL NOT NULL DEFAULT 0,
   interest_debt REAL NOT NULL DEFAULT 0,
   minimum_payment REAL NOT NULL DEFAULT 0,
+  paid_amount REAL NOT NULL DEFAULT 0,
+  payment_status TEXT NOT NULL CHECK (payment_status IN ('planned', 'partial', 'paid', 'overdue')) DEFAULT 'planned',
+  paid_at TEXT,
   due_date TEXT,
   important_note TEXT,
   workflow_status TEXT NOT NULL CHECK (workflow_status IN ('draft', 'submitted', 'approved')) DEFAULT 'draft',
@@ -208,6 +211,232 @@ const schemaStatements = [
   details TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 )`,
+`CREATE TABLE IF NOT EXISTS tasks (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT,
+  department TEXT NOT NULL,
+  assignee_name TEXT,
+  status TEXT NOT NULL CHECK (status IN ('open', 'in_progress', 'done', 'cancelled')) DEFAULT 'open',
+  priority TEXT NOT NULL CHECK (priority IN ('low', 'normal', 'high', 'critical')) DEFAULT 'normal',
+  due_date TEXT,
+  completed_at TEXT,
+  created_by TEXT REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+)`,
+`CREATE TABLE IF NOT EXISTS assets (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  asset_code TEXT NOT NULL,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'Ekipman',
+  brand TEXT,
+  model TEXT,
+  serial_number TEXT,
+  location TEXT,
+  status TEXT NOT NULL CHECK (status IN ('active', 'maintenance', 'inactive', 'retired')) DEFAULT 'active',
+  responsible_name TEXT,
+  purchase_date TEXT,
+  warranty_end TEXT,
+  notes TEXT,
+  created_by TEXT REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (organization_id, asset_code)
+)`,
+`CREATE TABLE IF NOT EXISTS maintenance_plans (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  asset_id TEXT NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  frequency_type TEXT NOT NULL CHECK (frequency_type IN ('day', 'week', 'month', 'year', 'usage')) DEFAULT 'month',
+  frequency_value INTEGER NOT NULL DEFAULT 1,
+  next_due_date TEXT,
+  assigned_to TEXT,
+  checklist_text TEXT,
+  status TEXT NOT NULL CHECK (status IN ('active', 'paused', 'completed')) DEFAULT 'active',
+  last_completed_at TEXT,
+  created_by TEXT REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+)`,
+`CREATE INDEX IF NOT EXISTS assets_org_status_idx ON assets (organization_id, status)`,
+`CREATE INDEX IF NOT EXISTS maintenance_org_due_idx ON maintenance_plans (organization_id, next_due_date, status)`,
+`CREATE TABLE IF NOT EXISTS work_orders (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  order_number TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  customer_name TEXT,
+  location TEXT,
+  department TEXT NOT NULL DEFAULT 'Operasyon yönetimi',
+  order_type TEXT NOT NULL CHECK (order_type IN ('maintenance', 'repair', 'installation', 'inspection', 'other')) DEFAULT 'other',
+  status TEXT NOT NULL CHECK (status IN ('open', 'assigned', 'in_progress', 'completed', 'cancelled')) DEFAULT 'open',
+  priority TEXT NOT NULL CHECK (priority IN ('low', 'normal', 'high', 'critical')) DEFAULT 'normal',
+  assigned_to TEXT,
+  scheduled_date TEXT,
+  completed_date TEXT,
+  estimated_hours REAL DEFAULT 0,
+  actual_hours REAL DEFAULT 0,
+  notes TEXT,
+  created_by TEXT REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+)`,
+`CREATE TABLE IF NOT EXISTS field_visits (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  visit_number TEXT NOT NULL,
+  work_order_id TEXT REFERENCES work_orders(id),
+  visitor_name TEXT NOT NULL,
+  customer_name TEXT,
+  location TEXT NOT NULL,
+  visit_date TEXT NOT NULL,
+  visit_type TEXT NOT NULL CHECK (visit_type IN ('inspection', 'installation', 'maintenance', 'support', 'audit', 'other')) DEFAULT 'other',
+  status TEXT NOT NULL CHECK (status IN ('planned', 'completed', 'cancelled')) DEFAULT 'planned',
+  duration_hours REAL DEFAULT 0,
+  findings TEXT,
+  actions_taken TEXT,
+  next_visit_date TEXT,
+  created_by TEXT REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+)`,
+`CREATE TABLE IF NOT EXISTS procurement_requests (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  request_number TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  department TEXT NOT NULL,
+  requested_by TEXT,
+  supplier_name TEXT,
+  quantity REAL NOT NULL DEFAULT 1,
+  unit TEXT DEFAULT 'adet',
+  unit_price REAL DEFAULT 0,
+  total_price REAL DEFAULT 0,
+  currency TEXT NOT NULL DEFAULT 'TRY',
+  status TEXT NOT NULL CHECK (status IN ('draft', 'pending', 'approved', 'ordered', 'delivered', 'cancelled')) DEFAULT 'draft',
+  priority TEXT NOT NULL CHECK (priority IN ('low', 'normal', 'high', 'critical')) DEFAULT 'normal',
+  required_date TEXT,
+  order_date TEXT,
+  delivery_date TEXT,
+  notes TEXT,
+  created_by TEXT REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+)`,
+`CREATE TABLE IF NOT EXISTS customers (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  company_name TEXT,
+  email TEXT,
+  phone TEXT,
+  address TEXT,
+  sector TEXT,
+  status TEXT NOT NULL CHECK (status IN ('lead', 'prospect', 'active', 'inactive')) DEFAULT 'lead',
+  total_value REAL DEFAULT 0,
+  notes TEXT,
+  created_by TEXT REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+)`,
+`CREATE TABLE IF NOT EXISTS customer_interactions (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+  interaction_type TEXT NOT NULL CHECK (interaction_type IN ('call', 'email', 'meeting', 'visit', 'proposal', 'other')) DEFAULT 'other',
+  summary TEXT NOT NULL,
+  outcome TEXT,
+  interaction_date TEXT NOT NULL,
+  next_action TEXT,
+  next_action_date TEXT,
+  created_by TEXT REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+)`,
+`CREATE TABLE IF NOT EXISTS employees (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  full_name TEXT NOT NULL,
+  title TEXT,
+  department TEXT NOT NULL,
+  email TEXT,
+  phone TEXT,
+  start_date TEXT,
+  status TEXT NOT NULL CHECK (status IN ('active', 'on_leave', 'inactive')) DEFAULT 'active',
+  employment_type TEXT NOT NULL CHECK (employment_type IN ('full_time', 'part_time', 'contractor', 'intern')) DEFAULT 'full_time',
+  notes TEXT,
+  created_by TEXT REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+)`,
+`CREATE TABLE IF NOT EXISTS risks (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT,
+  department TEXT NOT NULL,
+  category TEXT NOT NULL CHECK (category IN ('financial', 'operational', 'legal', 'technical', 'hr', 'other')) DEFAULT 'other',
+  likelihood TEXT NOT NULL CHECK (likelihood IN ('low', 'medium', 'high')) DEFAULT 'medium',
+  impact TEXT NOT NULL CHECK (impact IN ('low', 'medium', 'high', 'critical')) DEFAULT 'medium',
+  status TEXT NOT NULL CHECK (status IN ('identified', 'mitigating', 'resolved', 'accepted')) DEFAULT 'identified',
+  owner_name TEXT,
+  mitigation_plan TEXT,
+  review_date TEXT,
+  created_by TEXT REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+)`,
+`CREATE TABLE IF NOT EXISTS automation_rules (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT,
+  trigger_type TEXT NOT NULL CHECK (trigger_type IN ('schedule', 'threshold', 'status_change', 'manual')) DEFAULT 'manual',
+  trigger_config TEXT,
+  action_type TEXT NOT NULL CHECK (action_type IN ('notify', 'create_task', 'create_report', 'flag_record')) DEFAULT 'notify',
+  action_config TEXT,
+  is_active INTEGER NOT NULL DEFAULT 1,
+  last_run_at TEXT,
+  run_count INTEGER NOT NULL DEFAULT 0,
+  created_by TEXT REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+)`,
+`CREATE TABLE IF NOT EXISTS notifications (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  user_id TEXT REFERENCES users(id),
+  title TEXT NOT NULL,
+  body TEXT,
+  type TEXT NOT NULL CHECK (type IN ('info', 'warning', 'error', 'success')) DEFAULT 'info',
+  entity_type TEXT,
+  entity_id TEXT,
+  is_read INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+)`,
+`CREATE TABLE IF NOT EXISTS agent_chats (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  agent_name TEXT NOT NULL,
+  user_id TEXT REFERENCES users(id),
+  role TEXT NOT NULL CHECK (role IN ('user', 'assistant')) DEFAULT 'user',
+  content TEXT NOT NULL,
+  context_snapshot TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+)`,
+"CREATE INDEX IF NOT EXISTS idx_tasks_org ON tasks(organization_id, status)",
+"CREATE INDEX IF NOT EXISTS idx_work_orders_org ON work_orders(organization_id, status)",
+"CREATE INDEX IF NOT EXISTS idx_field_visits_org ON field_visits(organization_id, visit_date)",
+"CREATE INDEX IF NOT EXISTS idx_procurement_org ON procurement_requests(organization_id, status)",
+"CREATE INDEX IF NOT EXISTS idx_customers_org ON customers(organization_id, status)",
+"CREATE INDEX IF NOT EXISTS idx_employees_org ON employees(organization_id, status)",
+"CREATE INDEX IF NOT EXISTS idx_risks_org ON risks(organization_id, status)",
+"CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(organization_id, user_id, is_read)",
+"CREATE INDEX IF NOT EXISTS idx_agent_chats_org ON agent_chats(organization_id, agent_name)",
 "CREATE INDEX IF NOT EXISTS idx_payment_period ON payment_records(period)",
 "CREATE INDEX IF NOT EXISTS idx_payment_status ON payment_records(workflow_status)",
 "CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)",
@@ -218,30 +447,7 @@ const schemaStatements = [
 
 export const DEFAULT_ORGANIZATION_ID = "org_alan_group";
 
-const summaries = [
-  ["sum-nis-may", "Nisan - Mayıs 2026", 2563000, 2208950, 0, 788750, 297700, 955000, 1405000, 362300, 42500, 1],
-  ["sum-may-haz", "Mayıs - Haziran 2026", 2563000, 2422500, 1318000, 800000, 258300, 1346000, 1385000, 311500, 82500, 2],
-  ["sum-haz-tem", "Haziran - Temmuz 2026", 2563000, 2090000, 1233000, 947000, 154500, 1363500, 1385000, 325500, 92500, 3],
-  ["sum-tem-agu", "Temmuz - Ağustos 2026", 2570000, 1592000, 1147000, 546300, 143500, 1165500, 1250000, 224000, 92500, 4],
-] as const;
-
-const latestPayments = [
-  ["pay-evren-garanti", "Evren", "Garanti", "Garanti kredi kartı", 225000, 0, 0, 0, 0, 55500, 50000, 4.25, 0, 0, null, ""],
-  ["pay-evren-enpara", "Evren", "Enpara", "Yapılandırma bloke kart", 364000, 202000, 90000, 47000, 0, 114000, 150000, 4.25, 0, 17000, "2026-07-06", "En az 15-20 bin ödeme planı oluşturulacak."],
-  ["pay-evren-yapikredi", "Evren", "Yapı Kredi", "Kredi kartı", 76000, 0, 0, 0, 6400, 0, 0, 0, 0, 0, null, ""],
-  ["pay-evren-hepsiburada", "Evren", "Yapı Kredi", "Hepsiburada Worldcard", 0, 0, 0, 0, 2500, 0, 0, 0, 0, 0, null, ""],
-  ["pay-evren-denizbank", "Evren", "Denizbank", "Denizbank kart", 163000, 0, 0, 0, 48000, 0, 160000, 3.89, 0, 0, null, ""],
-  ["pay-firma-enpara", "Firma Yetkilisi", "Enpara", "Enpara kredi kartı", 151000, 143400, 0, 125700, 1500, 0, 25000, 4.25, 0, 13000, "2026-06-18", ""],
-  ["pay-firma-akbank", "Firma Yetkilisi", "Akbank", "Yapılandırma", 1030000, 1030000, 1057000, 183000, 87600, 0, 0, 0, 0, 92000, "2026-06-01", "İhtarname çekildi; yakın takip gerekiyor."],
-  ["pay-firma-yapikredi", "Firma Yetkilisi", "Yapı Kredi", "Kredi kartı", 110000, 78000, 0, 52000, 0, 81000, 75000, 4.25, 0, 25000, "2026-06-04", "Gecikmiş ödemeler mevcut."],
-  ["pay-firma-teb1", "Firma Yetkilisi", "TEB", "TEB 1", 11500, 11000, 0, 11000, 0, 0, 0, 0, 0, 0, null, ""],
-  ["pay-firma-tombank", "Firma Yetkilisi", "TOM Bank", "TOM Bank", 10000, 10000, 0, 10000, 0, 0, 0, 0, 0, 0, null, ""],
-  ["pay-firma-vakifbank", "Firma Yetkilisi", "VakıfBank", "VakıfBank kredi kartı", 44000, 8000, 0, 8000, 0, 765000, 640000, 4.25, 0, 7000, "2026-06-18", ""],
-  ["pay-firma-qnb", "Firma Yetkilisi", "QNB Finansbank", "QNB kredi kartı", 400000, 123600, 0, 123600, 0, 150000, 150000, 4.25, 0, 70000, "2026-06-08", "Son ödeme tarihi geçti."],
-  ["pay-firma-teb-ev", "Firma Yetkilisi", "TEB", "TEB ev", 7000, 7000, 0, 7000, 0, 0, 0, 0, 0, 0, "2026-06-18", ""],
-] as const;
-
-const CURRENT_SCHEMA_VERSION = "2026-07-17-remove-personal-identifiers-v4";
+const CURRENT_SCHEMA_VERSION = "2026-07-24-assets-maintenance-v1";
 let schemaPromise: Promise<void> | null = null;
 
 export async function ensureSchema() {
@@ -285,6 +491,16 @@ async function initializeSchema() {
       await database.prepare(`ALTER TABLE ${table} ADD COLUMN organization_id TEXT`).run();
     }
   }
+  const paymentColumns = await database.prepare("PRAGMA table_info(payment_records)").all<{ name: string }>();
+  if (!paymentColumns.results.some((column) => column.name === "paid_amount")) {
+    await database.prepare("ALTER TABLE payment_records ADD COLUMN paid_amount REAL NOT NULL DEFAULT 0").run();
+  }
+  if (!paymentColumns.results.some((column) => column.name === "payment_status")) {
+    await database.prepare("ALTER TABLE payment_records ADD COLUMN payment_status TEXT NOT NULL DEFAULT 'planned'").run();
+  }
+  if (!paymentColumns.results.some((column) => column.name === "paid_at")) {
+    await database.prepare("ALTER TABLE payment_records ADD COLUMN paid_at TEXT").run();
+  }
   await migrateTreasuryCurrencyTables(database);
   await database.prepare("CREATE INDEX IF NOT EXISTS idx_payment_org ON payment_records(organization_id)").run();
   await database.prepare("CREATE INDEX IF NOT EXISTS idx_expense_org ON expenses(organization_id)").run();
@@ -299,46 +515,12 @@ async function initializeSchema() {
     VALUES (?, 'Alan Group', 'Mühendislik, teknoloji ve yönetim', 'Şirket içi finans ve operasyon verilerinin güvenli şekilde izlendiği çalışma alanı.')`)
     .bind(DEFAULT_ORGANIZATION_ID).run();
 
-  const existing = await database.prepare("SELECT COUNT(*) AS count FROM period_summaries").first<{ count: number }>();
-  if ((existing?.count ?? 0) === 0) {
-    const summarySql = `INSERT OR IGNORE INTO period_summaries
-      (id, period, total_limit, total_debt, restructuring, monthly_payment, next_installment, overdraft_debt, overdraft_limit, minimum_payment, expense_total, sort_order)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-    const paymentSql = `INSERT OR IGNORE INTO payment_records
-      (id, period, owner_name, bank_name, account_name, total_limit, total_debt, restructuring, monthly_payment, next_installment, overdraft_debt, overdraft_limit, interest_rate, interest_debt, minimum_payment, due_date, important_note, workflow_status, organization_id)
-      VALUES (?, 'Temmuz - Ağustos 2026', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'approved', '${DEFAULT_ORGANIZATION_ID}')`;
-
-    await database.batch([
-      ...summaries.map((row) => database.prepare(summarySql).bind(...row)),
-      ...latestPayments.map((row) => database.prepare(paymentSql).bind(...row)),
-    ]);
-  }
-
-  const manualDebtCount = await database.prepare("SELECT COUNT(*) AS count FROM manual_debts").first<{ count: number }>();
-  if ((manualDebtCount?.count ?? 0) === 0) {
-    const debtSql = `INSERT INTO manual_debts
-      (id, lender_name, debt_type, currency, amount, manual_rate, note, status, organization_id)
-      VALUES (?, ?, 'gold', ?, ?, NULL, ?, 'open', '${DEFAULT_ORGANIZATION_ID}')`;
-    await database.batch([
-      database.prepare(debtSql).bind("debt-mehmet-ata", "Mehmet Alan", "ATA_GOLD", 12, "12 Ata altın · henüz verilmedi."),
-      database.prepare(debtSql).bind("debt-kuyumcu-gram", "Kuyumcu Altın", "GRAM_GOLD", 40, "40 gram altın · henüz verilmedi."),
-      database.prepare(debtSql).bind("debt-firma-ata", "Firma Ortağı", "ATA_GOLD", 3, "3 Ata altın · henüz verilmedi."),
-      database.prepare(debtSql).bind("debt-firma-bilezik", "Firma Ortağı", "GRAM_GOLD", 30, "2 adet 15 gram bilezik · henüz verilmedi."),
-    ]);
-  }
-
   await database.prepare("UPDATE payment_records SET organization_id = ? WHERE organization_id IS NULL").bind(DEFAULT_ORGANIZATION_ID).run();
   await database.prepare("UPDATE expenses SET organization_id = ? WHERE organization_id IS NULL").bind(DEFAULT_ORGANIZATION_ID).run();
   await database.prepare("UPDATE cash_balances SET organization_id = ? WHERE organization_id IS NULL").bind(DEFAULT_ORGANIZATION_ID).run();
   await database.prepare("UPDATE manual_debts SET organization_id = ? WHERE organization_id IS NULL").bind(DEFAULT_ORGANIZATION_ID).run();
   await database.prepare("UPDATE attachments SET organization_id = ? WHERE organization_id IS NULL").bind(DEFAULT_ORGANIZATION_ID).run();
   await database.prepare("UPDATE audit_logs SET organization_id = ? WHERE organization_id IS NULL").bind(DEFAULT_ORGANIZATION_ID).run();
-  await database.prepare("UPDATE payment_records SET owner_name = 'Firma Yetkilisi' WHERE lower(trim(owner_name)) IN ('ekrem', 'ekrem alan')").run();
-  await database.prepare("UPDATE manual_debts SET lender_name = 'Firma Ortağı' WHERE lower(trim(lender_name)) = 'ekrem alan'").run();
-  await database.prepare("UPDATE attachments SET record_id = replace(record_id, 'pay-ekrem-', 'pay-firma-') WHERE record_id LIKE 'pay-ekrem-%'").run();
-  await database.prepare("UPDATE audit_logs SET entity_id = replace(entity_id, 'pay-ekrem-', 'pay-firma-') WHERE entity_id LIKE 'pay-ekrem-%'").run();
-  await database.prepare("UPDATE payment_records SET id = replace(id, 'pay-ekrem-', 'pay-firma-') WHERE id LIKE 'pay-ekrem-%'").run();
-  await database.prepare("UPDATE manual_debts SET id = replace(id, 'debt-ekrem-', 'debt-firma-') WHERE id LIKE 'debt-ekrem-%'").run();
   await database.prepare(`INSERT OR IGNORE INTO organization_period_summaries
     (id, organization_id, period, total_limit, total_debt, restructuring, monthly_payment, next_installment,
      overdraft_debt, overdraft_limit, minimum_payment, expense_total, sort_order)
@@ -396,7 +578,7 @@ export async function refreshOrganizationPeriodSummary(organizationId: string, p
     .bind(createId("summary"), organizationId, period, organizationId).run();
   await database.prepare(`UPDATE organization_period_summaries SET
     total_limit = COALESCE((SELECT SUM(total_limit) FROM payment_records WHERE organization_id = ? AND period = ?), 0),
-    total_debt = COALESCE((SELECT SUM(total_debt) FROM payment_records WHERE organization_id = ? AND period = ?), 0),
+    total_debt = COALESCE((SELECT SUM(MAX(total_debt - paid_amount, 0)) FROM payment_records WHERE organization_id = ? AND period = ?), 0),
     restructuring = COALESCE((SELECT SUM(restructuring) FROM payment_records WHERE organization_id = ? AND period = ?), 0),
     monthly_payment = COALESCE((SELECT SUM(monthly_payment) FROM payment_records WHERE organization_id = ? AND period = ?), 0),
     next_installment = COALESCE((SELECT SUM(next_installment) FROM payment_records WHERE organization_id = ? AND period = ?), 0),
