@@ -8,7 +8,9 @@ import {
   BarChart3,
   BrainCircuit,
   CheckCircle2,
+  CalendarCheck2,
   Database,
+  Factory,
   Gauge,
   Layers3,
   LockKeyhole,
@@ -70,9 +72,10 @@ export default function Home() {
           <img src="/assets/teksanor-logo.png" alt="Teksanor" className="header-logo" />
         </Link>
         <nav className="desktop-nav" aria-label="Ana menü">
-          <Link href="#cozumler">Çözümler</Link>
-          <Link href="#yaklasim">Mühendislik</Link>
-          <Link href="#icgoruler">Yapay Zekâ</Link>
+          <Link href="/platform">Platform</Link>
+          <Link href="/sektorler">Sektörler</Link>
+          <Link href="/entegrasyonlar">Entegrasyonlar</Link>
+          <Link href="/guven">Güven</Link>
           <Link href="/hakkimizda">Hakkımızda</Link>
         </nav>
         <Link className="login-link" href={authenticated ? "/panel" : "/giris"}>
@@ -87,16 +90,16 @@ export default function Home() {
         <div className="hero-glow hero-glow-one" aria-hidden="true" />
         <div className="hero-glow hero-glow-two" aria-hidden="true" />
         <div className="hero-copy">
-          <div className="eyebrow"><Sparkles size={15} /> Mühendislik · Veri · Yapay zekâ</div>
-          <h1>Mühendislik aklı.<br /><span>Yapay zekâ gücü.</span></h1>
+          <div className="eyebrow"><Sparkles size={15} /> Teknik servis · Bakım · Mühendislik</div>
+          <h1>Sahadaki işi,<br /><span>merkezdeki karara bağlayın.</span></h1>
           <p>
-            Teksanor, iş süreçlerini daha anlaşılır, izlenebilir ve verimli hâle getirmek amacıyla
-            mühendislik yaklaşımını veri analitiği ve yapay zekâ destekli çözümlerle bir araya getiren
-            bir teknoloji markasıdır.
+            İş emirleri, saha ziyaretleri, ekipmanlar, periyodik bakım, projeler, belgeler ve finansal
+            kayıtlar aynı çalışma alanında buluşur. Yönetici ne olduğunu görür; ekip ne yapacağını bilir.
           </p>
           <div className="hero-actions">
-            <Link className="primary-action" href="/cozumler">Çözümleri keşfet <ArrowRight size={18} /></Link>
-            <Link className="secondary-action" href={authenticated ? "/panel" : "/giris#kayit"}><LockKeyhole size={17} /> {authenticated ? "Panele dön" : "Ücretsiz deneyin"}</Link>
+            <Link className="primary-action" href="/platform">Platformu incele <ArrowRight size={18} /></Link>
+            <Link className="secondary-action" href="/pilot"><Gauge size={17} /> Pilot çalışma</Link>
+            <Link className="secondary-action" href={authenticated ? "/panel" : "/giris"}><LockKeyhole size={17} /> {authenticated ? "Panele dön" : "Kurumsal giriş"}</Link>
           </div>
           <div className="trust-row">
             <span><CheckCircle2 size={16} /> Ölçülebilir</span>
@@ -104,12 +107,59 @@ export default function Home() {
             <span><CheckCircle2 size={16} /> Güvenli</span>
           </div>
         </div>
-        <div className="hero-visual engineering-hero-visual" aria-label="Teksanor mühendislik laboratuvarı">
-          <img src="/assets/teksanor-engineering-lab.webp" alt="Akıllı üretim, robotik ve veri mühendisliği laboratuvarı" />
+        <div className="hero-visual engineering-hero-visual" aria-label="Teksanor saha operasyonu yönetimi">
+          <img src="/assets/teksanor-field-operations.svg" alt="Saha operasyonunu merkezden yöneten mühendislik ekibi" />
           <div className="hero-brand-stamp"><img src="/assets/teksanor-logo.png" alt="Teksanor" /><span>ENGINEERING INTELLIGENCE</span></div>
           <div className="metric-float metric-one"><Database size={19} /><span><b>Tek kaynak</b>Dağınık veriler için</span></div>
           <div className="metric-float metric-two"><Gauge size={19} /><span><b>Anlık görünürlük</b>Kararlar için</span></div>
         </div>
+      </section>
+
+      <section className="enterprise-entry-strip" aria-label="Teksanor kurumsal çözüm alanları">
+        <div>
+          <span>OPERASYON PLATFORMU</span>
+          <h2>Teknik servis, bakım ve mühendislik ekipleri için tasarlandı.</h2>
+          <p>Ürün turunu, sektör akışlarını, entegrasyon durumunu ve güvenlik kontrollerini ayrı kurumsal sayfalarda inceleyin.</p>
+        </div>
+        <div>
+          <Link href="/platform"><Layers3 size={22}/><b>Platform</b><small>Modüller ve iş akışları</small><ArrowRight size={17}/></Link>
+          <Link href="/sektorler"><Settings2 size={22}/><b>Sektörler</b><small>İşe göre düzenlenen çözümler</small><ArrowRight size={17}/></Link>
+          <Link href="/guven"><ShieldCheck size={22}/><b>Güven merkezi</b><small>Mevcut ve planlı kontroller</small><ArrowRight size={17}/></Link>
+          <Link href="/pilot"><Gauge size={22}/><b>Ücretli pilot</b><small>6–12 haftada ölçülebilir kanıt</small><ArrowRight size={17}/></Link>
+        </div>
+      </section>
+
+      <section className="operations-command-section" aria-label="Teksanor operasyon omurgası">
+        <div className="operations-command-copy">
+          <span className="section-kicker">ÇALIŞAN OPERASYON OMURGASI</span>
+          <h2>İşi yalnızca kaydetmeyin; varlıktan bakıma, sahadan maliyete kadar izleyin.</h2>
+          <p>Teksanor’un paneli artık ekipman envanteri ve periyodik bakım planlarını da gerçek firma kayıtları olarak tutar. Bakım tamamlandığında sonraki tarih belirlenen sıklığa göre kendiliğinden hesaplanır.</p>
+          <div className="operations-command-list">
+            <span><Factory size={20}/><b>Varlık envanteri</b><small>Makine, araç, cihaz, konum ve sorumlu kaydı</small></span>
+            <span><CalendarCheck2 size={20}/><b>Periyodik bakım</b><small>Kontrol listesi, gecikme ve otomatik yeni tarih</small></span>
+            <span><Workflow size={20}/><b>İş emri ve saha</b><small>Görev, ziyaret, bulgu ve operasyon akışı</small></span>
+            <span><BarChart3 size={20}/><b>Finansal görünüm</b><small>Ödeme, borç, gider, döviz ve altın karşılığı</small></span>
+          </div>
+          <Link className="primary-action" href={authenticated ? "/panel#panel=assets" : "/giris"}>Çalışma alanını aç <ArrowRight size={18}/></Link>
+        </div>
+        <div className="operations-command-visual" aria-label="Operasyon yönetim ekranı örneği">
+          <div className="command-top"><span>TEKSANOR / OPERASYON</span><em>CANLI</em></div>
+          <div className="command-stats"><article><small>Aktif ekipman</small><b>Envanter</b><i/></article><article><small>Yaklaşan bakım</small><b>Takvim</b><i/></article><article><small>Açık iş emri</small><b>Saha</b><i/></article></div>
+          <div className="command-flow">
+            <div><span>01</span><b>Varlık tanımlanır</b><small>Kod · konum · sorumlu</small></div>
+            <div><span>02</span><b>Bakım planlanır</b><small>Sıklık · liste · tarih</small></div>
+            <div><span>03</span><b>Sahada tamamlanır</b><small>Kayıt · geçmiş · yeni tarih</small></div>
+          </div>
+        </div>
+      </section>
+
+      <section className="readiness-mini-strip" aria-label="Teksanor ürün durumu">
+        <div>
+          <span>Yeni</span>
+          <b>Son kaynak kodda operasyon modülleri ve güvenlik sertleştirmeleri işlendi.</b>
+          <small>Finans, proje, iş emri, saha, satın alma, CRM, İK, risk ve otomasyon çekirdeği görünür; canlı müşteri öncesi kalan kritik işler ayrı listelenir.</small>
+        </div>
+        <Link href="/kurumsal-durum">Durumu ve yapılacakları aç <ArrowRight size={16} /></Link>
       </section>
 
       <section className="executive-strip" aria-label="Teksanor platform özellikleri">
@@ -213,13 +263,63 @@ export default function Home() {
 
       <section className="insights-section" id="icgoruler">
         <div className="insights-preview">
-          <span className="section-kicker">Teksanor içgörüleri</span>
-          <h2>Teknolojiyi değil, dönüşen işi anlatıyoruz.</h2>
-          <p>Mühendislik, veri ve yapay zekânın işletme problemlerinde nasıl değer ürettiğini özgün ve anlaşılır içeriklerle ele alıyoruz.</p>
-          <div className="insights-preview-grid">
-            <Link href="/icerikler/yapay-zeka-is-analizi"><img src="/assets/teksanor-digital-twin.webp" alt="Endüstriyel dijital ikiz ve veri mühendisliği merkezi" /><span>YAPAY ZEKÂ · İŞ ANALİZİ</span><b>Yapay zekâ bir işletmenin gerçek problemini nasıl anlamlandırır?</b><em>8 dakikalık yazıyı oku <ArrowRight size={15} /></em></Link>
-            <Link href="/icerikler/muhendislik-danismanligi"><span>MÜHENDİSLİK YAKLAŞIMI</span><b>Teknoloji yatırımı yapmadan önce hangi sorular sorulmalı?</b><em>10 dakikalık yazıyı oku <ArrowRight size={15} /></em></Link>
-            <Link href="/icerikler/veri-karar-destek"><span>FİNANSAL GÖRÜNÜRLÜK</span><b>Dağınık Excel kayıtları yönetim görünümüne nasıl dönüşür?</b><em>9 dakikalık yazıyı oku <ArrowRight size={15} /></em></Link>
+          <div className="insights-heading">
+            <div>
+              <span className="section-kicker">Teksanor içgörüleri</span>
+              <h2>İşletmenin içinden gelen, uygulanabilir fikirler.</h2>
+              <p>Yönetim kararlarını etkileyen konuları; saha deneyimi, finansal görünürlük ve mühendislik disipliniyle ele alıyoruz.</p>
+            </div>
+            <aside>
+              <span>YAYIN DOSYASI · 01</span>
+              <b>İşletme dönüşümü</b>
+              <small>4 kapsamlı inceleme · 35 dakika</small>
+            </aside>
+          </div>
+
+          <div className="insights-topics" aria-label="İçerik başlıkları">
+            <span>İş analizi</span><span>Mühendislik</span><span>Finansal görünürlük</span><span>Süreç tasarımı</span>
+          </div>
+
+          <div className="insights-editorial-grid">
+            <Link className="insight-feature" href="/icerikler/yapay-zeka-is-analizi">
+              <img src="/assets/teksanor-digital-twin.webp" alt="Endüstriyel veri ve iş analizi merkezi" />
+              <div className="insight-feature-copy">
+                <div><span>YAPAY ZEKÂ · İŞ ANALİZİ</span><small>8 dakika</small></div>
+                <b>Yapay zekâ, bir işletmenin gerçek problemini nasıl anlamlandırır?</b>
+                <p>İyi bir sistem neden teknoloji seçerek değil, doğru iş sorusunu tanımlayarak başlar?</p>
+                <em>İncelemeyi oku <ArrowRight size={16} /></em>
+              </div>
+            </Link>
+
+            <div className="insight-side-stack">
+              <Link className="insight-card insight-engineering" href="/icerikler/muhendislik-danismanligi">
+                <img src="/assets/teksanor-engineering-lab.webp" alt="Teksanor mühendislik çalışma ortamı" />
+                <div>
+                  <span>MÜHENDİSLİK YAKLAŞIMI · 10 DAKİKA</span>
+                  <b>Teknoloji yatırımı yapmadan önce hangi sorular sorulmalı?</b>
+                  <em>Yazıyı aç <ArrowRight size={15} /></em>
+                </div>
+              </Link>
+              <Link className="insight-card insight-finance" href="/icerikler/veri-karar-destek">
+                <div className="insight-card-icon"><BarChart3 size={28} /></div>
+                <div>
+                  <span>FİNANSAL GÖRÜNÜRLÜK · 9 DAKİKA</span>
+                  <b>Dağınık Excel kayıtları yönetim görünümüne nasıl dönüşür?</b>
+                  <p>Veriyi yeniden girmeden ortak bir karar ekranı kurmanın temel adımları.</p>
+                  <em>Yazıyı aç <ArrowRight size={15} /></em>
+                </div>
+              </Link>
+            </div>
+
+            <Link className="insight-wide" href="/icerikler/surec-otomasyonu">
+              <div className="insight-wide-number">04</div>
+              <div>
+                <span>SÜREÇ TASARIMI · 8 DAKİKA</span>
+                <b>Otomasyon nerede başlamalı, insan kararı nerede kalmalı?</b>
+                <p>Tekrar eden işi sadeleştirirken yetki, sorumluluk ve kontrol çizgisini kaybetmeyen bir çalışma modeli.</p>
+              </div>
+              <div className="insight-wide-action"><Workflow size={22} /><ArrowRight size={18} /></div>
+            </Link>
           </div>
         </div>
       </section>
