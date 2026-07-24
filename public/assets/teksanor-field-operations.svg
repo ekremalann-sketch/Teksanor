@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" role="img" aria-labelledby="title desc">
+  <title id="title">Teksanor saha operasyon merkezi</title>
+  <desc id="desc">Saha, ekipman ve bakım akışlarını gösteren özgün kurumsal teknik illüstrasyon.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#061425"/><stop offset=".58" stop-color="#123b63"/><stop offset="1" stop-color="#0b223c"/></linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f8dfa1"/><stop offset="1" stop-color="#b98427"/></linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="18"/></filter>
+  </defs>
+  <rect width="1600" height="1000" fill="url(#bg)"/>
+  <g opacity=".16" stroke="#8bc8f7" fill="none"><path d="M0 170h1600M0 340h1600M0 510h1600M0 680h1600M0 850h1600"/><path d="M160 0v1000M400 0v1000M640 0v1000M880 0v1000M1120 0v1000M1360 0v1000"/></g>
+  <circle cx="1260" cy="220" r="240" fill="#2c78b7" opacity=".18" filter="url(#glow)"/>
+  <g transform="translate(110 110)">
+    <rect width="520" height="660" rx="34" fill="#071a2d" stroke="#47769e" stroke-width="3"/>
+    <text x="45" y="70" fill="#e7bf69" font-family="Arial" font-size="24" font-weight="700" letter-spacing="5">OPERASYON MERKEZİ</text>
+    <text x="45" y="130" fill="#fff" font-family="Arial" font-size="42" font-weight="700">Saha akışı</text>
+    <g transform="translate(45 180)" font-family="Arial">
+      <g><rect width="430" height="100" rx="18" fill="#123453"/><circle cx="50" cy="50" r="22" fill="url(#gold)"/><text x="90" y="44" fill="#fff" font-size="24" font-weight="700">İş emri açıldı</text><text x="90" y="72" fill="#92abc0" font-size="18">Konum ve sorumlu belirlendi</text></g>
+      <g transform="translate(0 125)"><rect width="430" height="100" rx="18" fill="#123453"/><circle cx="50" cy="50" r="22" fill="url(#gold)"/><text x="90" y="44" fill="#fff" font-size="24" font-weight="700">Ekip sahada</text><text x="90" y="72" fill="#92abc0" font-size="18">Kontrol listesi yürütülüyor</text></g>
+      <g transform="translate(0 250)"><rect width="430" height="100" rx="18" fill="#123453"/><circle cx="50" cy="50" r="22" fill="url(#gold)"/><text x="90" y="44" fill="#fff" font-size="24" font-weight="700">Bakım kaydı</text><text x="90" y="72" fill="#92abc0" font-size="18">Geçmiş ve yeni tarih işlendi</text></g>
+      <g transform="translate(0 390)"><text fill="#91aac0" font-size="17">TAMAMLANMA</text><rect y="34" width="430" height="14" rx="7" fill="#294964"/><rect y="34" width="344" height="14" rx="7" fill="url(#gold)"/><text x="370" y="88" fill="#fff" font-size="30" font-weight="700">80%</text></g>
+    </g>
+  </g>
+  <g transform="translate(730 150)">
+    <path d="M80 500h650v80H80z" fill="#071827" stroke="#496c8b" stroke-width="3"/>
+    <path d="M155 500V265h180v235M395 500V175h250v325" fill="#0c2944" stroke="#6b91ae" stroke-width="5"/>
+    <path d="M185 305h120M185 350h120M185 395h120M430 225h180M430 280h180M430 335h180M430 390h180" stroke="#d4b466" stroke-width="12" opacity=".8"/>
+    <circle cx="520" cy="100" r="55" fill="none" stroke="url(#gold)" stroke-width="18"/><path d="M520 55v90M475 100h90" stroke="#f2d58d" stroke-width="12"/>
+    <g transform="translate(0 600)" font-family="Arial"><text fill="#e8c46d" font-size="22" letter-spacing="4">VARLIK · BAKIM · SAHA</text><text y="62" fill="#fff" font-size="44" font-weight="700">Tek kayıt, görünür geçmiş.</text></g>
+  </g>
+</svg>
