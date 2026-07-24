@@ -2,11 +2,19 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
-  AlertTriangle, ArrowDownRight, ArrowLeft, ArrowRight, ArrowUpRight, Banknote, BarChart3, Bell, Bot, BriefcaseBusiness, Building2, Check,
-  CircleDollarSign, Coins, CreditCard, Database, Download, FileSpreadsheet, Files,
-  Gauge, HandCoins, Landmark, LayoutDashboard, LogOut, Menu, MoreHorizontal, Plus, Search,
-  Pencil, Settings, ShieldCheck, Trash2, Upload, UserPlus, Users, WalletCards, Workflow, X,
+  AlertOctagon, AlertTriangle, ArrowDownRight, ArrowLeft, ArrowRight, ArrowUpRight, Banknote, BarChart3, Bell, Bot, BriefcaseBusiness, Building2, Check,
+  CheckSquare, CircleDollarSign, Coins, CreditCard, Database, Download, FileSpreadsheet, Files,
+  CalendarCheck2, Factory, Gauge, HandCoins, Landmark, LayoutDashboard, LogOut, MapPin, Menu, MoreHorizontal, Plus, Search,
+  Pencil, Settings, ShieldCheck, ShoppingCart, Trash2, Upload, UserPlus, Users, Users2, WalletCards, Workflow, Wrench, X, Zap,
 } from "lucide-react";
+import {
+  TasksView, WorkOrdersView, FieldVisitsView, ProcurementView, CrmView, HrView, RisksView, AutomationsView,
+  AgentWorkforceView, OverviewModuleWidgets,
+  type Task, type WorkOrder, type FieldVisit, type ProcurementRequest, type Customer, type Employee, type Risk, type AutomationRule,
+} from "./modules/OperationsModules";
+import { AssetsView, MaintenanceView, type Asset, type MaintenancePlan } from "./modules/AssetMaintenanceModules";
+import { parseLocalizedNumber } from "@/lib/finance";
+import { criticalBacklog, departmentReality, priorityLabel, readinessSnapshot, roadmapPhases, statusLabel as readinessStatusLabel, workingModules } from "@/lib/readiness";
 
 type User = { id: string; username: string; fullName: string; role: "admin" | "user" };
 type Summary = {
@@ -19,6 +27,7 @@ type Payment = {
   total_limit: number; total_debt: number; restructuring: number; monthly_payment: number;
   next_installment: number; overdraft_debt: number; overdraft_limit: number; interest_rate: number;
   minimum_payment: number; due_date: string | null; important_note: string | null;
+  paid_amount: number; payment_status: "planned" | "partial" | "paid" | "overdue"; paid_at: string | null;
   workflow_status: "draft" | "submitted" | "approved";
 };
 type Expense = { id: string; period: string; owner_name: string; category: string; description: string; amount: number; workflow_status: string; created_at: string };
@@ -45,7 +54,18 @@ const navItems = [
   { id: "overview", label: "Şirket merkezi", icon: LayoutDashboard },
   { id: "departments", label: "Departmanlar", icon: Building2 },
   { id: "projects", label: "Projeler", icon: BriefcaseBusiness },
+  { id: "tasks", label: "Görevler", icon: CheckSquare },
+  { id: "work-orders", label: "İş emirleri", icon: Wrench },
+  { id: "assets", label: "Varlıklar ve ekipman", icon: Factory },
+  { id: "maintenance", label: "Bakım planları", icon: CalendarCheck2 },
+  { id: "field-visits", label: "Saha ziyaretleri", icon: MapPin },
+  { id: "procurement", label: "Satın alma", icon: ShoppingCart },
+  { id: "crm", label: "Müşteri yönetimi", icon: UserPlus },
+  { id: "hr", label: "İnsan kaynakları", icon: Users2 },
+  { id: "risks", label: "Risk ve kalite", icon: AlertOctagon },
+  { id: "automations", label: "Otomasyon merkezi", icon: Zap },
   { id: "agents", label: "Yapay zekâ ekibi", icon: Bot },
+  { id: "readiness", label: "Ürün durumu", icon: ShieldCheck },
   { id: "financial", label: "Finansal durum", icon: Landmark },
   { id: "payments", label: "Ödemeler ve borçlar", icon: CreditCard },
   { id: "expenses", label: "Gelir ve giderler", icon: WalletCards },
@@ -68,6 +88,16 @@ export default function Dashboard() {
   const [treasury, setTreasury] = useState<TreasuryData | null>(null);
   const [files, setFiles] = useState<FileItem[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [maintenancePlans, setMaintenancePlans] = useState<MaintenancePlan[]>([]);
+  const [fieldVisits, setFieldVisits] = useState<FieldVisit[]>([]);
+  const [procurement, setProcurement] = useState<ProcurementRequest[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [risks, setRisks] = useState<Risk[]>([]);
+  const [automations, setAutomations] = useState<AutomationRule[]>([]);
   const [active, setActive] = useState("overview");
   const [mobileNav, setMobileNav] = useState(false);
   const [topbarPanel, setTopbarPanel] = useState<"notifications" | "settings" | null>(null);
@@ -102,6 +132,28 @@ export default function Dashboard() {
       if (fileResponse.ok) setFiles(((await fileResponse.json()) as { files: FileItem[] }).files);
       const projectResponse = await fetch("/api/projects", { cache: "no-store", headers: organizationHeaders });
       if (projectResponse.ok) setProjects(((await projectResponse.json()) as { projects: Project[] }).projects);
+      const [taskRes, workOrderRes, assetRes, maintenanceRes, fieldVisitRes, procurementRes, customerRes, employeeRes, riskRes, automationRes] = await Promise.all([
+        fetch("/api/tasks", { cache: "no-store", headers: organizationHeaders }),
+        fetch("/api/work-orders", { cache: "no-store", headers: organizationHeaders }),
+        fetch("/api/assets", { cache: "no-store", headers: organizationHeaders }),
+        fetch("/api/maintenance", { cache: "no-store", headers: organizationHeaders }),
+        fetch("/api/field-visits", { cache: "no-store", headers: organizationHeaders }),
+        fetch("/api/procurement", { cache: "no-store", headers: organizationHeaders }),
+        fetch("/api/customers", { cache: "no-store", headers: organizationHeaders }),
+        fetch("/api/employees", { cache: "no-store", headers: organizationHeaders }),
+        fetch("/api/risks", { cache: "no-store", headers: organizationHeaders }),
+        fetch("/api/automations", { cache: "no-store", headers: organizationHeaders }),
+      ]);
+      if (taskRes.ok) setTasks(((await taskRes.json()) as { tasks: Task[] }).tasks);
+      if (workOrderRes.ok) setWorkOrders(((await workOrderRes.json()) as { workOrders: WorkOrder[] }).workOrders);
+      if (assetRes.ok) setAssets(((await assetRes.json()) as { assets: Asset[] }).assets);
+      if (maintenanceRes.ok) setMaintenancePlans(((await maintenanceRes.json()) as { maintenancePlans: MaintenancePlan[] }).maintenancePlans);
+      if (fieldVisitRes.ok) setFieldVisits(((await fieldVisitRes.json()) as { fieldVisits: FieldVisit[] }).fieldVisits);
+      if (procurementRes.ok) setProcurement(((await procurementRes.json()) as { procurement: ProcurementRequest[] }).procurement);
+      if (customerRes.ok) setCustomers(((await customerRes.json()) as { customers: Customer[] }).customers);
+      if (employeeRes.ok) setEmployees(((await employeeRes.json()) as { employees: Employee[] }).employees);
+      if (riskRes.ok) setRisks(((await riskRes.json()) as { risks: Risk[] }).risks);
+      if (automationRes.ok) setAutomations(((await automationRes.json()) as { automations: AutomationRule[] }).automations);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Bir hata oluştu.");
     } finally {
@@ -240,22 +292,40 @@ export default function Dashboard() {
   async function importExcel(file: File) {
     setError("");
     try {
-      if (!file.name.toLocaleLowerCase("tr-TR").endsWith(".xlsx")) throw new Error("Yalnızca .xlsx biçimindeki Excel dosyaları içe aktarılabilir.");
-      if (file.size > 5 * 1024 * 1024) throw new Error("Excel dosyası en fazla 5 MB olabilir.");
-      const ExcelJS = await import("exceljs");
-      const workbook = new ExcelJS.Workbook();
-      await workbook.xlsx.load(await file.arrayBuffer());
-      const worksheet = workbook.worksheets[0];
-      if (!worksheet) throw new Error("Excel dosyasında okunabilir sayfa bulunamadı.");
-      const headers = (worksheet.getRow(1).values as unknown[]).slice(1).map((value) => String(value ?? "").trim());
-      const rows: Record<string, unknown>[] = [];
-      worksheet.eachRow((row, rowNumber) => {
-        if (rowNumber === 1 || rows.length >= 100) return;
-        const values = (row.values as unknown[]).slice(1);
-        const record = Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ""]));
-        if (Object.values(record).some((value) => String(value).trim() !== "")) rows.push(record);
-      });
-      if (!rows.length) throw new Error("Excel dosyasında okunabilir satır bulunamadı.");
+      const fileName = file.name.toLocaleLowerCase("tr-TR");
+      if (!fileName.endsWith(".xlsx") && !fileName.endsWith(".csv") && file.type !== "text/csv") {
+        throw new Error("Yalnızca .xlsx veya .csv biçimindeki dosyalar içe aktarılabilir.");
+      }
+      if (file.size > 5 * 1024 * 1024) throw new Error("Excel dosyası güvenli aktarım sınırını aşıyor.");
+      let rows: Record<string, unknown>[] = [];
+      if (fileName.endsWith(".csv") || file.type === "text/csv") {
+        const text = await file.text();
+        const lines = text.split(/\r?\n/).filter((line) => line.trim());
+        const delimiter = (lines[0]?.match(/;/g)?.length ?? 0) >= (lines[0]?.match(/,/g)?.length ?? 0) ? ";" : ",";
+        const headers = (lines.shift() ?? "").split(delimiter).map((item) => item.trim());
+        rows = lines.map((line) => Object.fromEntries(line.split(delimiter).map((cell, index) => [headers[index] || `Kolon ${index + 1}`, cell.trim()])));
+      } else {
+        // Use ExcelJS's browser bundle so the Cloudflare Worker build does not
+        // pull Node-only modules such as fs, crypto and stream into the runtime.
+        // @ts-expect-error ExcelJS does not publish declarations for this browser bundle.
+        const ExcelModule = await import("exceljs/dist/exceljs.min.js") as any;
+        const WorkbookCtor = ExcelModule.Workbook ?? ExcelModule.default?.Workbook;
+        if (!WorkbookCtor) throw new Error("Excel okuma kütüphanesi yüklenemedi.");
+        const workbook = new WorkbookCtor();
+        await workbook.xlsx.load(await file.arrayBuffer());
+        const sheet = workbook.worksheets[0];
+        if (!sheet) throw new Error("Excel dosyasında okunabilir sayfa bulunamadı.");
+        const headers: string[] = [];
+        sheet.getRow(1).eachCell((cell, colNumber) => { headers[colNumber - 1] = String(cell.value ?? `Kolon ${colNumber}`).trim(); });
+        sheet.eachRow((row, rowNumber) => {
+          if (rowNumber === 1) return;
+          const record: Record<string, unknown> = {};
+          headers.forEach((header, index) => { record[header] = row.getCell(index + 1).value ?? ""; });
+          if (Object.values(record).some((value) => String(value ?? "").trim())) rows.push(record);
+        });
+      }
+      if (!rows.length) throw new Error("Dosyada okunabilir satır bulunamadı.");
+      if (rows.length > 100) notify("İlk 100 satır aktarılacak; büyük dosyalar için parça parça yükleyin.");
       const normalize = (key: string) => key.toLocaleLowerCase("tr-TR").replace(/[^a-z0-9ğüşöçı]+/g, " ").trim();
       const get = (row: Record<string, unknown>, words: string[]) => {
         const found = Object.keys(row).find((key) => words.every((word) => normalize(key).includes(word)));
@@ -268,26 +338,58 @@ export default function Dashboard() {
           ownerName: String(get(row, ["kişi"]) || get(row, ["sahip"]) || get(row, ["kredi", "kartları"]) || "Belirtilmedi"),
           bankName: String(get(row, ["banka"]) || get(row, ["kredi", "kartları"]) || "Belirtilmedi"),
           accountName: String(get(row, ["hesap"]) || get(row, ["kredi", "kartları"]) || "Excel aktarımı"),
-          totalLimit: Number(get(row, ["toplam", "limit"]) || 0),
-          totalDebt: Number(get(row, ["toplam", "borç"]) || 0),
-          restructuring: Number(get(row, ["yapılandırma"]) || 0),
-          monthlyPayment: Number(get(row, ["aylık", "ödeme"]) || 0),
-          nextInstallment: Number(get(row, ["gelecek", "dönem"]) || 0),
-          overdraftDebt: Number(get(row, ["kmh", "borç"]) || 0),
-          overdraftLimit: Number(get(row, ["kmh", "limit"]) || 0),
-          minimumPayment: Number(get(row, ["asgari", "ödeme"]) || 0),
+          totalLimit: parseLocalizedNumber(get(row, ["toplam", "limit"])),
+          totalDebt: parseLocalizedNumber(get(row, ["toplam", "borç"])),
+          restructuring: parseLocalizedNumber(get(row, ["yapılandırma"])),
+          monthlyPayment: parseLocalizedNumber(get(row, ["aylık", "ödeme"])),
+          nextInstallment: parseLocalizedNumber(get(row, ["gelecek", "dönem"])),
+          overdraftDebt: parseLocalizedNumber(get(row, ["kmh", "borç"])),
+          overdraftLimit: parseLocalizedNumber(get(row, ["kmh", "limit"])),
+          minimumPayment: parseLocalizedNumber(get(row, ["asgari", "ödeme"])),
+          paidAmount: parseLocalizedNumber(get(row, ["ödenen", "tutar"])),
+          paymentStatus: String(get(row, ["ödeme", "durumu"]) || "planned"),
+          paidAt: String(get(row, ["ödeme", "tarihi"]) || ""),
           importantNote: String(get(row, ["önemli", "not"]) || ""),
         };
         const response = await fetch("/api/payments", { method: "POST", headers: { "Content-Type": "application/json", "X-Organization-Id": organizationId }, body: JSON.stringify(payload) });
         if (response.ok) created += 1;
       }
-      notify(`${created} Excel satırı sisteme aktarıldı.`);
+      notify(`${created} satır sisteme aktarıldı.`);
       await load(organizationId);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Excel aktarımı başarısız oldu.");
+      setError(reason instanceof Error ? reason.message : "Excel/CSV aktarımı başarısız oldu.");
     } finally {
       if (importRef.current) importRef.current.value = "";
     }
+  }
+
+  async function exportExcel() {
+    if (!data) return;
+    // @ts-expect-error ExcelJS does not publish declarations for this browser bundle.
+    const ExcelJS = await import("exceljs/dist/exceljs.min.js");
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("Ödemeler ve Borçlar");
+    sheet.columns = [
+      ["Dönem", 22], ["Kişi", 20], ["Banka", 18], ["Hesap", 24], ["Toplam Limit", 16],
+      ["Toplam Borç", 16], ["Ödenen Tutar", 16], ["Kalan Borç", 16], ["Aylık Ödeme", 16],
+      ["Asgari Ödeme", 16], ["Ödeme Durumu", 16], ["Son Ödeme", 15], ["Ödendiği Tarih", 15], ["Not", 32],
+    ].map(([header, width]) => ({ header: String(header), key: String(header), width: Number(width) }));
+    filteredPayments.forEach((item) => sheet.addRow({
+      Dönem: item.period, Kişi: item.owner_name, Banka: item.bank_name, Hesap: item.account_name,
+      "Toplam Limit": item.total_limit, "Toplam Borç": item.total_debt, "Ödenen Tutar": item.paid_amount,
+      "Kalan Borç": Math.max(item.total_debt - item.paid_amount, 0), "Aylık Ödeme": item.monthly_payment,
+      "Asgari Ödeme": item.minimum_payment, "Ödeme Durumu": item.payment_status, "Son Ödeme": item.due_date ?? "",
+      "Ödendiği Tarih": item.paid_at ?? "", Not: item.important_note ?? "",
+    }));
+    sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
+    sheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF12355B" } };
+    sheet.autoFilter = { from: "A1", to: "N1" };
+    const buffer = await workbook.xlsx.writeBuffer();
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    link.download = `teksanor-odemeler-${paymentPeriod === "all" ? "tum-donemler" : paymentPeriod}.xlsx`;
+    link.click();
+    URL.revokeObjectURL(link.href);
   }
 
   async function uploadFile(file: File) {
@@ -367,14 +469,25 @@ export default function Dashboard() {
           {error && <div className="panel-alert error"><AlertTriangle size={17} />{error}<button type="button" onClick={() => setError("")} aria-label="Uyarıyı kapat"><X size={16} /></button></div>}
           {message && <div className="panel-alert success"><Check size={17} />{message}</div>}
           <PageHeader active={active} period={latest.period} organization={data.organization} onBack={goBack} onNew={() => { setEditingPayment(null); setModal(active === "projects" ? "project" : active === "expenses" ? "expense" : "payment"); }} onImport={() => importRef.current?.click()} canAdd={["financial", "payments", "expenses", "projects"].includes(active)} />
-          <input ref={importRef} hidden type="file" accept=".xlsx" onChange={(event) => event.target.files?.[0] && void importExcel(event.target.files[0])} />
+          <input ref={importRef} hidden type="file" accept=".xlsx,.csv" onChange={(event) => event.target.files?.[0] && void importExcel(event.target.files[0])} />
 
-          {active === "overview" && <CompanyHome data={data} projects={projects} onNavigate={navigate} />}
+          {active === "overview" && <CompanyHome data={data} projects={projects} tasks={tasks} workOrders={workOrders} fieldVisits={fieldVisits} procurement={procurement} risks={risks} onNavigate={navigate} />}
           {active === "departments" && <DepartmentsView onNavigate={navigate} />}
           {active === "projects" && <ProjectsView projects={projects} onAdd={() => setModal("project")} />}
-          {active === "agents" && <AgentWorkforceView onNavigate={navigate} />}
+          {active === "tasks" && <TasksView items={tasks} organizationId={organizationId} onReload={() => load(organizationId)} notify={notify} search={search} />}
+          {active === "work-orders" && <WorkOrdersView items={workOrders} organizationId={organizationId} onReload={() => load(organizationId)} notify={notify} search={search} />}
+          {active === "assets" && <AssetsView items={assets} organizationId={organizationId} reload={() => load(organizationId)} notify={notify} search={search} />}
+          {active === "maintenance" && <MaintenanceView items={maintenancePlans} assets={assets} organizationId={organizationId} reload={() => load(organizationId)} notify={notify} search={search} />}
+          {active === "field-visits" && <FieldVisitsView items={fieldVisits} organizationId={organizationId} onReload={() => load(organizationId)} notify={notify} search={search} />}
+          {active === "procurement" && <ProcurementView items={procurement} organizationId={organizationId} onReload={() => load(organizationId)} notify={notify} search={search} />}
+          {active === "crm" && <CrmView items={customers} organizationId={organizationId} onReload={() => load(organizationId)} notify={notify} search={search} />}
+          {active === "hr" && <HrView items={employees} organizationId={organizationId} onReload={() => load(organizationId)} notify={notify} search={search} />}
+          {active === "risks" && <RisksView items={risks} organizationId={organizationId} onReload={() => load(organizationId)} notify={notify} search={search} />}
+          {active === "automations" && <AutomationsView items={automations} organizationId={organizationId} onReload={() => load(organizationId)} notify={notify} />}
+          {active === "agents" && <AgentWorkforceView agents={agentCatalog} organizationId={organizationId} notify={notify} />}
+          {active === "readiness" && <PanelReadinessView />}
           {active === "financial" && <FinancialOverview data={data} latest={latest} previous={previous} debtChange={debtChange} payments={filteredPayments} canManage={canManage} onDelete={remove} onNavigate={navigate} />}
-          {active === "payments" && <PaymentsView payments={filteredPayments} periods={[...new Set(data.payments.map((item) => item.period))]} selectedPeriod={paymentPeriod} onPeriodChange={setPaymentPeriod} organizationId={organizationId} isAdmin={canManage} onNew={() => { setEditingPayment(null); setModal("payment"); }} onSaved={async () => { notify("Satır kaydedildi; aylık özet ve raporlar yenilendi."); await load(organizationId); }} onNavigate={navigate} onDelete={remove} />}
+          {active === "payments" && <PaymentsView payments={filteredPayments} periods={[...new Set(data.payments.map((item) => item.period))]} selectedPeriod={paymentPeriod} onPeriodChange={setPaymentPeriod} organizationId={organizationId} isAdmin={canManage} onNew={() => { setEditingPayment(null); setModal("payment"); }} onExport={() => void exportExcel()} onSaved={async () => { notify("Satır kaydedildi; aylık özet ve raporlar yenilendi."); await load(organizationId); }} onNavigate={navigate} onDelete={remove} />}
           {active === "expenses" && <ExpensesView expenses={data.expenses} latest={latest} />}
           {active === "treasury" && treasury && <TreasuryView data={treasury} onBalance={() => setModal("balance")} onDebt={() => setModal("manualDebt")} />}
           {active === "reports" && <ReportsView summaries={data.summaries} />}
@@ -399,7 +512,18 @@ function PageHeader({ active, period, organization, onBack, onNew, onImport, can
     overview: ["Şirket merkezi", "Kurumunuzun profili, departmanları, projeleri ve son faaliyetleri tek bakışta görün."],
     departments: ["Departmanlar", "Sorumluluk alanlarını ve günlük çalışma akışlarını düzenli bir kurum yapısında inceleyin."],
     projects: ["Proje portföyü", "Planlanan ve devam eden çalışmaları sorumlu, bütçe, tarih ve ilerleme bilgisiyle yönetin."],
+    tasks: ["Görevler", "Departman görevlerini sorumlu, öncelik ve son tarihle takip edin."],
+    "work-orders": ["İş emirleri", "Saha ve bakım iş emirlerini durum akışıyla yönetin."],
+    assets: ["Varlıklar ve ekipman", "Makine, araç ve cihazları kod, konum, sorumlu ve bakım geçmişiyle yönetin."],
+    maintenance: ["Bakım planları", "Periyodik bakımları planlayın; tamamlanan işlemden sonra yeni tarihi otomatik oluşturun."],
+    "field-visits": ["Saha ziyaretleri", "Kontrol, kurulum ve bakım ziyaretlerini bulgularla kaydedin."],
+    procurement: ["Satın alma", "Talep, onay, sipariş ve teslim sürecini tek akışta izleyin."],
+    crm: ["Müşteri yönetimi", "Müşteri ilişkilerini ve görüşme geçmişini yönetin."],
+    hr: ["İnsan kaynakları", "Çalışan kayıtlarını departmana göre düzenleyin."],
+    risks: ["Risk ve kalite", "Riskleri olasılık ve etki matrisinde önceliklendirin."],
+    automations: ["Otomasyon merkezi", "Tekrarlanan kontrolleri kurallarla otomatikleştirin."],
     agents: ["Yapay zekâ ekibi", "Departman görevlerine göre yapılandırılabilen kontrollü ajan prototiplerini inceleyin."],
+    readiness: ["Ürün durumu", "Çalışan modülleri, sertleştirmeleri ve canlı müşteri öncesi kalan işleri görün."],
     financial: ["Finansal durum", "Borç, ödeme, limit ve dönemsel değişimleri ayrı finans çalışma alanında değerlendirin."],
     payments: ["Ödemeler ve borçlar", "Kart, yapılandırma, KMH ve ödeme planlarını yönetin."],
     expenses: ["Gelir ve giderler", "Dönemsel giderleri sade biçimde kaydedin ve izleyin."],
@@ -413,10 +537,27 @@ function PageHeader({ active, period, organization, onBack, onNew, onImport, can
   return <><div className="organization-strip"><div><Building2 size={16} /><span><b>{organization.name}</b>{organization.kind === "business" ? "Firma çalışma alanı" : "Kişisel çalışma alanı"}</span></div><em className={`subscription-badge ${organization.subscription_status}`}>{organization.subscription_status === "trialing" ? "14 günlük deneme" : organization.subscription_status === "active" ? "Aktif" : "Ödeme bekleniyor"}</em></div><div className="panel-heading"><div><span className="breadcrumb">TEKSANOR / {organization.name.toLocaleUpperCase("tr-TR")} / {period.toLocaleUpperCase("tr-TR")}</span><h1>{current[0]}</h1><p>{current[1]}</p></div><div className="heading-actions">{["financial", "payments"].includes(active) && <button className="outline-button" onClick={onImport}><FileSpreadsheet size={17} /> Excel aktar</button>}{canAdd && <button className="panel-primary" onClick={onNew}><Plus size={17} /> {active === "projects" ? "Yeni proje" : "Yeni kayıt"}</button>}</div></div></>;
 }
 
-function CompanyHome({ data, projects, onNavigate }: { data: DashboardData; projects: Project[]; onNavigate: (page: string) => void }) {
+function PanelReadinessView() {
+  return <section className="panel-readiness-workspace">
+    <div className="panel-readiness-hero">
+      <div><span>ÜRÜN DURUMU</span><h2>{readinessSnapshot.title}</h2><p>{readinessSnapshot.summary}</p></div>
+      <a href="/kurumsal-durum" target="_blank" rel="noreferrer">Site sayfasını aç <ArrowRight size={16} /></a>
+    </div>
+    <div className="panel-readiness-stats">{readinessSnapshot.stats.map((item) => <article key={item.label}><span>{item.label}</span><b>{item.value}</b><small>{item.note}</small></article>)}</div>
+    <div className="panel-readiness-grid">
+      <article><span>ÇALIŞAN MODÜLLER</span><div>{workingModules.map((item) => <p key={item.name}><b>{item.name}</b><em>{readinessStatusLabel(item.status)}</em><small>{item.note}</small></p>)}</div></article>
+      <article><span>CANLI ÖNCESİ KRİTİKLER</span><div>{criticalBacklog.map((item) => <p key={item.title}><b>{item.title}</b><em>{priorityLabel(item.priority)}</em><small>{item.exit}</small></p>)}</div></article>
+    </div>
+    <div className="panel-readiness-roadmap">{roadmapPhases.map((phase) => <article key={phase.period}><span>{phase.period}</span><h3>{phase.title}</h3><ul>{phase.items.map((item) => <li key={item}>{item}</li>)}</ul></article>)}</div>
+    <div className="panel-department-reality">{departmentReality.map((item) => <article key={item.name}><span>{item.state}</span><h3>{item.name}</h3><p>{item.detail}</p></article>)}</div>
+  </section>;
+}
+
+function CompanyHome({ data, projects, tasks, workOrders, fieldVisits, procurement, risks, onNavigate }: { data: DashboardData; projects: Project[]; tasks: Task[]; workOrders: WorkOrder[]; fieldVisits: FieldVisit[]; procurement: ProcurementRequest[]; risks: Risk[]; onNavigate: (page: string) => void }) {
   const activeProjects = projects.filter((item) => item.status === "active").length;
   return <>
     <section className="company-command-hero"><div><span>KURUMSAL ÇALIŞMA ALANI</span><h2>{data.profile?.legal_name || data.organization.name}</h2><p>{data.profile?.about || "Firmanızın temel bilgilerini, projelerini ve günlük çalışmalarını burada bir arada tutun."}</p><button type="button" onClick={() => onNavigate("company")}>Firma bilgilerini aç <ArrowRight size={16} /></button></div><div className="command-hero-mark"><Building2 size={42} /><span>Faaliyet alanı</span><b>{data.profile?.sector || "Henüz eklenmedi"}</b></div></section>
+    <OverviewModuleWidgets tasks={tasks} workOrders={workOrders} fieldVisits={fieldVisits} procurement={procurement} risks={risks} onNavigate={onNavigate} />
     <section className="company-command-grid">
       <button onClick={() => onNavigate("departments")}><Building2 size={22} /><span><b>Departmanlar</b><small>Şirket birimleri ve görev alanları</small></span><ArrowRight size={17} /></button>
       <button onClick={() => onNavigate("projects")}><BriefcaseBusiness size={22} /><span><b>Proje portföyü</b><small>{projects.length} proje · {activeProjects} aktif çalışma</small></span><ArrowRight size={17} /></button>
@@ -429,23 +570,39 @@ function CompanyHome({ data, projects, onNavigate }: { data: DashboardData; proj
 }
 
 const departmentCatalog = [
-  { name: "Yönetim ve strateji", icon: Gauge, description: "Şirket hedeflerini, yönetim kararlarını ve departmanlar arası öncelikleri tek çerçevede toplar.", roles: ["Yıllık hedef ve kararlar", "Yönetim gündemi", "Performans özeti"] },
-  { name: "Finans ve hazine", icon: Landmark, description: "Nakit akışı, bütçe, borç-alacak dengesi, döviz ve altın varlıklarının TL etkisini izler.", roles: ["Nakit ve bütçe planı", "Finansman takibi", "Yönetim raporlaması"] },
-  { name: "Muhasebe ve vergi koordinasyonu", icon: FileSpreadsheet, description: "Ön muhasebe kayıtlarını düzenler; mali müşavirle paylaşılacak belge ve dönem hazırlığını yönetir.", roles: ["Fatura ve dekont düzeni", "Dönem dosyaları", "Mali müşavir koordinasyonu"] },
-  { name: "Proje ve mühendislik", icon: BriefcaseBusiness, description: "Proje kapsamını, teknik teslimleri, sorumluları, bütçeyi ve kilometre taşlarını takip eder.", roles: ["Proje planı", "Teknik doküman", "İlerleme ve teslim"] },
-  { name: "Operasyon yönetimi", icon: Workflow, description: "Günlük iş akışlarını, görev devirlerini, saha hareketlerini ve operasyon kalitesini düzenler.", roles: ["Günlük iş planı", "Saha ve teslimat", "Operasyon göstergeleri"] },
-  { name: "Satın alma ve tedarik", icon: HandCoins, description: "Satın alma taleplerini, teklif karşılaştırmalarını, tedarikçileri ve teslim süreçlerini izler.", roles: ["Talep ve onay", "Teklif karşılaştırma", "Tedarikçi performansı"] },
-  { name: "Satış ve iş geliştirme", icon: BarChart3, description: "Yeni fırsatları, teklifleri, satış hedeflerini ve sözleşmeye giden ticari süreci yönetir.", roles: ["Fırsat havuzu", "Teklif takibi", "Satış hedefleri"] },
-  { name: "Müşteri deneyimi ve destek", icon: UserPlus, description: "Müşteri taleplerini, teslim sonrası iletişimi, memnuniyeti ve çözüm sürelerini takip eder.", roles: ["Talep kaydı", "Çözüm süresi", "Müşteri geri bildirimi"] },
-  { name: "İnsan ve organizasyon", icon: Users, description: "Çalışan kayıtları, roller, işe alım, izin, gelişim ve performans görüşmelerini düzenler.", roles: ["Rol ve yetki", "İşe alım ve uyum", "Gelişim planı"] },
-  { name: "Bilgi teknolojileri ve güvenlik", icon: Database, description: "Kullanıcı erişimlerini, cihazları, yedekleri, güvenlik olaylarını ve teknik sürekliliği yönetir.", roles: ["Erişim yönetimi", "Yedekleme ve süreklilik", "Güvenlik kayıtları"] },
-  { name: "Hukuk ve uyum", icon: ShieldCheck, description: "Sözleşme, kişisel veri, saklama süresi ve şirket içi yetki kurallarının takibini koordine eder.", roles: ["Sözleşme takibi", "KVKK süreçleri", "Politika ve onaylar"] },
-  { name: "Kalite ve risk yönetimi", icon: AlertTriangle, description: "Süreç sapmalarını, iş risklerini, düzeltici faaliyetleri ve kalite ölçütlerini görünür kılar.", roles: ["Risk kaydı", "Kalite kontrol", "Düzeltici faaliyet"] },
-  { name: "Ar-Ge ve inovasyon", icon: Bot, description: "Yeni ürün fikirlerini, denemeleri, teknik araştırmaları ve doğrulanmış öğrenimleri portföy olarak yönetir.", roles: ["Fikir havuzu", "Prototip ve deney", "Teknik kazanım"] },
+  { name: "Yönetim ve strateji", icon: Gauge, description: "Hedefleri, kararları ve departmanlar arası öncelikleri tek yönetim gündeminde toplar.", roles: ["Hedef ve karar kaydı", "Aylık yönetim özeti", "Sorumlu ve termin"], workflow: ["Hedefi ve ölçülebilir sonucu tanımlayın.", "Kararı sorumlu ve tarihle kaydedin.", "Aylık yönetim toplantısında gerçekleşeni kapatın."], records: ["Yönetim kararları", "Bütçe ve faaliyet özeti", "Yetki matrisi"], legal: "Karar, yetki, tarih ve değişiklik geçmişi aynı kayıtta saklanır; böylece yönetim süreci izlenebilir kalır.", sheet: "Toplu hedef listesi tabloyla hazırlanabilir; kesin kararın sahibi ve onayı panelde ayrıca kaydedilir." },
+  { name: "Finans ve hazine", icon: Landmark, description: "Nakit akışı, borç-alacak, banka, döviz ve altın etkisini güncel TL karşılığıyla izler.", roles: ["Nakit planı", "Vade ve ödeme takibi", "Yönetim raporu"], workflow: ["Hesap, borç ve ödeme kayıtlarını döneme bağlayın.", "Dövizli tutarları kaynak kuru ile izleyin.", "Vade ve sapmaları finans gündemine alın."], records: ["Banka ve kasa listesi", "Borç/ödeme planı", "Dekont ve mutabakat"], legal: "Panel iç finans takibini ve yönetim raporlamasını yürütür; resmî muhasebe kayıtları kendi kayıt düzeninde korunur.", sheet: "Excel/CSV aktarımı bu bölümde aktiftir; aktarım sonucu ön izleme ekranında gösterilir." },
+  { name: "Muhasebe ve vergi koordinasyonu", icon: FileSpreadsheet, description: "Ön muhasebe belgelerini dönemlere ayırır ve dönem dosyasını düzenli biçimde hazırlar.", roles: ["Fatura ve dekont düzeni", "Dönem dosyası", "Kayıt koordinasyonu"], workflow: ["Belgeyi doğru dönem ve işlemle eşleştirin.", "Eksik belge listesini dönem kapanmadan tamamlayın.", "Onaylı dönem dosyasını arşivleyin."], records: ["Fatura/dekont", "Gider sınıflandırması", "Dönem kontrol listesi"], legal: "Asıl belgeler, işlem bağlantıları ve dönem geçmişi değişiklik iziyle birlikte korunur.", sheet: "Ön muhasebe listesi tabloyla taşınabilir; beyan ve resmî kayıt ayrı işlem düzeninde yürütülür." },
+  { name: "Proje ve mühendislik", icon: BriefcaseBusiness, description: "Kapsamı, teknik teslimleri, sorumluları, bütçeyi ve kilometre taşlarını yönetir.", roles: ["Proje planı", "Teknik doküman", "İlerleme ve teslim"], workflow: ["Kapsamı ve kabul ölçütünü yazın.", "Görevleri sorumlu ve hedef tarihle ayırın.", "Değişiklikleri onay kaydıyla yönetin ve teslimi kapatın."], records: ["İş kapsamı", "Çizim/şartname", "Test ve teslim tutanağı"], legal: "Fikrî hak, gizlilik, iş güvenliği ve müşteri kabul koşulları proje kaydıyla ilişkilendirilir.", sheet: "İş kırılımı tablosu hazırlanabilir; güncel durum proje ve görev ekranından yönetilir." },
+  { name: "Operasyon yönetimi", icon: Workflow, description: "Günlük iş akışlarını, iş emirlerini, saha ziyaretlerini ve teslim kalitesini düzenler.", roles: ["Günlük iş planı", "İş emri ve saha", "Operasyon göstergeleri"], workflow: ["Talebi iş emrine dönüştürün.", "Ekip, konum, tarih ve güvenlik gereksinimini atayın.", "Saha kanıtı ve teslim onayıyla işi kapatın."], records: ["İş emri", "Saha fotoğrafı/tutanak", "Teslim ve sapma kaydı"], legal: "Saha faaliyetlerinde iş sağlığı ve güvenliği, çalışan yetkinliği ve müşteri sahası kuralları uygulanmalıdır.", sheet: "Toplu iş planı tabloyla hazırlanabilir; saha gerçekleşmeleri iş emri ve ziyaret ekranında tutulur." },
+  { name: "Satın alma ve tedarik", icon: HandCoins, description: "Talep, teklif, onay, sipariş ve teslim sürecini izlenebilir hâle getirir.", roles: ["Talep ve onay", "Teklif karşılaştırma", "Tedarikçi performansı"], workflow: ["İhtiyacı teknik şart ve bütçeyle açın.", "Teklifleri aynı ölçütlerle karşılaştırın.", "Yetkili onayından sonra sipariş ve teslimi kaydedin."], records: ["Satın alma talebi", "Teklifler", "Sipariş/teslim belgesi"], legal: "Yetki limiti, çıkar çatışması ve tedarikçi kişisel verileri için şirket politikaları uygulanmalıdır.", sheet: "Teklif karşılaştırma tablosu destekleyici belge olarak yüklenebilir; onay panelde kayıt altına alınır." },
+  { name: "Satış ve iş geliştirme", icon: BarChart3, description: "Fırsatları, görüşmeleri, teklifleri ve sözleşmeye giden ticari süreci yönetir.", roles: ["Fırsat havuzu", "Teklif ve görüşme", "Satış hedefi"], workflow: ["Aday müşteriyi ve ihtiyacı kaydedin.", "Teklif, sorumlu ve sonraki adımı belirleyin.", "Kazanılan işi sözleşme ve projeye aktarın."], records: ["Müşteri/fırsat kartı", "Teklif", "Görüşme notu"], legal: "Ticari ileti tercihi, veri kullanım amacı ve teklif bilgilendirmesi müşteri kaydında görünür tutulur.", sheet: "Mevcut müşteri listesi kontrollü tabloyla hazırlanabilir; güncel iletişim geçmişi CRM ekranında tutulur." },
+  { name: "Müşteri deneyimi ve destek", icon: UserPlus, description: "Talep, şikâyet, teslim sonrası iletişim ve çözüm sürelerini kayıt altında tutar.", roles: ["Talep kaydı", "Çözüm süresi", "Müşteri geri bildirimi"], workflow: ["Talebi konu ve önceliğe göre açın.", "Sorumlu ile hedef yanıt süresini belirleyin.", "Çözüm kanıtı ve müşteri teyidiyle kapatın."], records: ["Talep/şikâyet", "Yazışma özeti", "Çözüm ve kapanış"], legal: "Gereksiz kişisel veri yazılmamalı; özel nitelikli veri yalnızca açık hukuki dayanak ve güçlü erişim kontrolüyle işlenmelidir.", sheet: "Toplu geçmiş aktarımı tabloyla hazırlanabilir; yeni talepler tekil kayıt olarak izlenir." },
+  { name: "İnsan ve organizasyon", icon: Users, description: "Çalışan, rol, yetki, işe giriş, izin, gelişim ve performans süreçlerini düzenler.", roles: ["Çalışan ve rol", "İşe uyum", "Gelişim ve izin"], workflow: ["Pozisyon, sorumlu ve erişimi tanımlayın.", "Zorunlu belge ve eğitimleri tamamlayın.", "Yetki ve çalışma durumunu düzenli gözden geçirin."], records: ["Özlük süreci kontrolü", "Eğitim/yetkinlik", "İzin ve görev değişikliği"], legal: "Özlük verilerine erişim görevle sınırlandırılmalı; çalışan bilgilendirmesi, saklama ve imha süreçleri kayıt altına alınmalıdır.", sheet: "Personel ana listesi hazırlanabilir; hassas belgeler herkese açık tabloda tutulmamalıdır." },
+  { name: "Bilgi teknolojileri ve güvenlik", icon: Database, description: "Kullanıcı erişimlerini, cihazları, yedekleri, olayları ve hizmet sürekliliğini yönetir.", roles: ["Erişim yönetimi", "Yedek ve geri dönüş", "Güvenlik olayı"], workflow: ["Varlık ve hesap envanteri oluşturun.", "En az yetkiyle erişim verin ve değişiklikleri kaydedin.", "Yedek geri dönüşünü ve olay müdahalesini test edin."], records: ["Kullanıcı/yetki matrisi", "Varlık envanteri", "Olay ve yedek testi"], legal: "Kişisel veri güvenliği için teknik ve idari tedbirler riskle orantılı uygulanmalı; erişimler ve ihlaller kayıt altına alınmalıdır.", sheet: "Envanter tablosu kullanılabilir; parola, gizli anahtar ve erişim kodları tabloya yazılmamalıdır." },
+  { name: "Hukuk ve uyum", icon: ShieldCheck, description: "Sözleşme, kişisel veri, politika, yetki ve saklama süreçlerinin takibini koordine eder.", roles: ["Sözleşme takibi", "KVKK envanteri", "Politika ve onay"], workflow: ["Yükümlülük ve sorumluyu kaydedin.", "Son tarih, yenileme ve onay ihtiyacını izleyin.", "Değişiklikleri sürüm ve karar kaydıyla kapatın."], records: ["Sözleşme envanteri", "Aydınlatma/politika", "Onay ve süre kaydı"], legal: "Sözleşmenin yürürlük tarihi, tarafı, yenileme koşulu ve sürümleri tek envanterde izlenir.", sheet: "Sözleşme envanteri tabloyla hazırlanabilir; imzalı asıl ve onaylı sürüm belge alanında saklanır." },
+  { name: "Kalite ve risk yönetimi", icon: AlertTriangle, description: "Riskleri, uygunsuzlukları, düzeltici faaliyetleri ve kalite ölçütlerini görünür kılar.", roles: ["Risk kaydı", "Kalite kontrol", "Düzeltici faaliyet"], workflow: ["Riski olasılık ve etkiyle değerlendirin.", "Önlem, sorumlu ve hedef tarih atayın.", "Kanıtı kontrol edip kalan riski yeniden puanlayın."], records: ["Risk/uygunsuzluk", "Kontrol planı", "Düzeltici faaliyet kanıtı"], legal: "Yasal zorunluluklar ve sektörel standartlar ayrı yükümlülük olarak takip edilmeli; otomatik öneri insan onayı olmadan kapatılmamalıdır.", sheet: "Risk envanteri tabloyla hazırlanabilir; güncel sahiplik ve kapanış risk ekranında yönetilir." },
+  { name: "Ar-Ge ve inovasyon", icon: Bot, description: "Fikirleri, deneyleri, prototipleri ve doğrulanmış teknik öğrenimleri portföy olarak yönetir.", roles: ["Fikir ve hipotez", "Prototip/deney", "Teknik kazanım"], workflow: ["Problemi ve başarı ölçütünü yazın.", "Sınırlı deney planlayıp sonucu kaydedin.", "Devam, durdurma veya projeye dönüş kararını kayıt altına alın."], records: ["Fikir kartı", "Deney planı/sonucu", "Teknik karar kaydı"], legal: "Fikrî hak, lisans, gizlilik ve üçüncü taraf veri kaynakları deney kaydında açıkça belirtilir.", sheet: "Deney listesi tabloyla hazırlanabilir; teknik kanıt ve karar proje belgelerinde tutulur." },
 ];
 
+const departmentLinks: Record<string, [string, string]> = {
+  "Yönetim ve strateji": ["overview", "Yönetim özetini aç"],
+  "Finans ve hazine": ["financial", "Finans çalışma alanını aç"],
+  "Muhasebe ve vergi koordinasyonu": ["expenses", "Gelir ve giderleri aç"],
+  "Proje ve mühendislik": ["projects", "Proje portföyünü aç"],
+  "Operasyon yönetimi": ["work-orders", "İş emirlerini aç"],
+  "Satın alma ve tedarik": ["procurement", "Satın alma talebini aç"],
+  "Satış ve iş geliştirme": ["crm", "Müşteri yönetimini aç"],
+  "Müşteri deneyimi ve destek": ["crm", "Müşteri yönetimini aç"],
+  "İnsan ve organizasyon": ["hr", "İnsan kaynaklarını aç"],
+  "Bilgi teknolojileri ve güvenlik": ["users", "Kullanıcı yönetimini aç"],
+  "Hukuk ve uyum": ["risks", "Risk ve kaliteyi aç"],
+  "Kalite ve risk yönetimi": ["risks", "Risk ve kaliteyi aç"],
+  "Ar-Ge ve inovasyon": ["projects", "Proje portföyünü aç"],
+};
+
 function DepartmentsView({ onNavigate }: { onNavigate: (page: string) => void }) {
-  return <><section className="department-intro"><span>13 TEMEL İŞ BİRİMİ</span><h2>Şirket büyüdükçe görevler karışmasın diye sorumluluk alanlarını baştan ayırın.</h2><p>Her firmanın bu birimlerin tamamında ayrı çalışanı olması gerekmez. Küçük ekiplerde aynı kişi birkaç alanı yönetebilir; önemli olan kaydın, sorumlunun ve karar yetkisinin açık olmasıdır.</p></section><section className="department-grid">{departmentCatalog.map(({ name, icon: Icon, description, roles }) => <article key={name}><div><Icon size={23} /><span>İŞ BİRİMİ</span></div><h3>{name}</h3><p>{description}</p><ul>{roles.map((role) => <li key={role}><Check size={13} />{role}</li>)}</ul>{name === "Finans ve hazine" && <button type="button" onClick={() => onNavigate("financial")}>Finans çalışma alanını aç <ArrowRight size={15} /></button>}{name === "Proje ve mühendislik" && <button type="button" onClick={() => onNavigate("projects")}>Proje portföyünü aç <ArrowRight size={15} /></button>}</article>)}</section></>;
+  return <><section className="department-intro"><span>13 TEMEL İŞ BİRİMİ</span><h2>Her departmanın görevi, kaydı ve onay sınırı açık olsun.</h2><p>Bu çalışma planı farklı ölçeklerdeki şirketlerin günlük operasyonlarını tek düzende toplar. Küçük ekiplerde bir kişi birden fazla alanı yürütebilir; kayıt, sorumluluk ve onay adımları yine ayrı kalır.</p></section><section className="department-grid">{departmentCatalog.map(({ name, icon: Icon, description, roles, workflow, records, legal, sheet }) => { const link = departmentLinks[name]; return <article key={name}><div className="department-card-head"><Icon size={23} /><span>İŞ BİRİMİ</span></div><h3>{name}</h3><p>{description}</p><ul>{roles.map((role) => <li key={role}><Check size={14} />{role}</li>)}</ul><details><summary>Çalışma sistemini gör <ArrowRight size={15} /></summary><div className="department-playbook"><section><b>İş akışı</b><ol>{workflow.map((step) => <li key={step}>{step}</li>)}</ol></section><section><b>Toplanacak kayıtlar</b><ul>{records.map((record) => <li key={record}><Files size={13} />{record}</li>)}</ul></section><section><b>Tablo ve Excel kullanımı</b><p>{sheet}</p></section><section className="department-legal"><b>Kayıt düzeni</b><p>{legal}</p></section></div></details>{link && <button type="button" className="department-open-button" onClick={() => onNavigate(link[0])}>{link[1]} <ArrowRight size={15} /></button>}</article>; })}</section><aside className="department-compliance-note"><ShieldCheck size={22} /><span><b>Ortak veri ilkesi</b><p>Yalnızca iş için gerekli bilgi toplanır; erişim görevle sınırlandırılır; kaydın sahibi, amacı ve onay durumu görünür tutulur.</p></span></aside></>;
 }
 
 function ProjectsView({ projects, onAdd }: { projects: Project[]; onAdd: () => void }) {
@@ -459,10 +616,6 @@ const agentCatalog = [
   { name: "Operasyon Takip Ajanı", department: "Operasyon ve satın alma", task: "Tekrarlanan talepleri sınıflandırır, geciken işleri işaretler ve sorumlu ekip için takip listesi oluşturur.", boundary: "Sipariş veremez veya tedarikçi adına taahhütte bulunamaz.", target: "departments" },
   { name: "Yönetim Raporlama Ajanı", department: "Yönetim ve strateji", task: "Departmanlardan gelen doğrulanmış bilgileri sade bir yönetim notunda birleştirir ve karar bekleyen konuları ayırır.", boundary: "Nihai karar vermez; yalnızca kaynak gösteren bir taslak hazırlar.", target: "overview" },
 ];
-
-function AgentWorkforceView({ onNavigate }: { onNavigate: (page: string) => void }) {
-  return <section className="agent-workforce"><div className="agent-prototype-banner"><div><Bot size={30} /><span>PROTOTİP MODU</span></div><h2>Her departman için aynı botu değil, o işin sınırlarını bilen bir çalışma profili tasarlıyoruz.</h2><p>Bu ekranda ajanların görev tanımları ve yetki sınırları gösterilir. Gerçek OpenAI bağlantısı ancak firma yetkilisi hizmeti etkinleştirdiğinde, kullanım bütçesini onayladığında ve veri işleme koşullarını kabul ettiğinde açılır.</p><a href="/yapay-zeka-hizmeti" target="_blank" rel="noreferrer">Hizmet ve fiyatlandırma modelini incele <ArrowRight size={16} /></a></div><div className="agent-card-grid">{agentCatalog.map((agent) => <article key={agent.name}><div className="agent-avatar"><Bot size={22} /></div><span>{agent.department}</span><h3>{agent.name}</h3><b>Görevi</b><p>{agent.task}</p><b>Yetki sınırı</b><p>{agent.boundary}</p><div><em>İnsan onayı zorunlu</em><button type="button" onClick={() => onNavigate(agent.target)}>Departmanı aç <ArrowRight size={14} /></button></div></article>)}</div><div className="agent-commercial-note"><ShieldCheck size={22} /><div><b>Şeffaf ücret ve kontrollü veri kullanımı</b><p>Toplam bedel; Teksanor platform hizmeti, ajan kurulum/yönetim hizmeti, onaylanan OpenAI API kullanımı ve vergilerden oluşur. Satın alma öncesinde toplam ücret gösterilir; gizli komisyon veya habersiz kullanım yapılmaz.</p></div></div></section>;
-}
 
 function FinancialOverview({ data, latest, previous, debtChange, payments, canManage, onDelete, onNavigate }: { data: DashboardData; latest: Summary; previous?: Summary; debtChange: number; payments: Payment[]; canManage: boolean; onDelete: (id: string) => void; onNavigate: (page: string) => void }) {
   const utilization = latest.total_limit ? (latest.total_debt / latest.total_limit) * 100 : 0;
@@ -489,26 +642,28 @@ function RecentPayments({ payments, isAdmin, onEdit, onDelete }: { payments: Pay
   return <section className="table-card"><div className="table-heading"><div><h3>Ödeme kayıtları</h3><p>Her kayıt seçilen aya bağlı tutulur; düzeltmeler yalnızca o ayı etkiler.</p></div><span>{payments.length} kayıt</span></div><div className="responsive-table"><table><thead><tr><th>Dönem</th><th>Kişi / hesap</th><th>Banka</th><th>Toplam borç</th><th>Aylık ödeme</th><th>Asgari ödeme</th><th>Durum</th><th /></tr></thead><tbody>{payments.map((item) => <tr key={item.id}><td><b>{item.period}</b></td><td><div className="table-account"><span>{item.owner_name[0]}</span><div><b>{item.owner_name}</b><small>{item.account_name}</small></div></div></td><td>{item.bank_name}</td><td><b>{formatMoney(item.total_debt)}</b></td><td>{formatMoney(item.monthly_payment)}</td><td>{formatMoney(item.minimum_payment)}</td><td><span className={`status-badge ${item.workflow_status}`}>{statusText[item.workflow_status]}</span></td><td>{isAdmin && <div className="row-actions">{onEdit && <button title="Kaydı düzenle" onClick={() => onEdit(item)}><Pencil size={15} /></button>}<button className="danger" title="Sil" onClick={() => onDelete(item.id)}><Trash2 size={16} /></button></div>}</td></tr>)}</tbody></table></div></section>;
 }
 
-function PaymentsView({ payments, periods, selectedPeriod, onPeriodChange, organizationId, isAdmin, onNew, onSaved, onNavigate, onDelete }: { payments: Payment[]; periods: string[]; selectedPeriod: string; onPeriodChange: (period: string) => void; organizationId: string; isAdmin: boolean; onNew: () => void; onSaved: () => Promise<void>; onNavigate: (page: string) => void; onDelete: (id: string) => void }) {
+function PaymentsView({ payments, periods, selectedPeriod, onPeriodChange, organizationId, isAdmin, onNew, onExport, onSaved, onNavigate, onDelete }: { payments: Payment[]; periods: string[]; selectedPeriod: string; onPeriodChange: (period: string) => void; organizationId: string; isAdmin: boolean; onNew: () => void; onExport: () => void; onSaved: () => Promise<void>; onNavigate: (page: string) => void; onDelete: (id: string) => void }) {
   const totalDebt = payments.reduce((sum, item) => sum + Number(item.total_debt), 0);
   const monthlyPayment = payments.reduce((sum, item) => sum + Number(item.monthly_payment), 0);
   const minimumPayment = payments.reduce((sum, item) => sum + Number(item.minimum_payment), 0);
+  const paidAmount = payments.reduce((sum, item) => sum + Number(item.paid_amount || 0), 0);
+  const remainingDebt = payments.reduce((sum, item) => sum + Math.max(Number(item.total_debt) - Number(item.paid_amount || 0), 0), 0);
   return <>
     <section className="finance-workbook-head">
       <div><span>FİNANS ÇALIŞMA DEFTERİ</span><h2>Kart ve borç kayıtlarını Excel rahatlığında yönetin.</h2><p>Bir hücreyi değiştirip satırın sonundaki “Kaydet” düğmesine basın. Aylık özetler ve raporlar kendiliğinden yenilenir.</p></div>
-      <div className="workbook-actions"><button type="button" className="outline-button" onClick={() => onNavigate("reports")}><BarChart3 size={17} /> Raporları aç</button><button type="button" className="panel-primary" onClick={onNew}><Plus size={17} /> Yeni satır</button></div>
+      <div className="workbook-actions"><button type="button" className="outline-button" onClick={onExport}><Download size={17} /> Excel indir</button><button type="button" className="outline-button" onClick={() => onNavigate("reports")}><BarChart3 size={17} /> Raporları aç</button><button type="button" className="panel-primary" onClick={onNew}><Plus size={17} /> Yeni satır</button></div>
     </section>
     <section className="payment-period-bar"><div><span>AYLIK TAKİP</span><b>Çalışılacak dönemi seçin</b><small>Ağustos kaydı Ağustos altında kalır; seçtiğiniz ayın toplamı ayrı hesaplanır.</small></div><label><span>Gösterilen ay</span><select value={selectedPeriod} onChange={(event) => onPeriodChange(event.target.value)}><option value="all">Tüm dönemler</option>{periods.map((period) => <option key={period} value={period}>{period}</option>)}</select></label></section>
-    <div className="workbook-summary"><article><span>Toplam borç</span><b>{formatMoney(totalDebt)}</b></article><article><span>Aylık ödeme</span><b>{formatMoney(monthlyPayment)}</b></article><article><span>Asgari ödeme</span><b>{formatMoney(minimumPayment)}</b></article><article><span>Kayıt sayısı</span><b>{payments.length}</b></article></div>
-    <section className="finance-sheet-card"><div className="sheet-caption"><div><FileSpreadsheet size={20} /><span><b>Düzenlenebilir finans tablosu</b><small>Değişen hücreler kaydedilene kadar yalnızca bu ekranda kalır.</small></span></div><em>{isAdmin ? "Düzenleme açık" : "Görüntüleme modu"}</em></div><div className="finance-sheet-scroll"><table className="finance-sheet"><thead><tr><th>Dönem</th><th>Kişi</th><th>Banka</th><th>Kart / hesap</th><th>Limit</th><th>Toplam borç</th><th>Aylık ödeme</th><th>Asgari</th><th>Son ödeme</th><th>Takip notu</th><th>İşlem</th></tr></thead><tbody>{payments.map((payment) => <FinanceSheetRow key={payment.id} payment={payment} organizationId={organizationId} editable={isAdmin} onSaved={onSaved} onDelete={onDelete} />)}</tbody></table></div>{!payments.length && <EmptyState icon={CreditCard} title="Bu dönemde kayıt yok" text="Yeni satır düğmesiyle ilk kart veya borç kaydını ekleyin." />}</section>
+    <div className="workbook-summary"><article><span>Toplam borç</span><b>{formatMoney(totalDebt)}</b></article><article><span>Ödenen</span><b>{formatMoney(paidAmount)}</b></article><article><span>Kalan borç</span><b>{formatMoney(remainingDebt)}</b></article><article><span>Aylık ödeme</span><b>{formatMoney(monthlyPayment)}</b></article><article><span>Asgari ödeme</span><b>{formatMoney(minimumPayment)}</b></article><article><span>Kayıt sayısı</span><b>{payments.length}</b></article></div>
+    <section className="finance-sheet-card"><div className="sheet-caption"><div><FileSpreadsheet size={20} /><span><b>Düzenlenebilir finans tablosu</b><small>Ödenen tutarı girdikçe kalan borç otomatik hesaplanır.</small></span></div><em>{isAdmin ? "Düzenleme açık" : "Görüntüleme modu"}</em></div><div className="finance-sheet-scroll"><table className="finance-sheet"><thead><tr><th>Dönem</th><th>Kişi</th><th>Banka</th><th>Kart / hesap</th><th>Limit</th><th>Toplam borç</th><th>Ödenen</th><th>Kalan</th><th>Durum</th><th>Ödeme tarihi</th><th>Aylık ödeme</th><th>Asgari</th><th>Son ödeme</th><th>Takip notu</th><th>İşlem</th></tr></thead><tbody>{payments.map((payment) => <FinanceSheetRow key={payment.id} payment={payment} organizationId={organizationId} editable={isAdmin} onSaved={onSaved} onDelete={onDelete} />)}</tbody></table></div>{!payments.length && <EmptyState icon={CreditCard} title="Bu dönemde kayıt yok" text="Yeni satır düğmesiyle ilk kart veya borç kaydını ekleyin." />}</section>
   </>;
 }
 
 function FinanceSheetRow({ payment, organizationId, editable, onSaved, onDelete }: { payment: Payment; organizationId: string; editable: boolean; onSaved: () => Promise<void>; onDelete: (id: string) => void }) {
-  const [row, setRow] = useState({ period: payment.period, ownerName: payment.owner_name, bankName: payment.bank_name, accountName: payment.account_name, totalLimit: payment.total_limit, totalDebt: payment.total_debt, monthlyPayment: payment.monthly_payment, minimumPayment: payment.minimum_payment, dueDate: payment.due_date ?? "", importantNote: payment.important_note ?? "" });
+  const [row, setRow] = useState({ period: payment.period, ownerName: payment.owner_name, bankName: payment.bank_name, accountName: payment.account_name, totalLimit: payment.total_limit, totalDebt: payment.total_debt, paidAmount: payment.paid_amount || 0, paymentStatus: payment.payment_status || "planned", paidAt: payment.paid_at ?? "", monthlyPayment: payment.monthly_payment, minimumPayment: payment.minimum_payment, dueDate: payment.due_date ?? "", importantNote: payment.important_note ?? "" });
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
-  const change = (key: keyof typeof row, value: string) => { setDirty(true); setRow((current) => ({ ...current, [key]: ["totalLimit", "totalDebt", "monthlyPayment", "minimumPayment"].includes(key) ? Number(value) : value })); };
+  const change = (key: keyof typeof row, value: string) => { setDirty(true); setRow((current) => ({ ...current, [key]: ["totalLimit", "totalDebt", "paidAmount", "monthlyPayment", "minimumPayment"].includes(key) ? Number(value) : value })); };
   async function save() {
     setSaving(true);
     const response = await fetch(`/api/payments/${payment.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", "X-Organization-Id": organizationId }, body: JSON.stringify({ ...row, restructuring: payment.restructuring, nextInstallment: payment.next_installment, overdraftDebt: payment.overdraft_debt, overdraftLimit: payment.overdraft_limit }) });
@@ -518,7 +673,7 @@ function FinanceSheetRow({ payment, organizationId, editable, onSaved, onDelete 
     await onSaved();
   }
   const input = (key: keyof typeof row, type = "text") => <input type={type} value={String(row[key])} disabled={!editable} onChange={(event) => change(key, event.target.value)} />;
-  return <tr className={dirty ? "dirty" : ""}><td>{input("period")}</td><td>{input("ownerName")}</td><td>{input("bankName")}</td><td>{input("accountName")}</td><td>{input("totalLimit", "number")}</td><td>{input("totalDebt", "number")}</td><td>{input("monthlyPayment", "number")}</td><td>{input("minimumPayment", "number")}</td><td>{input("dueDate", "date")}</td><td>{input("importantNote")}</td><td><div className="sheet-row-actions">{editable && <button type="button" className={dirty ? "save ready" : "save"} disabled={!dirty || saving} onClick={() => void save()}>{saving ? "Kaydediliyor" : "Kaydet"}</button>}{editable && <button type="button" className="delete" onClick={() => onDelete(payment.id)} aria-label="Satırı sil"><Trash2 size={15} /></button>}</div></td></tr>;
+  return <tr className={dirty ? "dirty" : ""}><td>{input("period")}</td><td>{input("ownerName")}</td><td>{input("bankName")}</td><td>{input("accountName")}</td><td>{input("totalLimit", "number")}</td><td>{input("totalDebt", "number")}</td><td>{input("paidAmount", "number")}</td><td><b>{formatMoney(Math.max(Number(row.totalDebt) - Number(row.paidAmount), 0))}</b></td><td><select value={row.paymentStatus} disabled={!editable} onChange={(event) => change("paymentStatus", event.target.value)}><option value="planned">Planlandı</option><option value="partial">Kısmi ödendi</option><option value="paid">Ödendi</option><option value="overdue">Gecikti</option></select></td><td>{input("paidAt", "date")}</td><td>{input("monthlyPayment", "number")}</td><td>{input("minimumPayment", "number")}</td><td>{input("dueDate", "date")}</td><td>{input("importantNote")}</td><td><div className="sheet-row-actions">{editable && <button type="button" className={dirty ? "save ready" : "save"} disabled={!dirty || saving} onClick={() => void save()}>{saving ? "Kaydediliyor" : "Kaydet"}</button>}{editable && <button type="button" className="delete" onClick={() => onDelete(payment.id)} aria-label="Satırı sil"><Trash2 size={15} /></button>}</div></td></tr>;
 }
 
 function ExpensesView({ expenses, latest }: { expenses: Expense[]; latest: Summary }) {
@@ -584,7 +739,7 @@ function ReportsView({ summaries }: { summaries: Summary[] }) {
 }
 
 function FilesView({ files, organizationId, onUpload }: { files: FileItem[]; organizationId: string; onUpload: () => void }) {
-  return <section className="files-panel"><div className="upload-zone" onClick={onUpload}><div><Upload size={25} /></div><h3>Dosya veya görsel yükleyin</h3><p>PDF, Excel, CSV, PNG, JPG veya WebP · En fazla 10 MB</p><button className="panel-primary">Dosya seç</button></div><div className="file-list"><h3>Son belgeler</h3>{files.length ? files.map((file) => <a key={file.id} href={`/api/uploads/${file.id}?organizationId=${encodeURIComponent(organizationId)}`} target="_blank" rel="noreferrer"><div className="file-icon"><FileSpreadsheet size={19} /></div><span><b>{file.file_name}</b><small>{file.full_name} · {(file.size_bytes / 1024).toLocaleString("tr-TR", { maximumFractionDigits: 0 })} KB</small></span><Download size={17} /></a>) : <EmptyState icon={Files} title="Henüz belge yüklenmedi" text="Dekont, tablo, şirket görseli ve destekleyici belgeleri burada saklayabilirsiniz." />}</div></section>;
+  return <section className="files-panel"><div className="upload-zone" onClick={onUpload}><div><Upload size={25} /></div><h3>Dosya veya görsel yükleyin</h3><p>PDF, Excel, CSV, PNG, JPG veya WebP</p><small>Dosya türü ve gerçek içeriği yükleme öncesinde kontrol edilir.</small><button className="panel-primary">Dosya seç</button></div><div className="file-list"><h3>Son belgeler</h3>{files.length ? files.map((file) => <div className="file-list-row" key={file.id}><div className="file-icon"><FileSpreadsheet size={19} /></div><span><b>{file.file_name}</b><small>{file.full_name}</small></span><div className="file-actions"><a href={`/api/uploads/${file.id}?organizationId=${encodeURIComponent(organizationId)}`} target="_blank" rel="noreferrer">{file.content_type === "application/pdf" ? "PDF aç" : "Önizle"}</a><a href={`/api/uploads/${file.id}?organizationId=${encodeURIComponent(organizationId)}&download=1`}><Download size={15} /> İndir</a></div></div>) : <EmptyState icon={Files} title="Henüz belge yüklenmedi" text="Dekont, tablo, şirket görseli ve destekleyici belgeleri burada saklayabilirsiniz." />}</div></section>;
 }
 
 function CompanyView({ organization, profile, canManage, onEdit }: { organization: Organization; profile: CompanyProfile; canManage: boolean; onEdit: () => void }) {
@@ -633,7 +788,7 @@ function EntryModal({ type, latestPeriod, payment, treasury, profile, organizati
 
 function ProjectFields() { return <div className="form-grid"><label className="full"><span>Proje adı</span><input name="name" placeholder="Örn. Üretim hattı veri izleme sistemi" required /></label><label><span>Proje kodu</span><input name="code" placeholder="Örn. PRJ-2026-01" /></label><label><span>İş birimi</span><select name="department" required>{departmentCatalog.map((department) => <option key={department.name}>{department.name}</option>)}</select></label><label><span>Proje sorumlusu</span><input name="ownerName" placeholder="Ad soyad veya ekip" /></label><label><span>Durum</span><select name="status"><option value="planning">Planlama</option><option value="active">Devam ediyor</option><option value="on_hold">Beklemede</option><option value="completed">Tamamlandı</option></select></label><label><span>Öncelik</span><select name="priority"><option value="normal">Normal</option><option value="high">Yüksek</option><option value="critical">Kritik</option><option value="low">Düşük</option></select></label><label><span>Başlangıç tarihi</span><input name="startDate" type="date" /></label><label><span>Hedef tarih</span><input name="targetDate" type="date" /></label><label><span>Planlanan bütçe</span><div className="money-input"><input name="budget" type="number" min="0" step="0.01" /><em>₺</em></div></label><label><span>İlerleme (%)</span><input name="progress" type="number" min="0" max="100" defaultValue="0" /></label><label className="full"><span>Kapsam ve beklenen sonuç</span><textarea name="description" rows={4} placeholder="Projenin amacı, teslim edilecek işler ve başarı ölçütleri..." /></label></div>; }
 
-function PaymentFields({ period, payment }: { period: string; payment: Payment | null }) { return <div className="form-grid"><label><span>Dönem / ay</span><input name="period" defaultValue={payment?.period ?? period} placeholder="Örn. Ağustos 2026" required /></label><label><span>Kişi / sorumlu</span><input name="ownerName" defaultValue={payment?.owner_name ?? ""} placeholder="Örn. Finans sorumlusu" required /></label><label><span>Banka</span><input name="bankName" defaultValue={payment?.bank_name ?? ""} placeholder="Örn. Garanti" required /></label><label><span>Hesap veya kart adı</span><input name="accountName" defaultValue={payment?.account_name ?? ""} placeholder="Örn. Kredi kartı" required /></label><MoneyInput name="totalLimit" label="Toplam limit" value={payment?.total_limit} /><MoneyInput name="totalDebt" label="Toplam borç" value={payment?.total_debt} /><MoneyInput name="restructuring" label="Yapılandırma" value={payment?.restructuring} /><MoneyInput name="monthlyPayment" label="Aylık ödeme" value={payment?.monthly_payment} /><MoneyInput name="nextInstallment" label="Gelecek dönem taksit" value={payment?.next_installment} /><MoneyInput name="overdraftDebt" label="KMH borcu" value={payment?.overdraft_debt} /><MoneyInput name="overdraftLimit" label="KMH limiti" value={payment?.overdraft_limit} /><MoneyInput name="minimumPayment" label="Asgari ödeme" value={payment?.minimum_payment} /><label><span>Son ödeme tarihi</span><input type="date" name="dueDate" defaultValue={payment?.due_date ?? ""} /></label><label className="full"><span>Önemli not</span><textarea name="importantNote" rows={3} defaultValue={payment?.important_note ?? ""} placeholder="Gecikme, ödeme planı veya takip notu..." /></label><div className="full form-help">Ay bilgisini “Ağustos 2026” gibi yazın. Kayıt ve o aya ait toplamlar birlikte güncellenir.</div></div>; }
+function PaymentFields({ period, payment }: { period: string; payment: Payment | null }) { return <div className="form-grid"><label><span>Dönem / ay</span><input name="period" defaultValue={payment?.period ?? period} placeholder="Örn. Ağustos 2026" required /></label><label><span>Kişi / sorumlu</span><input name="ownerName" defaultValue={payment?.owner_name ?? ""} placeholder="Örn. Finans sorumlusu" required /></label><label><span>Banka</span><input name="bankName" defaultValue={payment?.bank_name ?? ""} placeholder="Örn. Garanti" required /></label><label><span>Hesap veya kart adı</span><input name="accountName" defaultValue={payment?.account_name ?? ""} placeholder="Örn. Kredi kartı" required /></label><MoneyInput name="totalLimit" label="Toplam limit" value={payment?.total_limit} /><MoneyInput name="totalDebt" label="Toplam borç" value={payment?.total_debt} /><MoneyInput name="paidAmount" label="Ödenen tutar" value={payment?.paid_amount} /><label><span>Ödeme durumu</span><select name="paymentStatus" defaultValue={payment?.payment_status ?? "planned"}><option value="planned">Planlandı</option><option value="partial">Kısmi ödendi</option><option value="paid">Ödendi</option><option value="overdue">Gecikti</option></select></label><label><span>Ödendiği tarih</span><input type="date" name="paidAt" defaultValue={payment?.paid_at ?? ""} /></label><MoneyInput name="restructuring" label="Yapılandırma" value={payment?.restructuring} /><MoneyInput name="monthlyPayment" label="Aylık ödeme" value={payment?.monthly_payment} /><MoneyInput name="nextInstallment" label="Gelecek dönem taksit" value={payment?.next_installment} /><MoneyInput name="overdraftDebt" label="KMH borcu" value={payment?.overdraft_debt} /><MoneyInput name="overdraftLimit" label="KMH limiti" value={payment?.overdraft_limit} /><MoneyInput name="minimumPayment" label="Asgari ödeme" value={payment?.minimum_payment} /><label><span>Son ödeme tarihi</span><input type="date" name="dueDate" defaultValue={payment?.due_date ?? ""} /></label><label className="full"><span>Önemli not</span><textarea name="importantNote" rows={3} defaultValue={payment?.important_note ?? ""} placeholder="Gecikme, ödeme planı veya takip notu..." /></label><div className="full form-help">Ödenen tutar toplam borçtan düşülür; kalan borç, dönem özeti ve Excel çıktısı otomatik güncellenir.</div></div>; }
 function MoneyInput({ name, label, value }: { name: string; label: string; value?: number }) { return <label><span>{label}</span><div className="money-input"><input name={name} type="number" min="0" step="0.01" defaultValue={value ?? ""} placeholder="0" /><em>₺</em></div></label>; }
 function ExpenseFields({ period }: { period: string }) { return <div className="form-grid"><label><span>Dönem</span><input name="period" defaultValue={period} required /></label><label><span>Kişi / sorumlu</span><input name="ownerName" required /></label><label><span>Kategori</span><select name="category" required><option>Kira</option><option>Fatura</option><option>Mutfak</option><option>Yakıt</option><option>Şirket harcaması</option><option>Diğer</option></select></label><label><span>Tutar</span><div className="money-input"><input name="amount" type="number" min="0" step="0.01" required /><em>₺</em></div></label><label className="full"><span>Açıklama</span><input name="description" placeholder="Giderin kısa açıklaması" required /></label><label><span>Ödeme tarihi</span><input name="dueDate" type="date" /></label></div>; }
 function UserFields() { return <div className="form-grid"><label><span>Kullanıcı adı</span><input name="username" pattern="[a-zA-Z0-9._-]{3,32}" placeholder="Örn. finans1" required /></label><label><span>Görünen ad</span><input name="fullName" placeholder="Örn. Finans Kullanıcısı" required /></label><label><span>Geçici parola (en az 10 karakter)</span><input name="password" type="password" minLength={10} maxLength={128} required /></label><label><span>Yetki</span><select name="role"><option value="user">Kullanıcı</option><option value="admin">Firma yetkilisi</option></select></label><div className="full form-help">Firma yetkilisi kullanıcı ve kritik finans ayarlarını yönetebilir. Normal kullanıcı veri ve belge ekleyebilir.</div></div>; }
