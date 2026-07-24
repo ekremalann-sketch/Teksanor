@@ -28,10 +28,11 @@
   },
   "type": "module",
   "scripts": {
-    "dev": "vinext dev",
+    "dev": "vite",
     "build": "vinext build",
     "build:pages": "vinext build && node scripts/build-pages.mjs",
     "start": "wrangler dev --config dist/server/wrangler.json",
     "deploy": "vinext-cloudflare deploy --config dist/server/wrangler.json"
+    ,"test": "node --experimental-strip-types --test tests/*.test.mjs"
   }
 }
