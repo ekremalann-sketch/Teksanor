@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" role="img" aria-labelledby="title desc">
+  <title id="title">Teksanor veri güveni mimarisi</title>
+  <desc id="desc">Firma verisinin erişim, yetki, kayıt ve saklama katmanlarını anlatan özgün teknik illüstrasyon.</desc>
+  <defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#061526"/><stop offset="1" stop-color="#163e67"/></linearGradient><linearGradient id="g"><stop stop-color="#f7dda0"/><stop offset="1" stop-color="#b67e24"/></linearGradient></defs>
+  <rect width="1600" height="1000" fill="url(#bg)"/>
+  <g opacity=".13" stroke="#8ac5f4"><circle cx="800" cy="500" r="390"/><circle cx="800" cy="500" r="300"/><circle cx="800" cy="500" r="210"/><path d="M0 500h1600M800 0v1000"/></g>
+  <g transform="translate(600 265)">
+    <path d="M200 0 385 75v170c0 145-87 263-185 320C102 508 15 390 15 245V75z" fill="#0b233c" stroke="url(#g)" stroke-width="15"/>
+    <rect x="115" y="220" width="170" height="145" rx="24" fill="none" stroke="#f1cf7e" stroke-width="18"/>
+    <path d="M145 220v-46c0-74 110-74 110 0v46" fill="none" stroke="#f1cf7e" stroke-width="18"/>
+    <circle cx="200" cy="288" r="15" fill="#f1cf7e"/><path d="M200 300v38" stroke="#f1cf7e" stroke-width="14"/>
+  </g>
+  <g font-family="Arial" font-weight="700" font-size="24">
+    <g transform="translate(120 180)"><rect width="360" height="130" rx="22" fill="#102f4f" stroke="#4479a4"/><text x="32" y="52" fill="#e7c06b">01 · ERİŞİM</text><text x="32" y="91" fill="#fff">Kimlik ve oturum sınırı</text></g>
+    <g transform="translate(1120 180)"><rect width="360" height="130" rx="22" fill="#102f4f" stroke="#4479a4"/><text x="32" y="52" fill="#e7c06b">02 · YETKİ</text><text x="32" y="91" fill="#fff">Firma ve rol ayrımı</text></g>
+    <g transform="translate(120 690)"><rect width="360" height="130" rx="22" fill="#102f4f" stroke="#4479a4"/><text x="32" y="52" fill="#e7c06b">03 · KAYIT</text><text x="32" y="91" fill="#fff">İşlem geçmişi</text></g>
+    <g transform="translate(1120 690)"><rect width="360" height="130" rx="22" fill="#102f4f" stroke="#4479a4"/><text x="32" y="52" fill="#e7c06b">04 · SAKLAMA</text><text x="32" y="91" fill="#fff">Veri ve belge katmanı</text></g>
+  </g>
+  <g stroke="#d5b15d" stroke-width="4" stroke-dasharray="12 13" opacity=".8"><path d="M480 245 650 380M1120 245 950 380M480 755 650 620M1120 755 950 620"/></g>
+</svg>
