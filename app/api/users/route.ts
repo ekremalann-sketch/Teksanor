@@ -28,7 +28,7 @@ export async function POST(request: Request) {
       getDb().prepare("INSERT INTO users (id, username, email, full_name, password_hash, password_salt, role) VALUES (?, ?, ?, ?, ?, ?, 'user')")
         .bind(id, username, `${username}@users.teksanor.internal`, body.fullName.trim(), credentials.hash, credentials.salt),
       getDb().prepare("INSERT INTO organization_members (organization_id, user_id, role) VALUES (?, ?, ?)")
-        .bind(context.organization.id, id, body.role === "admin" ? "admin" : "member"),
+        .bind(context.organization.id, id, accessProfile === "company_admin" ? "admin" : "member"),
       getDb().prepare(`INSERT INTO organization_member_access
         (organization_id, user_id, job_role, department, access_profile) VALUES (?, ?, ?, ?, ?)`)
         .bind(context.organization.id, id, body.jobRole?.trim() || accessProfile, body.department?.trim() || null, accessProfile),
