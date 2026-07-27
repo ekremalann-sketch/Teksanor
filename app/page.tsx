@@ -312,7 +312,6 @@ export default function Home() {
             </div>
 
             <Link className="insight-wide" href="/icerikler/surec-otomasyonu">
-              <div className="insight-wide-number">04</div>
               <div>
                 <span>SÜREÇ TASARIMI · 8 DAKİKA</span>
                 <b>Otomasyon nerede başlamalı, insan kararı nerede kalmalı?</b>
