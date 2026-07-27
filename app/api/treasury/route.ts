@@ -4,6 +4,7 @@ import { addAudit, createId, getDb } from "@/lib/db";
 import { FIAT_CURRENCIES, GOLD_UNITS, getFxRates } from "@/lib/fx";
 import { canManageOrganization, requireOrganization } from "@/lib/tenancy";
 import { rejectCrossSiteMutation } from "@/lib/security";
+import { requireModuleAccess } from "@/lib/access";
 
 type BalanceRow = { id: string; account_name: string; currency: string; amount: number; manual_rate: number | null; note?: string; created_at: string };
 type DebtRow = { id: string; lender_name: string; debt_type: string; currency: string; amount: number; manual_rate: number | null; due_date?: string; note?: string; status: string; created_at: string };
@@ -15,6 +16,8 @@ export async function GET(request: Request) {
   let context;
   try { context = await requireOrganization(request, user); }
   catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Çalışma alanına erişim reddedildi." }, { status: 403 }); }
+  try { await requireModuleAccess(user, context.organization, "treasury", "view"); }
+  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Yetki reddedildi." }, { status: 403 }); }
   const organizationId = context.organization.id;
   const database = getDb();
   const [balancesResult, debtsResult, referenceResult, latestExpense] = await Promise.all([
@@ -62,6 +65,8 @@ export async function POST(request: Request) {
   let context;
   try { context = await requireOrganization(request, user); }
   catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Çalışma alanına erişim reddedildi." }, { status: 403 }); }
+  try { await requireModuleAccess(user, context.organization, "treasury", "edit"); }
+  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Yetki reddedildi." }, { status: 403 }); }
   const organizationId = context.organization.id;
   const body = (await request.json()) as Record<string, unknown>;
   const action = String(body.action ?? "");
