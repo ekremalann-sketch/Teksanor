@@ -21,7 +21,7 @@ export const accessRules: Record<AccessProfile, Rule> = {
   manager: { label: "Birim yöneticisi", view: operational, edit: ["projects", "tasks", "work-orders", "assets", "maintenance", "field-visits", "procurement", "crm", "risks", "files"] },
   finance: { label: "Finans ekibi", view: ["overview", "financial", "payments", "expenses", "treasury", "reports", "files", "company"], edit: ["payments", "expenses", "treasury", "reports", "files"] },
   hr: { label: "İnsan kaynakları", view: ["overview", "departments", "tasks", "hr", "reports", "files", "company"], edit: ["tasks", "hr", "files"] },
-  it: { label: "Bilgi işlem", view: [...operational, "users"], edit: ["projects", "tasks", "work-orders", "assets", "maintenance", "automations", "agents", "readiness", "files"] },
+  it: { label: "Bilgi işlem", view: operational, edit: ["projects", "tasks", "work-orders", "assets", "maintenance", "automations", "agents", "readiness", "files"] },
   employee: { label: "Çalışan", view: ["overview", "departments", "projects", "tasks", "work-orders", "files", "company"], edit: ["tasks", "work-orders", "files"] },
 };
 
