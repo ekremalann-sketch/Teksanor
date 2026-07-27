@@ -34,8 +34,9 @@ type Expense = { id: string; period: string; owner_name: string; category: strin
 type Activity = { id: string; full_name?: string; action: string; entity_type: string; details?: string; created_at: string };
 type FileItem = { id: string; file_name: string; content_type: string; size_bytes: number; full_name: string; created_at: string };
 type Organization = { id: string; name: string; slug: string; kind: "business" | "personal"; plan: string; subscription_status: string; trial_ends_at: string | null; membership_role: "owner" | "admin" | "member" };
+type MemberAccess = { profile: string; jobRole: string; department: string | null; label: string; viewModules: string[]; editModules: string[] };
 type CompanyProfile = { legal_name?: string; tax_office?: string; tax_number?: string; mersis_number?: string; trade_registry_number?: string; sector?: string; phone?: string; email?: string; website?: string; address?: string; about?: string } | null;
-type DashboardData = { user: User; organization: Organization; organizations: Organization[]; profile: CompanyProfile; summaries: Summary[]; payments: Payment[]; expenses: Expense[]; attentionCount: number; activity: Activity[] };
+type DashboardData = { user: User; organization: Organization; organizations: Organization[]; profile: CompanyProfile; summaries: Summary[]; payments: Payment[]; expenses: Expense[]; attentionCount: number; activity: Activity[]; access: MemberAccess };
 type CashBalance = { id: string; account_name: string; currency: string; amount: number; note?: string; rate_used: number; rate_ready: boolean; tl_equivalent: number };
 type ManualDebt = { id: string; lender_name: string; debt_type: string; currency: string; amount: number; due_date?: string; note?: string; status: string; rate_used: number; rate_ready: boolean; tl_equivalent: number };
 type TreasuryData = {
@@ -126,23 +127,25 @@ export default function Dashboard() {
       setOrganizationId(nextData.organization.id);
       localStorage.setItem("teksanor_organization", nextData.organization.id);
       const organizationHeaders = { "X-Organization-Id": nextData.organization.id };
-      const treasuryResponse = await fetch("/api/treasury", { cache: "no-store", headers: organizationHeaders });
+      const mayView = (module: string) => nextData.access?.viewModules?.includes(module) ?? true;
+      const skipped = () => Promise.resolve(new Response(null, { status: 403 }));
+      const treasuryResponse = mayView("treasury") ? await fetch("/api/treasury", { cache: "no-store", headers: organizationHeaders }) : await skipped();
       if (treasuryResponse.ok) setTreasury(await treasuryResponse.json() as TreasuryData);
-      const fileResponse = await fetch("/api/uploads", { cache: "no-store", headers: organizationHeaders });
+      const fileResponse = mayView("files") ? await fetch("/api/uploads", { cache: "no-store", headers: organizationHeaders }) : await skipped();
       if (fileResponse.ok) setFiles(((await fileResponse.json()) as { files: FileItem[] }).files);
-      const projectResponse = await fetch("/api/projects", { cache: "no-store", headers: organizationHeaders });
+      const projectResponse = mayView("projects") ? await fetch("/api/projects", { cache: "no-store", headers: organizationHeaders }) : await skipped();
       if (projectResponse.ok) setProjects(((await projectResponse.json()) as { projects: Project[] }).projects);
       const [taskRes, workOrderRes, assetRes, maintenanceRes, fieldVisitRes, procurementRes, customerRes, employeeRes, riskRes, automationRes] = await Promise.all([
-        fetch("/api/tasks", { cache: "no-store", headers: organizationHeaders }),
-        fetch("/api/work-orders", { cache: "no-store", headers: organizationHeaders }),
-        fetch("/api/assets", { cache: "no-store", headers: organizationHeaders }),
-        fetch("/api/maintenance", { cache: "no-store", headers: organizationHeaders }),
-        fetch("/api/field-visits", { cache: "no-store", headers: organizationHeaders }),
-        fetch("/api/procurement", { cache: "no-store", headers: organizationHeaders }),
-        fetch("/api/customers", { cache: "no-store", headers: organizationHeaders }),
-        fetch("/api/employees", { cache: "no-store", headers: organizationHeaders }),
-        fetch("/api/risks", { cache: "no-store", headers: organizationHeaders }),
-        fetch("/api/automations", { cache: "no-store", headers: organizationHeaders }),
+        mayView("tasks") ? fetch("/api/tasks", { cache: "no-store", headers: organizationHeaders }) : skipped(),
+        mayView("work-orders") ? fetch("/api/work-orders", { cache: "no-store", headers: organizationHeaders }) : skipped(),
+        mayView("assets") ? fetch("/api/assets", { cache: "no-store", headers: organizationHeaders }) : skipped(),
+        mayView("maintenance") ? fetch("/api/maintenance", { cache: "no-store", headers: organizationHeaders }) : skipped(),
+        mayView("field-visits") ? fetch("/api/field-visits", { cache: "no-store", headers: organizationHeaders }) : skipped(),
+        mayView("procurement") ? fetch("/api/procurement", { cache: "no-store", headers: organizationHeaders }) : skipped(),
+        mayView("crm") ? fetch("/api/customers", { cache: "no-store", headers: organizationHeaders }) : skipped(),
+        mayView("hr") ? fetch("/api/employees", { cache: "no-store", headers: organizationHeaders }) : skipped(),
+        mayView("risks") ? fetch("/api/risks", { cache: "no-store", headers: organizationHeaders }) : skipped(),
+        mayView("automations") ? fetch("/api/automations", { cache: "no-store", headers: organizationHeaders }) : skipped(),
       ]);
       if (taskRes.ok) setTasks(((await taskRes.json()) as { tasks: Task[] }).tasks);
       if (workOrderRes.ok) setWorkOrders(((await workOrderRes.json()) as { workOrders: WorkOrder[] }).workOrders);
@@ -345,16 +348,20 @@ export default function Dashboard() {
           nextInstallment: parseLocalizedNumber(get(row, ["gelecek", "dönem"])),
           overdraftDebt: parseLocalizedNumber(get(row, ["kmh", "borç"])),
           overdraftLimit: parseLocalizedNumber(get(row, ["kmh", "limit"])),
+          interestRate: parseLocalizedNumber(get(row, ["faiz", "oran"])),
+          interestDebt: parseLocalizedNumber(get(row, ["faiz", "borç"])),
           minimumPayment: parseLocalizedNumber(get(row, ["asgari", "ödeme"])),
           paidAmount: parseLocalizedNumber(get(row, ["ödenen", "tutar"])),
           paymentStatus: String(get(row, ["ödeme", "durumu"]) || "planned"),
           paidAt: String(get(row, ["ödeme", "tarihi"]) || ""),
+          dueDate: String(get(row, ["son", "ödeme", "tarihi"]) || get(row, ["vade"]) || ""),
           importantNote: String(get(row, ["önemli", "not"]) || ""),
+          upsert: true,
         };
         const response = await fetch("/api/payments", { method: "POST", headers: { "Content-Type": "application/json", "X-Organization-Id": organizationId }, body: JSON.stringify(payload) });
         if (response.ok) created += 1;
       }
-      notify(`${created} satır sisteme aktarıldı.`);
+      notify(`${created} satır sisteme eklendi veya güncellendi.`);
       await load(organizationId);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Excel/CSV aktarımı başarısız oldu.");
@@ -406,11 +413,8 @@ export default function Dashboard() {
   if (!data || !latest) return <div className="fatal-state"><AlertTriangle /><h1>Panel açılamadı</h1><p>{error || "Lütfen daha sonra tekrar deneyin."}</p><button onClick={() => void load()}>Tekrar dene</button></div>;
 
   const canManage = data.user.role === "admin" || ["owner", "admin"].includes(data.organization.membership_role);
-  const roleLabel = data.user.role === "admin"
-    ? "Platform yetkilisi"
-    : data.organization.membership_role === "owner"
-      ? "Firma sahibi"
-      : data.organization.membership_role === "admin" ? "Firma yetkilisi" : "Kullanıcı";
+  const roleLabel = data.access?.label || "Kullanıcı";
+  const visibleNavigation = navItems.filter((item) => data.access?.viewModules?.includes(item.id) ?? !("admin" in item && item.admin));
 
   return (
     <div className="dashboard-shell">
@@ -429,7 +433,7 @@ export default function Dashboard() {
         </div>
         <nav className="sidebar-nav">
           <span className="nav-heading">YÖNETİM</span>
-          {navItems.filter((item) => !("admin" in item && item.admin && !canManage)).map(({ id, label, icon: Icon }) => (
+          {visibleNavigation.map(({ id, label, icon: Icon }) => (
             <button key={id} className={active === id ? "active" : ""} onClick={() => { navigate(id); setMobileNav(false); }}><Icon size={18} /><span>{label}</span>{id === "payments" && data.attentionCount > 0 && <em>{data.attentionCount}</em>}</button>
           ))}
         </nav>
@@ -751,7 +755,7 @@ function CompanyView({ organization, profile, canManage, onEdit }: { organizatio
   return <section className="company-panel"><div className="company-profile-head"><div className="company-avatar"><Building2 size={30} /></div><div><span>{organization.kind === "business" ? "FİRMA PROFİLİ" : "BİREYSEL PROFİL"}</span><h2>{profile?.legal_name || organization.name}</h2><p>{profile?.about || "Profil bilgileri henüz tamamlanmadı."}</p></div>{canManage && <button className="panel-primary" onClick={onEdit}><Settings size={16} /> Bilgileri düzenle</button>}</div><div className="company-info-grid">{items.map(([label, value]) => <div key={label}><span>{label}</span><b>{value || "Henüz girilmedi"}</b></div>)}</div><div className="company-privacy"><ShieldCheck size={19} /><span><b>Şirkete özel kayıt</b>Bu bilgiler yalnızca bu çalışma alanına erişimi olan kişiler ve Teksanor platform yetkilileri tarafından görülebilir.</span></div></section>;
 }
 
-function UsersView({ onAdd }: { onAdd: () => void }) { return <section className="users-panel"><div className="users-illustration"><Users size={34} /></div><h2>Ekibiniz için kontrollü erişim</h2><p>admin1, admin2 ve diğer kullanıcılar aynı kurumsal giriş ekranını kullanır; yetkiler arka planda uygulanır.</p><div className="role-grid"><div><ShieldCheck /><b>Yönetici</b><span>Tüm kayıtları görür, silebilir, altın referans fiyatlarını ve kullanıcıları yönetir.</span></div><div><Database /><b>Kullanıcı</b><span>Veri ve belge ekler; kayıtları ayrıca onay beklemeden doğrudan sisteme işlenir.</span></div></div><button className="panel-primary" onClick={onAdd}><UserPlus size={17} /> Kullanıcı oluştur</button></section>; }
+function UsersView({ onAdd }: { onAdd: () => void }) { return <section className="users-panel"><div className="users-illustration"><Users size={34} /></div><h2>Göreve göre kontrollü erişim</h2><p>Firma sahibi, üst yönetim, birim yöneticisi, finans, insan kaynakları, bilgi işlem ve çalışan profilleri yalnızca görevleri için gerekli şirket alanlarını görür.</p><div className="role-grid"><div><ShieldCheck /><b>Firma yönetimi</b><span>Firma verilerini ve ekip yetkilerini yönetir; başka şirketlerin kayıtlarına erişemez.</span></div><div><Database /><b>Departman çalışanı</b><span>Kendi görevi ve iş birimi için tanımlanan ekranlarda çalışır. Kritik finans ve kullanıcı yönetimi kapalıdır.</span></div></div><button className="panel-primary" onClick={onAdd}><UserPlus size={17} /> Kullanıcı oluştur</button></section>; }
 
 function EmptyState({ icon: Icon, title, text }: { icon: typeof Files; title: string; text: string }) { return <div className="empty-state"><Icon size={26} /><b>{title}</b><p>{text}</p></div>; }
 
@@ -791,7 +795,7 @@ function ProjectFields() { return <div className="form-grid"><label className="f
 function PaymentFields({ period, payment }: { period: string; payment: Payment | null }) { return <div className="form-grid"><label><span>Dönem / ay</span><input name="period" defaultValue={payment?.period ?? period} placeholder="Örn. Ağustos 2026" required /></label><label><span>Kişi / sorumlu</span><input name="ownerName" defaultValue={payment?.owner_name ?? ""} placeholder="Örn. Finans sorumlusu" required /></label><label><span>Banka</span><input name="bankName" defaultValue={payment?.bank_name ?? ""} placeholder="Örn. Garanti" required /></label><label><span>Hesap veya kart adı</span><input name="accountName" defaultValue={payment?.account_name ?? ""} placeholder="Örn. Kredi kartı" required /></label><MoneyInput name="totalLimit" label="Toplam limit" value={payment?.total_limit} /><MoneyInput name="totalDebt" label="Toplam borç" value={payment?.total_debt} /><MoneyInput name="paidAmount" label="Ödenen tutar" value={payment?.paid_amount} /><label><span>Ödeme durumu</span><select name="paymentStatus" defaultValue={payment?.payment_status ?? "planned"}><option value="planned">Planlandı</option><option value="partial">Kısmi ödendi</option><option value="paid">Ödendi</option><option value="overdue">Gecikti</option></select></label><label><span>Ödendiği tarih</span><input type="date" name="paidAt" defaultValue={payment?.paid_at ?? ""} /></label><MoneyInput name="restructuring" label="Yapılandırma" value={payment?.restructuring} /><MoneyInput name="monthlyPayment" label="Aylık ödeme" value={payment?.monthly_payment} /><MoneyInput name="nextInstallment" label="Gelecek dönem taksit" value={payment?.next_installment} /><MoneyInput name="overdraftDebt" label="KMH borcu" value={payment?.overdraft_debt} /><MoneyInput name="overdraftLimit" label="KMH limiti" value={payment?.overdraft_limit} /><MoneyInput name="minimumPayment" label="Asgari ödeme" value={payment?.minimum_payment} /><label><span>Son ödeme tarihi</span><input type="date" name="dueDate" defaultValue={payment?.due_date ?? ""} /></label><label className="full"><span>Önemli not</span><textarea name="importantNote" rows={3} defaultValue={payment?.important_note ?? ""} placeholder="Gecikme, ödeme planı veya takip notu..." /></label><div className="full form-help">Ödenen tutar toplam borçtan düşülür; kalan borç, dönem özeti ve Excel çıktısı otomatik güncellenir.</div></div>; }
 function MoneyInput({ name, label, value }: { name: string; label: string; value?: number }) { return <label><span>{label}</span><div className="money-input"><input name={name} type="number" min="0" step="0.01" defaultValue={value ?? ""} placeholder="0" /><em>₺</em></div></label>; }
 function ExpenseFields({ period }: { period: string }) { return <div className="form-grid"><label><span>Dönem</span><input name="period" defaultValue={period} required /></label><label><span>Kişi / sorumlu</span><input name="ownerName" required /></label><label><span>Kategori</span><select name="category" required><option>Kira</option><option>Fatura</option><option>Mutfak</option><option>Yakıt</option><option>Şirket harcaması</option><option>Diğer</option></select></label><label><span>Tutar</span><div className="money-input"><input name="amount" type="number" min="0" step="0.01" required /><em>₺</em></div></label><label className="full"><span>Açıklama</span><input name="description" placeholder="Giderin kısa açıklaması" required /></label><label><span>Ödeme tarihi</span><input name="dueDate" type="date" /></label></div>; }
-function UserFields() { return <div className="form-grid"><label><span>Kullanıcı adı</span><input name="username" pattern="[a-zA-Z0-9._-]{3,32}" placeholder="Örn. finans1" required /></label><label><span>Görünen ad</span><input name="fullName" placeholder="Örn. Finans Kullanıcısı" required /></label><label><span>Geçici parola (en az 10 karakter)</span><input name="password" type="password" minLength={10} maxLength={128} required /></label><label><span>Yetki</span><select name="role"><option value="user">Kullanıcı</option><option value="admin">Firma yetkilisi</option></select></label><div className="full form-help">Firma yetkilisi kullanıcı ve kritik finans ayarlarını yönetebilir. Normal kullanıcı veri ve belge ekleyebilir.</div></div>; }
+function UserFields() { return <div className="form-grid"><label><span>Kullanıcı adı</span><input name="username" pattern="[a-zA-Z0-9._-]{3,32}" placeholder="Örn. bilgi.islem" required /></label><label><span>Görünen ad</span><input name="fullName" placeholder="Örn. Bilgi İşlem Uzmanı" required /></label><label><span>Geçici parola (en az 10 karakter)</span><input name="password" type="password" minLength={10} maxLength={128} required /></label><label><span>Erişim profili</span><select name="accessProfile" defaultValue="employee"><option value="employee">Çalışan</option><option value="manager">Birim yöneticisi</option><option value="finance">Finans ekibi</option><option value="hr">İnsan kaynakları</option><option value="it">Bilgi işlem</option><option value="ceo">Üst yönetim / CEO</option><option value="company_admin">Firma yöneticisi</option></select></label><label><span>Departman</span><select name="department"><option value="">Departman belirtilmedi</option>{departmentCatalog.map((department) => <option key={department.name}>{department.name}</option>)}</select></label><label><span>Görev unvanı</span><input name="jobRole" placeholder="Örn. Bilgi İşlem Uzmanı" /></label><input type="hidden" name="role" value="user" /><div className="full form-help">Bilgi işlem profili şirketin operasyon, proje, sistem, belge ve otomasyon alanlarını görür; finans, ücret ve platform yöneticiliği yetkisi almaz. Geçici parolayı güvenli kanaldan paylaşın ve ilk kullanımda değiştirin.</div></div>; }
 function PasswordFields() { return <div className="form-grid"><label className="full"><span>Mevcut parola</span><input name="currentPassword" type="password" autoComplete="current-password" required /></label><label><span>Yeni parola</span><input name="newPassword" type="password" minLength={10} maxLength={128} autoComplete="new-password" required /></label><label><span>Yeni parola tekrar</span><input name="confirmPassword" type="password" minLength={10} maxLength={128} autoComplete="new-password" required /></label><div className="full form-help">Yeni parolanız en az 10 karakter olmalı. Değişiklikten sonra diğer cihazlardaki oturumlar kapatılır.</div></div>; }
 function CurrencyOptions() { return <>{fiatCodes.map((code) => <option key={code} value={code}>{currencyLabels[code]} ({code})</option>)}<optgroup label="Altın ve ziynet">{goldCodes.map((code) => <option key={code} value={code}>{currencyLabels[code]}</option>)}</optgroup></>; }
 function BalanceFields() { return <div className="form-grid"><label><span>Hesap / kasa adı</span><input name="accountName" placeholder="Örn. Merkez kasa" required /></label><label><span>Para veya altın birimi</span><select name="currency"><CurrencyOptions /></select></label><label><span>Tutar / adet</span><input name="amount" type="number" min="0.01" step="0.01" required /></label><label><span>İsteğe bağlı özel TL kuru / fiyatı</span><input name="manualRate" type="number" min="0" step="0.0001" placeholder="Boşsa TCMB veya altın referansı" /></label><label className="full"><span>Not</span><input name="note" placeholder="İsteğe bağlı açıklama" /></label><div className="full form-help">Dövizlerde TCMB satış kuru otomatik kullanılır. Altın için firma yetkilisinin kaydettiği fiyat veya bu alandaki özel fiyat kullanılır.</div></div>; }
