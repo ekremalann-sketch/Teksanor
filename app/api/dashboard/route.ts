@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { requireOrganization } from "@/lib/tenancy";
+import { canView, getMemberAccess } from "@/lib/access";
 
 export async function GET(request: Request) {
   const user = await getCurrentUser(request);
@@ -10,6 +11,7 @@ export async function GET(request: Request) {
   try { context = await requireOrganization(request, user); }
   catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Çalışma alanına erişim reddedildi." }, { status: 403 }); }
   const organizationId = context.organization.id;
+  const access = await getMemberAccess(user, context.organization);
   const database = getDb();
   const [summaries, payments, expenses, pending, activity, profile] = await Promise.all([
     database.prepare("SELECT * FROM organization_period_summaries WHERE organization_id = ? ORDER BY sort_order").bind(organizationId).all(),
@@ -23,12 +25,13 @@ export async function GET(request: Request) {
   return NextResponse.json({
     user: { id: user.id, username: user.username, fullName: user.full_name, role: user.role },
     summaries: summaries.results,
-    payments: payments.results,
-    expenses: expenses.results,
-    attentionCount: pending?.count ?? 0,
+    payments: canView(access, "payments") ? payments.results : [],
+    expenses: canView(access, "expenses") ? expenses.results : [],
+    attentionCount: canView(access, "payments") ? pending?.count ?? 0 : 0,
     activity: activity.results,
     organization: context.organization,
     organizations: context.organizations,
     profile,
+    access,
   });
 }
