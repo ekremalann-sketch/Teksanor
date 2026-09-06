@@ -1,0 +1,9 @@
+"use client";
+import Link from "next/link";
+import {useEffect,useState,type FormEvent} from "react";
+export default function Recovery(){
+ const [mode,setMode]=useState("reset"),[token,setToken]=useState(""),[email,setEmail]=useState(""),[password,setPassword]=useState(""),[message,setMessage]=useState(""),[busy,setBusy]=useState(false);
+ useEffect(()=>{const h=new URLSearchParams(location.hash.slice(1));setToken(h.get("token")||"");setMode(h.get("mode")||new URLSearchParams(location.search).get("mode")||"reset");history.replaceState(null,"",location.pathname);},[]);
+ async function submit(e:FormEvent){e.preventDefault();setBusy(true);try{const r=await fetch("/api/auth/recovery",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:token?mode:mode==="verify"?"verify-request":"request",token,email,password})});const d=await r.json();setMessage(d.message||d.error);if(r.ok){setPassword("");setToken("");}}catch{setMessage("Bağlantı kurulamadı.");}finally{setBusy(false);}}
+ return <main className="account-security-page"><form className="account-security-card" onSubmit={submit}><Link href="/giris">Giriş ekranı</Link><h1>{mode==="verify"?"E-posta doğrulama":"Parola yenileme"}</h1>{!token&&<label>E-posta adresiniz<input required type="email" autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)}/></label>}{((token&&mode==="reset")||(!token&&mode==="verify"))&&<label>{mode==="verify"?"Mevcut parolanız":"Yeni parola"}<input required type="password" minLength={mode==="reset"?10:1} maxLength={128} autoComplete={mode==="verify"?"current-password":"new-password"} value={password} onChange={e=>setPassword(e.target.value)}/></label>}<button className="panel-primary" disabled={busy}>{busy?"İşleniyor…":token?"Tamamla":"Bağlantı gönder"}</button><p role="status">{message}</p></form></main>;
+}

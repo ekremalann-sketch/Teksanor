@@ -69,3 +69,9 @@ Bu belge çalışan prototip kapsamını, ticari pilot için gerekenleri ve tam 
 - **Genel satış/SaaS:** Aşama 3 tamamlanmadan “üretime hazır” iddiası yapılmaz.
 
 Bu ayrım projenin değerini düşürmez; teknik ve ticari olgunluğu doğru yönetildiğini gösterir.
+## 6 Eylül 2026 güncellemesi
+
+Yukarıdaki eski kontrol listesi canlı kabul belgesi değildir. Yeni uygulanan kod,
+servis masası ve dış bağlantı gerektiren işler için [Pilot teslimi](PILOT-DELIVERY.md)
+ve [Kabul formu](PILOT-ACCEPTANCE.md) esas alınır. Yerel test başarısı,
+müşteri ortamında canlı kabulün tamamlandığı anlamına gelmez.

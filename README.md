@@ -17,6 +17,14 @@
 
 ![Teksanor saha operasyonları](public/assets/teksanor-field-operations.svg)
 
+## Yeni servis masası
+
+`/servis` ekranında talep → teklif → müşteri onayı → saha notu/fotoğraf →
+servis formu → tahsilat takibi birleştirilir. Onay bağlantıları süreli ve sürüme
+bağlıdır. QR etiketi ekipmanın yetkili servis geçmişini açar. PDF çıktısı
+servis formunun yazdırma ekranından alınır. E-posta, yapay zekâ ve harici dosya
+tarama bağlantıları için [pilot teslim belgesini](docs/PILOT-DELIVERY.md) okuyun.
+
 ## Problem ve çözüm
 
 Teknik servis ve mühendislik işletmelerinde iş emirleri, saha ziyaretleri, bakım planları, projeler, belgeler ve finansal kayıtlar çoğu zaman farklı tablolarda tutulur. Bu da güncel bilgiye ulaşmayı, yetki kontrolünü ve yönetim kararlarını zorlaştırır.

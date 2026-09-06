@@ -14,6 +14,8 @@ export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [challengeToken, setChallengeToken] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -30,20 +32,27 @@ export default function LoginPage() {
   }, []);
 
   function changeMode(next: "login" | "register") {
-    setMode(next); setError(""); setPassword("");
+    setMode(next); setError(""); setPassword(""); setChallengeToken(""); setVerificationCode("");
     window.history.replaceState(null, "", next === "register" ? "/giris#kayit" : "/giris");
   }
 
   async function submit(event: FormEvent) {
     event.preventDefault(); setError(""); setLoading(true);
     try {
-      const endpoint = mode === "login" ? "/api/auth/login" : "/api/auth/register";
-      const payload = mode === "login"
+      const endpoint = challengeToken ? "/api/auth/mfa/challenge" : mode === "login" ? "/api/auth/login" : "/api/auth/register";
+      const payload = challengeToken
+        ? { challengeToken, code: verificationCode }
+        : mode === "login"
         ? { username, password }
         : { accountType, companyName, fullName, email, username, password };
       const response = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      const data = await response.json() as { error?: string; organization?: { id: string } };
+      const data = await response.json() as { error?: string; organization?: { id: string }; mfaRequired?: boolean; challengeToken?: string };
       if (!response.ok) throw new Error(data.error ?? (mode === "login" ? "Giriş yapılamadı." : "Kayıt oluşturulamadı."));
+      if (data.mfaRequired && data.challengeToken) {
+        setChallengeToken(data.challengeToken);
+        setPassword("");
+        return;
+      }
       if (data.organization?.id) localStorage.setItem("teksanor_organization", data.organization.id);
       window.location.href = "/panel";
     } catch (reason) {
@@ -71,19 +80,23 @@ export default function LoginPage() {
           <div className="auth-mode-tabs"><button type="button" className={mode === "login" ? "active" : ""} onClick={() => changeMode("login")}>Giriş yap</button><button type="button" className={mode === "register" ? "active" : ""} onClick={() => changeMode("register")}>Kayıt ol</button></div>
           <div className="login-lock">{mode === "login" ? <LockKeyhole size={21} /> : accountType === "business" ? <Building2 size={21} /> : <UserRound size={21} />}</div>
           <span className="form-kicker">TEKSANOR KURUMSAL PORTAL</span>
-          <h2>{mode === "login" ? "Portala giriş" : "Özel çalışma alanınızı oluşturun"}</h2>
-          <p>{mode === "login" ? "Kullanıcı adınız ve parolanızla devam edin." : "14 günlük deneme alanınız yalnızca size ve yetkilendirdiğiniz kişilere açık olur."}</p>
+          <h2>{challengeToken ? "Güvenlik doğrulaması" : mode === "login" ? "Portala giriş" : "Özel çalışma alanınızı oluşturun"}</h2>
+          <p>{challengeToken ? "Kimlik doğrulama uygulamanızda görünen 6 haneli kodu girin." : mode === "login" ? "Kullanıcı adınız ve parolanızla devam edin." : "14 günlük deneme alanınız yalnızca size ve yetkilendirdiğiniz kişilere açık olur."}</p>
 
-          {mode === "register" && <>
+          {!challengeToken && mode === "register" && <>
             <div className="account-type-grid"><button type="button" className={accountType === "business" ? "active" : ""} onClick={() => setAccountType("business")}><Building2 /><span><b>Firma hesabı</b><small>Şirket ve çalışanlar için</small></span></button><button type="button" className={accountType === "personal" ? "active" : ""} onClick={() => setAccountType("personal")}><UserRound /><span><b>Bireysel hesap</b><small>Kişisel günlük takip için</small></span></button></div>
             {accountType === "business" && <label><span>Firma adı</span><input required value={companyName} onChange={(event) => setCompanyName(event.target.value)} placeholder="Firmanızın görünen adı" /></label>}
             <label><span>Ad soyad</span><input required value={fullName} onChange={(event) => setFullName(event.target.value)} autoComplete="name" /></label>
             <label><span>E-posta</span><input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" /></label>
           </>}
-          <label><span>Kullanıcı adı</span><input required autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="Kullanıcı adınız" /></label>
-          <label><span>Parola</span><div className="password-field"><input required minLength={mode === "register" ? 10 : 6} type={showPassword ? "text" : "password"} autoComplete={mode === "register" ? "new-password" : "current-password"} value={password} onChange={(event) => setPassword(event.target.value)} placeholder={mode === "register" ? "En az 10 karakter" : "Parolanız"} /><button type="button" aria-label={showPassword ? "Parolayı gizle" : "Parolayı göster"} onClick={() => setShowPassword((value) => !value)}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></div></label>
+          {challengeToken ? <label><span>6 haneli doğrulama kodu</span><input required inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={verificationCode} onChange={(event) => setVerificationCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="000000" /></label> : <>
+            <label><span>Kullanıcı adı</span><input required autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="Kullanıcı adınız" /></label>
+            <label><span>Parola</span><div className="password-field"><input required minLength={mode === "register" ? 10 : 6} type={showPassword ? "text" : "password"} autoComplete={mode === "register" ? "new-password" : "current-password"} value={password} onChange={(event) => setPassword(event.target.value)} placeholder={mode === "register" ? "En az 10 karakter" : "Parolanız"} /><button type="button" aria-label={showPassword ? "Parolayı gizle" : "Parolayı göster"} onClick={() => setShowPassword((value) => !value)}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></div></label>
+          </>}
           {error && <div className="form-error" role="alert">{error}</div>}
-          <button className="login-submit" disabled={loading || !statusReady} type="submit">{loading ? "İşlem yapılıyor..." : !statusReady ? "Portal hazırlanıyor..." : mode === "login" ? "Giriş yap" : "Ücretsiz denemeyi başlat"}{!loading && statusReady && <ArrowRight size={18} />}</button>
+          <button className="login-submit" disabled={loading || !statusReady} type="submit">{loading ? "İşlem yapılıyor..." : !statusReady ? "Portal hazırlanıyor..." : challengeToken ? "Kodu doğrula" : mode === "login" ? "Giriş yap" : "Ücretsiz denemeyi başlat"}{!loading && statusReady && <ArrowRight size={18} />}</button>
+          {challengeToken && <button type="button" className="auth-secondary-action" onClick={() => { setChallengeToken(""); setVerificationCode(""); setError(""); }}>Kullanıcı adı ve parolaya dön</button>}
+          <p><Link href="/hesap-kurtarma">Parolamı unuttum</Link></p>
           <div className="login-security-note"><LockKeyhole size={14} /> Kayıtlar yalnızca hesabınızın çalışma alanında saklanır.</div>
         </form>
       </div>

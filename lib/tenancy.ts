@@ -1,3 +1,4 @@
+import { requireModuleAccess, type ModuleId } from "./access";
 import type { AppUser } from "./auth";
 import { createId, ensureSchema, getDb } from "./db";
 
@@ -42,6 +43,20 @@ export async function requireOrganization(request: Request, user: AppUser) {
   const requested = requestedOrganizationId(request);
   const organization = requested ? organizations.find((item) => item.id === requested) : organizations[0];
   if (!organization) throw new Error("Bu çalışma alanına erişim yetkiniz yok.");
+  // Enforce server-side module permissions on every organization-scoped API.
+  const segment = new URL(request.url).pathname.split("/")[2];
+  const modules: Record<string, ModuleId> = {
+    payments: "payments", expenses: "expenses", treasury: "treasury", projects: "projects",
+    tasks: "tasks", "work-orders": "work-orders", assets: "assets", maintenance: "maintenance",
+    "field-visits": "field-visits", procurement: "procurement", customers: "crm", employees: "hr",
+    risks: "risks", automations: "automations", agents: "agents", uploads: "files", users: "users",
+    organization: "company", service: "work-orders",
+  };
+  if (modules[segment]) await requireModuleAccess(user, organization, modules[segment],
+    ["GET", "HEAD"].includes(request.method) ? "view" : "edit");
+  if (segment === "notifications" && request.method === "POST" && !canManageOrganization(user, organization)) {
+    throw new Error("Bildirim oluşturmak için firma yöneticisi yetkisi gerekir.");
+  }
   return { organization, organizations };
 }
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSession, enforceAuthRateLimit, ensureDefaultAdminAccounts, loginWithUsername, sessionCookie } from "@/lib/auth";
+import { beginMfaChallenge } from "@/lib/mfa";
 import { rejectCrossSiteMutation } from "@/lib/security";
 
 export async function POST(request: Request) {
@@ -10,10 +11,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Kullanıcı adı ve parola gereklidir." }, { status: 400 });
     }
     await enforceAuthRateLimit(request, "login");
+    await enforceAuthRateLimit(request, "login", String(body.username));
     await ensureDefaultAdminAccounts();
     const user = await loginWithUsername({ username: body.username, password: body.password });
+    if (user.mfa_enabled) {
+      return NextResponse.json({
+        mfaRequired: true,
+        challengeToken: await beginMfaChallenge(user.id),
+        message: "Kimlik doğrulama uygulamanızdaki 6 haneli kodu girin.",
+      });
+    }
     const token = await createSession(user.id);
-    const response = NextResponse.json({ user: { id: user.id, username: user.username, fullName: user.full_name, role: user.role } });
+    const response = NextResponse.json({
+      user: { id: user.id, username: user.username, fullName: user.full_name, role: user.role },
+      mfaEnrollmentRecommended: user.role === "admin",
+    });
     response.headers.set("Set-Cookie", sessionCookie(token));
     return response;
   } catch (error) {

@@ -8,6 +8,7 @@ export type AppUser = {
   full_name: string;
   role: "admin" | "user";
   active: number;
+  mfa_enabled: number;
 };
 
 const encoder = new TextEncoder();
@@ -26,12 +27,12 @@ async function sha256(value: string) {
   return toHex(await crypto.subtle.digest("SHA-256", encoder.encode(value)));
 }
 
-export async function enforceAuthRateLimit(request: Request, action: "login" | "register") {
+export async function enforceAuthRateLimit(request: Request, action: "login" | "register", identity = "") {
   await ensureSchema();
   const database = getDb();
   const forwarded = request.headers.get("cf-connecting-ip") || request.headers.get("x-forwarded-for")?.split(",")[0] || "unknown";
-  const agent = request.headers.get("user-agent") || "unknown";
-  const fingerprint = await sha256(`${forwarded.trim()}|${agent.slice(0, 180)}`);
+
+  const fingerprint = await sha256(identity ? `account:${identity.trim().toLowerCase()}` : `ip:${forwarded.trim()}`);
   const limit = action === "login" ? 15 : 8;
   const recent = await database.prepare(`SELECT COUNT(*) AS count FROM auth_attempts
     WHERE fingerprint_hash = ? AND action = ? AND created_at > datetime('now', '-15 minutes')`)
@@ -73,9 +74,10 @@ export async function getCurrentUser(request: Request): Promise<AppUser | null> 
   const tokenHash = await sha256(token);
   const database = getDb();
   return database
-    .prepare(`SELECT u.id, u.username, u.email, u.full_name, u.role, u.active
+    .prepare(`SELECT u.id, u.username, u.email, u.full_name, u.role, u.active, COALESCE(sec.mfa_enabled, 0) AS mfa_enabled
       FROM sessions s JOIN users u ON u.id = s.user_id
-      WHERE s.token_hash = ? AND s.expires_at > CURRENT_TIMESTAMP AND u.active = 1`)
+      LEFT JOIN user_security sec ON sec.user_id = u.id
+      WHERE s.token_hash = ? AND datetime(s.expires_at) > CURRENT_TIMESTAMP AND u.active = 1`)
     .bind(tokenHash)
     .first<AppUser>();
 }
@@ -112,7 +114,7 @@ export async function ensureDefaultAdminAccounts() {
     const secrets = env as unknown as { ADMIN1_PASSWORD?: string; ADMIN2_PASSWORD?: string };
     const admin1Password = secrets.ADMIN1_PASSWORD ?? "";
     const admin2Password = secrets.ADMIN2_PASSWORD ?? "";
-    if (admin1Password.length < 6 || admin2Password.length < 6) throw new Error("Portal giriş bilgileri hazır değil.");
+    if (admin1Password.length < 10 || admin2Password.length < 10) throw new Error("Portal giriş bilgileri hazır değil.");
 
     const admin1Id = createId("user");
     const admin2Id = createId("user");
@@ -137,7 +139,7 @@ export async function loginWithUsername(input: { username: string; password: str
   const username = normalizeUsername(input.username);
 
   const user = await database
-    .prepare("SELECT id, username, email, full_name, role, active, password_hash, password_salt FROM users WHERE username = ?")
+    .prepare(`SELECT u.*, COALESCE(sec.mfa_enabled, 0) AS mfa_enabled FROM users u LEFT JOIN user_security sec ON sec.user_id = u.id WHERE u.username = ?`)
     .bind(username)
     .first<AppUser & { password_hash: string; password_salt: string }>();
   if (!user || !user.active || !(await verifyPassword(input.password, user.password_salt, user.password_hash))) {
