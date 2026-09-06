@@ -24,11 +24,11 @@ export async function GET(request: Request) {
   ]);
   return NextResponse.json({
     user: { id: user.id, username: user.username, fullName: user.full_name, role: user.role },
-    summaries: summaries.results,
+    summaries: canView(access, "financial") ? summaries.results : [],
     payments: canView(access, "payments") ? payments.results : [],
     expenses: canView(access, "expenses") ? expenses.results : [],
     attentionCount: canView(access, "payments") ? pending?.count ?? 0 : 0,
-    activity: activity.results,
+    activity: ["owner", "company_admin"].includes(access.profile) ? activity.results : [],
     organization: context.organization,
     organizations: context.organizations,
     profile,

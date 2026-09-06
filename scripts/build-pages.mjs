@@ -19,7 +19,7 @@ await build({
 
       export default {
         async fetch(request, env, context) {
-          if (request.method === "GET" || request.method === "HEAD") {
+          if (!new URL(request.url).pathname.startsWith("/api/") && (request.method === "GET" || request.method === "HEAD")) {
             const asset = await env.ASSETS.fetch(request);
             if (asset.status !== 404) {
               const contentType = asset.headers.get("content-type") || "";
@@ -35,7 +35,7 @@ await build({
 
           const response = await app.fetch(request, env, context);
           const contentType = response.headers.get("content-type") || "";
-          if (!contentType.includes("text/html")) return response;
+          if (!contentType.includes("text/html") && !new URL(request.url).pathname.startsWith("/api/")) return response;
           const headers = new Headers(response.headers);
           headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
           headers.set("CDN-Cache-Control", "no-store");

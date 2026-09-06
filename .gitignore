@@ -4,3 +4,8 @@ node_modules
 /dist/
 .vinext/
 .wrangler/
+
+!/.env.example
+/tests/.tmp/
+*.tsbuildinfo
+.private-backups/

@@ -1,3 +1,4 @@
+import { initializeService } from "./service";
 import { env } from "cloudflare:workers";
 
 type Statement = {
@@ -20,6 +21,24 @@ export function getDb(): Database {
 }
 
 const schemaStatements = [
+`CREATE TABLE IF NOT EXISTS projects (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    code TEXT,
+    department TEXT NOT NULL,
+    owner_name TEXT,
+    status TEXT NOT NULL CHECK (status IN ('planning', 'active', 'on_hold', 'completed')) DEFAULT 'planning',
+    priority TEXT NOT NULL CHECK (priority IN ('low', 'normal', 'high', 'critical')) DEFAULT 'normal',
+    start_date TEXT,
+    target_date TEXT,
+    budget REAL NOT NULL DEFAULT 0,
+    progress INTEGER NOT NULL DEFAULT 0,
+    description TEXT,
+    created_by TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
 `CREATE TABLE IF NOT EXISTS app_metadata (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL,
@@ -72,6 +91,16 @@ const schemaStatements = [
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (organization_id, user_id)
 )`,
+`CREATE TABLE IF NOT EXISTS organization_member_access (
+  organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  job_role TEXT NOT NULL DEFAULT 'employee',
+  department TEXT,
+  access_profile TEXT NOT NULL DEFAULT 'employee',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (organization_id, user_id)
+)`,
 `CREATE TABLE IF NOT EXISTS sessions (
   token_hash TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -82,6 +111,22 @@ const schemaStatements = [
   id TEXT PRIMARY KEY,
   fingerprint_hash TEXT NOT NULL,
   action TEXT NOT NULL CHECK (action IN ('login', 'register')),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+)`,
+`CREATE TABLE IF NOT EXISTS user_security (
+  user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  email_verified_at TEXT,
+  mfa_enabled INTEGER NOT NULL DEFAULT 0,
+  totp_secret TEXT,
+  mfa_setup_secret TEXT,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+)`,
+`CREATE TABLE IF NOT EXISTS mfa_challenges (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL UNIQUE,
+  expires_at TEXT NOT NULL,
+  used_at TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 )`,
 `CREATE TABLE IF NOT EXISTS period_summaries (
@@ -193,6 +238,7 @@ const schemaStatements = [
 )`,
 `CREATE TABLE IF NOT EXISTS attachments (
   id TEXT PRIMARY KEY,
+  organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
   object_key TEXT NOT NULL UNIQUE,
   file_name TEXT NOT NULL,
   content_type TEXT NOT NULL,
@@ -200,6 +246,8 @@ const schemaStatements = [
   record_type TEXT,
   record_id TEXT,
   uploaded_by TEXT NOT NULL REFERENCES users(id),
+  scan_status TEXT NOT NULL DEFAULT 'policy_checked',
+  scan_details TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 )`,
 `CREATE TABLE IF NOT EXISTS audit_logs (
@@ -443,11 +491,12 @@ const schemaStatements = [
 "CREATE INDEX IF NOT EXISTS idx_auth_attempts_window ON auth_attempts(fingerprint_hash, action, created_at)",
 "CREATE INDEX IF NOT EXISTS idx_manual_debt_status ON manual_debts(status)",
 "CREATE INDEX IF NOT EXISTS idx_members_user ON organization_members(user_id)",
+"CREATE INDEX IF NOT EXISTS idx_member_access_profile ON organization_member_access(organization_id, access_profile)",
 ] as const;
 
 export const DEFAULT_ORGANIZATION_ID = "org_alan_group";
 
-const CURRENT_SCHEMA_VERSION = "2026-07-24-assets-maintenance-v1";
+const CURRENT_SCHEMA_VERSION = "2026-09-06-pilot-v3";
 let schemaPromise: Promise<void> | null = null;
 
 export async function ensureSchema() {
@@ -477,19 +526,34 @@ async function initializeSchema() {
     await database.prepare(statement).run();
   }
 
+  await initializeService(database);
   const userColumns = await database.prepare("PRAGMA table_info(users)").all<{ name: string }>();
   if (!userColumns.results.some((column) => column.name === "username")) {
     await database.prepare("ALTER TABLE users ADD COLUMN username TEXT").run();
   }
   await database.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username)").run();
-  await database.prepare("UPDATE payment_records SET workflow_status = 'approved' WHERE workflow_status <> 'approved'").run();
-  await database.prepare("UPDATE expenses SET workflow_status = 'approved' WHERE workflow_status <> 'approved'").run();
 
   for (const table of ["payment_records", "expenses", "cash_balances", "manual_debts", "attachments", "audit_logs"] as const) {
     const columns = await database.prepare(`PRAGMA table_info(${table})`).all<{ name: string }>();
     if (!columns.results.some((column) => column.name === "organization_id")) {
       await database.prepare(`ALTER TABLE ${table} ADD COLUMN organization_id TEXT`).run();
     }
+  }
+  for (const [table, column, definition] of [
+    ["agent_chats", "access_scope", "TEXT"],
+    ["mfa_challenges", "attempts", "INTEGER NOT NULL DEFAULT 0"],
+    ["user_security", "last_totp_counter", "INTEGER NOT NULL DEFAULT -1"],
+    ["user_security", "mfa_setup_expires_at", "TEXT"],
+  ]) {
+    const columns = await database.prepare(`PRAGMA table_info(${table})`).all<{ name: string }>();
+    if (!columns.results.some(c => c.name === column)) await database.prepare(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`).run();
+  }
+  const attachmentColumns = await database.prepare("PRAGMA table_info(attachments)").all<{ name: string }>();
+  if (!attachmentColumns.results.some((column) => column.name === "scan_status")) {
+    await database.prepare("ALTER TABLE attachments ADD COLUMN scan_status TEXT NOT NULL DEFAULT 'legacy'").run();
+  }
+  if (!attachmentColumns.results.some((column) => column.name === "scan_details")) {
+    await database.prepare("ALTER TABLE attachments ADD COLUMN scan_details TEXT").run();
   }
   const paymentColumns = await database.prepare("PRAGMA table_info(payment_records)").all<{ name: string }>();
   if (!paymentColumns.results.some((column) => column.name === "paid_amount")) {
@@ -514,6 +578,13 @@ async function initializeSchema() {
     (organization_id, legal_name, sector, about)
     VALUES (?, 'Alan Group', 'Mühendislik, teknoloji ve yönetim', 'Şirket içi finans ve operasyon verilerinin güvenli şekilde izlendiği çalışma alanı.')`)
     .bind(DEFAULT_ORGANIZATION_ID).run();
+  await database.prepare(`INSERT OR IGNORE INTO organization_member_access
+    (organization_id, user_id, job_role, department, access_profile)
+    SELECT organization_id, user_id,
+      CASE role WHEN 'owner' THEN 'owner' WHEN 'admin' THEN 'company_admin' ELSE 'employee' END,
+      NULL,
+      CASE role WHEN 'owner' THEN 'owner' WHEN 'admin' THEN 'company_admin' ELSE 'employee' END
+    FROM organization_members`).run();
 
   await database.prepare("UPDATE payment_records SET organization_id = ? WHERE organization_id IS NULL").bind(DEFAULT_ORGANIZATION_ID).run();
   await database.prepare("UPDATE expenses SET organization_id = ? WHERE organization_id IS NULL").bind(DEFAULT_ORGANIZATION_ID).run();

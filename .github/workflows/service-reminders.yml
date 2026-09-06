@@ -1,0 +1,22 @@
+name: Service reminders
+on:
+  schedule:
+    - cron: '15 5 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  reminders:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate in-app reminders
+        env:
+          APP_CRON_TOKEN: ${{ secrets.APP_CRON_TOKEN }}
+        run: |
+          if [ -z "$APP_CRON_TOKEN" ]; then
+            echo '::notice::Scheduled reminders need APP_CRON_TOKEN in both GitHub and the application. In-app reminders still run when notifications are opened.'
+            exit 0
+          fi
+          curl --fail --silent --show-error --max-time 120 \
+            --request POST --header "Authorization: Bearer $APP_CRON_TOKEN" \
+            https://teksanor.pages.dev/api/service/reminders

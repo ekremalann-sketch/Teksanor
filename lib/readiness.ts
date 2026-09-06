@@ -2,7 +2,7 @@ export type ReadinessStatus = "done" | "partial" | "planned" | "blocked";
 export type ReadinessPriority = "critical" | "high" | "medium" | "low";
 
 export const readinessSnapshot = {
-  version: "2026-07-24-full-modules-hardening",
+  version: "2026-09-06-pilot-v3",
   title: "Teksanor ürün durumu, güvenlik ve pilot hazırlık özeti",
   summary: "Son kaynak kodda finans, proje, görev, iş emri, saha ziyareti, varlık envanteri, periyodik bakım, satın alma, CRM, İK, risk, otomasyon ve ajan sohbeti çekirdeği eklendi. Kurumsal canlı satış için kimlik güvenliği, yedek dönüş, ödeme/faturalama ve KVKK seti hâlâ tamamlanmalıdır.",
   stats: [
@@ -23,11 +23,11 @@ export const workingModules = [
   { name: "Satın alma, CRM, İK ve risk", status: "partial" as ReadinessStatus, note: "Temel kayıt, listeleme, durum ve silme/güncelleme akışları var; ileri raporlama ve entegrasyonlar sonraki faz." },
   { name: "Dosya yükleme", status: "partial" as ReadinessStatus, note: "R2 yükleme, boyut, MIME, uzantı ve magic-byte kontrolü var; gerçek AV/karantina servisi ayrı faz." },
   { name: "Excel/CSV içe aktarma", status: "done" as ReadinessStatus, note: "xlsx kaldırıldı; ExcelJS + Türkçe para/ondalık parser kullanılır." },
-  { name: "Otomasyon ve yapay zekâ ajanları", status: "partial" as ReadinessStatus, note: "Ajan sohbeti ve otomatik özet var; gerçek OpenAI anahtarı yoksa güvenli mock/özet modu çalışır." },
+  { name: "Otomasyon ve yapay zekâ ajanları", status: "partial" as ReadinessStatus, note: "Ajan sohbeti ve otomatik özet var; bağlantı yoksa açıkça etiketlenmiş kayıt özeti gösterilir." },
 ] as const;
 
 export const criticalBacklog = [
-  { priority: "critical" as ReadinessPriority, title: "MFA, e-posta doğrulama ve parola kurtarma", impact: "Admin hesabı ele geçirilirse kurumsal veri riske girer.", exit: "Yönetici MFA olmadan panele giremez; şifremi unuttum ve e-posta doğrulama token akışı çalışır." },
+  { priority: "critical" as ReadinessPriority, title: "Hesap güvenliği bağlantılarının canlı doğrulanması", impact: "Admin hesabı ele geçirilirse kurumsal veri riske girer.", exit: "MFA isteğe bağlı kurulur; e-posta bağlantıları gerçek test hesabında doğrulanır." },
   { priority: "critical" as ReadinessPriority, title: "Kurumsal test paketi", impact: "Çok modüllü panelde küçük bir API hatası müşteri güvenini bozar.", exit: "Tenant izolasyonu, rol yetkisi, iş emri, saha ziyareti, dosya yükleme ve finans akışları otomatik testtedir." },
   { priority: "high" as ReadinessPriority, title: "Dosya karantina ve zararlı içerik taraması", impact: "Magic-byte kontrolü iyi başlangıçtır ama antivirüs değildir.", exit: "Şüpheli dosya R2'ye kalıcı yazılmadan karantinaya alınır veya reddedilir." },
   { priority: "high" as ReadinessPriority, title: "D1/R2 yedekleme ve geri yükleme tatbikatı", impact: "Yedek almak ile geri dönebilmek aynı şey değildir.", exit: "Aylık geri dönüş denemesi, süre ve sorumlu kişiyle kayıt altına alınır." },

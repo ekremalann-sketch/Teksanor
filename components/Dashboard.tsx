@@ -5,7 +5,7 @@ import {
   AlertOctagon, AlertTriangle, ArrowDownRight, ArrowLeft, ArrowRight, ArrowUpRight, Banknote, BarChart3, Bell, Bot, BriefcaseBusiness, Building2, Check,
   CheckSquare, CircleDollarSign, Coins, CreditCard, Database, Download, FileSpreadsheet, Files,
   CalendarCheck2, Factory, Gauge, HandCoins, Landmark, LayoutDashboard, LogOut, MapPin, Menu, MoreHorizontal, Plus, Search,
-  Pencil, Settings, ShieldCheck, ShoppingCart, Trash2, Upload, UserPlus, Users, Users2, WalletCards, Workflow, Wrench, X, Zap,
+  KeyRound, Pencil, Settings, ShieldCheck, ShoppingCart, Trash2, Upload, UserPlus, Users, Users2, WalletCards, Workflow, Wrench, X, Zap,
 } from "lucide-react";
 import {
   TasksView, WorkOrdersView, FieldVisitsView, ProcurementView, CrmView, HrView, RisksView, AutomationsView,
@@ -102,6 +102,7 @@ export default function Dashboard() {
   const [active, setActive] = useState("overview");
   const [mobileNav, setMobileNav] = useState(false);
   const [topbarPanel, setTopbarPanel] = useState<"notifications" | "settings" | null>(null);
+  const [dueNotifications,setDueNotifications]=useState<{id:string;title:string;body:string}[]>([]);
   const [notificationUnread, setNotificationUnread] = useState(false);
   const [search, setSearch] = useState("");
   const [paymentPeriod, setPaymentPeriod] = useState("all");
@@ -121,13 +122,19 @@ export default function Dashboard() {
       const headers = requested ? { "X-Organization-Id": requested } : undefined;
       const response = await fetch("/api/dashboard", { cache: "no-store", headers });
       if (response.status === 401) { window.location.href = "/giris"; return; }
+      if (response.status === 428) { window.location.href = "/hesap-guvenligi"; return; }
       if (!response.ok) throw new Error("Veriler alınamadı.");
       const nextData = await response.json() as DashboardData;
+      setTreasury(null); setFiles([]); setProjects([]); setTasks([]); setWorkOrders([]);
+      setAssets([]); setMaintenancePlans([]); setFieldVisits([]); setProcurement([]);
+      setCustomers([]); setEmployees([]); setRisks([]); setAutomations([]);
       setData(nextData);
+      const notices=await fetch("/api/notifications",{headers:{"X-Organization-Id":nextData.organization.id},cache:"no-store"});
+      if(notices.ok)setDueNotifications((await notices.json()).notifications||[]);else setDueNotifications([]);
       setOrganizationId(nextData.organization.id);
       localStorage.setItem("teksanor_organization", nextData.organization.id);
       const organizationHeaders = { "X-Organization-Id": nextData.organization.id };
-      const mayView = (module: string) => nextData.access?.viewModules?.includes(module) ?? true;
+      const mayView = (module: string) => nextData.access?.viewModules?.includes(module) ?? false;
       const skipped = () => Promise.resolve(new Response(null, { status: 403 }));
       const treasuryResponse = mayView("treasury") ? await fetch("/api/treasury", { cache: "no-store", headers: organizationHeaders }) : await skipped();
       if (treasuryResponse.ok) setTreasury(await treasuryResponse.json() as TreasuryData);
@@ -192,8 +199,8 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!data || !notificationKey) return;
-    setNotificationUnread(data.attentionCount > 0 && localStorage.getItem("teksanor_notifications_read") !== notificationKey);
-  }, [data, notificationKey]);
+    setNotificationUnread((data.attentionCount > 0 || dueNotifications.length>0) && localStorage.getItem("teksanor_notifications_read") !== notificationKey);
+  }, [data, notificationKey, dueNotifications]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -319,8 +326,8 @@ export default function Dashboard() {
         const sheet = workbook.worksheets[0];
         if (!sheet) throw new Error("Excel dosyasında okunabilir sayfa bulunamadı.");
         const headers: string[] = [];
-        sheet.getRow(1).eachCell((cell, colNumber) => { headers[colNumber - 1] = String(cell.value ?? `Kolon ${colNumber}`).trim(); });
-        sheet.eachRow((row, rowNumber) => {
+        sheet.getRow(1).eachCell((cell: import("exceljs").Cell, colNumber: number) => { headers[colNumber - 1] = String(cell.value ?? `Kolon ${colNumber}`).trim(); });
+        sheet.eachRow((row: import("exceljs").Row, rowNumber: number) => {
           if (rowNumber === 1) return;
           const record: Record<string, unknown> = {};
           headers.forEach((header, index) => { record[header] = row.getCell(index + 1).value ?? ""; });
@@ -453,6 +460,7 @@ export default function Dashboard() {
             {topbarPanel === "notifications" && <div className="topbar-popover notification-popover">
               <div className="popover-head"><div><span>Bildirim merkezi</span><b>Güncel durum</b></div><button type="button" onClick={() => setTopbarPanel(null)} aria-label="Bildirimleri kapat"><X size={17} /></button></div>
               <div className="notification-summary"><ShieldCheck size={19} /><span><b>Sistem ve veriler erişilebilir</b><small>Çalışma alanınız güvenli oturumla korunuyor.</small></span></div>
+              {dueNotifications.map(n=><a href="/servis" className="notification-row" key={n.id}><span className="notification-mark warning"/><span><b>{n.title}</b><small>{n.body}</small></span></a>)}
               {data.attentionCount > 0 ? <button type="button" className="notification-row" onClick={() => { navigate("payments"); setTopbarPanel(null); }}><span className="notification-mark warning" /><span><b>{data.attentionCount} finansal kayıt takip bekliyor</b><small>Ödemeler ve borçlar bölümünü açın.</small></span><ArrowRight size={16} /></button> : <div className="notification-empty"><Check size={20} /><span><b>Bekleyen önemli bildirim yok</b><small>Yeni gelişmeler burada gösterilecek.</small></span></div>}
               {data.activity.slice(0, 2).map((item) => <div className="notification-row static" key={item.id}><span className="notification-mark" /><span><b>{item.details || "Çalışma alanında işlem yapıldı"}</b><small>{new Date(item.created_at).toLocaleString("tr-TR")}</small></span></div>)}
               <button type="button" className="popover-footer-action" onClick={() => { navigate("overview"); setTopbarPanel(null); }}><span>Yönetim özetine git</span><ArrowRight size={16} /></button>
@@ -460,10 +468,12 @@ export default function Dashboard() {
             {topbarPanel === "settings" && <div className="topbar-popover settings-popover">
               <div className="popover-head"><div><span>Hesap ve çalışma alanı</span><b>Ayarlar</b></div><button type="button" onClick={() => setTopbarPanel(null)} aria-label="Ayarları kapat"><X size={17} /></button></div>
               <div className="settings-profile"><div>{data.user.fullName.split(" ").map((item) => item[0]).join("").slice(0, 2)}</div><span><b>{data.user.fullName}</b><small>{data.organization.name} · {roleLabel}</small></span></div>
+              <a className="settings-row" href="/servis"><Wrench size={18}/><span><b>Servis masası</b><small>Teklif, müşteri onayı ve saha raporu</small></span></a>
               <button type="button" className="settings-row" onClick={() => { navigate("company"); setTopbarPanel(null); }}><Building2 size={18} /><span><b>Firma bilgileri</b><small>Kurumsal profil ve iletişim bilgileri</small></span><ArrowRight size={16} /></button>
               <button type="button" className="settings-row" onClick={() => { navigate("overview"); setTopbarPanel(null); }}><LayoutDashboard size={18} /><span><b>Çalışma alanı özeti</b><small>Plan, dönem ve finansal görünüm</small></span><ArrowRight size={16} /></button>
               {canManage && <button type="button" className="settings-row" onClick={() => { navigate("users"); setTopbarPanel(null); }}><Users size={18} /><span><b>Kullanıcı ve yetkiler</b><small>Ekip erişimlerini güvenle yönetin</small></span><ArrowRight size={16} /></button>}
-              <button type="button" className="settings-row" onClick={() => { setModal("password"); setTopbarPanel(null); }}><ShieldCheck size={18} /><span><b>Parolayı değiştir</b><small>Hesabınızın giriş güvenliğini yönetin</small></span><ArrowRight size={16} /></button>
+              <button type="button" className="settings-row" onClick={() => { window.location.href = "/hesap-guvenligi"; }}><ShieldCheck size={18} /><span><b>İki aşamalı doğrulama</b><small>İsterseniz doğrulama uygulamasıyla ek koruma açın</small></span><ArrowRight size={16} /></button>
+              <button type="button" className="settings-row" onClick={() => { setModal("password"); setTopbarPanel(null); }}><KeyRound size={18} /><span><b>Parolayı değiştir</b><small>Hesabınızın giriş parolasını yenileyin</small></span><ArrowRight size={16} /></button>
               <button type="button" className="settings-row danger" onClick={logout}><LogOut size={18} /><span><b>Güvenli çıkış</b><small>Yalnızca bu seçenek oturumu kapatır</small></span></button>
             </div>}
           </div>

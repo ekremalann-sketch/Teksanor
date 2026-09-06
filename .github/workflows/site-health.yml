@@ -20,6 +20,7 @@ jobs:
           set -e
           for url in \
             https://teksanor.pages.dev/ \
+            https://teksanor.pages.dev/api/health \
             https://teksanor.pages.dev/giris \
             https://teksanor.pages.dev/cozumler \
             https://teksanor.pages.dev/muhendislik \

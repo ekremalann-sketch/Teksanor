@@ -143,6 +143,7 @@ export function WorkOrdersView({ items, organizationId, onReload, notify, search
   async function remove(id: string) { if (!window.confirm("Bu iş emrini silmek istediğinizden emin misiniz?")) return; try { await api(`/api/work-orders/${id}`, organizationId, "DELETE"); notify("İş emri silindi."); await onReload(); } catch (e) { notify(e instanceof Error ? e.message : "Silinemedi."); } }
   const nextStatus: Record<string, [string, string]> = { open: ["assigned", "Ata"], assigned: ["in_progress", "Başlat"], in_progress: ["completed", "Tamamla"] };
   return <>
+    <a className="panel-primary" style={{display:"inline-flex",marginBottom:16}} href="/servis">Servis masası: teklif, onay ve rapor →</a>
     <PanelHead eyebrow="OPERASYON YÖNETİMİ" title="Saha ve bakım iş emirlerini yönetin." text="Her iş emri otomatik numara alır; durum akışını kart üzerinden ilerletin." count={`${items.length} iş emri`} action={<button className="panel-primary" onClick={() => setOpen(true)}><Plus size={17} /> Yeni iş emri</button>} />
     {filtered.length ? <section className="project-card-grid">{filtered.map((w) => { const step = nextStatus[w.status]; return <article key={w.id}>
       <div className="project-card-top"><span>{w.order_number} · {orderTypeLabel[w.order_type]}</span><StatusBadge map={woStatus} value={w.status} /></div>
@@ -512,7 +513,7 @@ export function AgentWorkforceView({ agents, organizationId, notify }: { agents:
     try {
       const r = await api("/api/agents/chat", organizationId, "POST", { agentName: activeAgent, message, organizationId }) as { reply?: string; source?: string };
       setMessages((prev) => [...prev, { id: `a-${Date.now()}`, agent_name: activeAgent, role: "assistant", content: r.reply || "", created_at: new Date().toISOString() }]);
-      if (r.source === "mock") notify("Yapay zekâ bağlantısı etkin değil; örnek yanıt gösterildi.");
+      if (r.source !== "llm") notify("Güncel kayıt özeti gösterildi; yapay zekâ analizi yapılmadı.");
     } catch (e) { notify(e instanceof Error ? e.message : "Yanıt alınamadı."); setMessages((prev) => prev.filter((m) => m.id !== temp.id)); }
     finally { setSending(false); }
   }
