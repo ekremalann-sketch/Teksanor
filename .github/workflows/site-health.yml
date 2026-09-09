@@ -1,8 +1,8 @@
 name: Teksanor Site Health
 
+# Otomatik takvim, üretimdeki UPLOADS binding'i bağlanana kadar kapalıdır.
+# Kontrol gerektiğinde Actions ekranından elle çalıştırılabilir.
 on:
-  schedule:
-    - cron: "*/30 * * * *"
   workflow_dispatch:
 
 permissions:
