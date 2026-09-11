@@ -16,6 +16,23 @@ const expectedSheets = [
   "Altın Borçları", "Şirket Hareketleri", "Kontrol Edilecekler",
 ] as const;
 
+async function ensureHouseholdFinanceTable() {
+  const database = getDb();
+  await database.prepare(`CREATE TABLE IF NOT EXISTS household_finance_workbooks (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    period TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    source_name TEXT,
+    created_by TEXT REFERENCES users(id),
+    updated_by TEXT REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (organization_id, period)
+  )`).run();
+  await database.prepare("CREATE INDEX IF NOT EXISTS idx_household_finance_org ON household_finance_workbooks(organization_id, period)").run();
+}
+
 function validPayload(value: unknown): value is WorkbookPayload {
   if (!value || typeof value !== "object") return false;
   const payload = value as Partial<WorkbookPayload>;
@@ -42,6 +59,7 @@ async function contextFor(request: Request, mode: "view" | "edit") {
 export async function GET(request: Request) {
   const resolved = await contextFor(request, "view");
   if ("error" in resolved) return resolved.error;
+  await ensureHouseholdFinanceTable();
   const rows = await getDb().prepare(`SELECT id, period, payload_json, source_name, updated_at
     FROM household_finance_workbooks WHERE organization_id = ? ORDER BY updated_at DESC`)
     .bind(resolved.context.organization.id).all<{ id: string; period: string; payload_json: string; source_name: string | null; updated_at: string }>();
@@ -52,6 +70,7 @@ export async function POST(request: Request) {
   const rejected = rejectCrossSiteMutation(request); if (rejected) return rejected;
   const resolved = await contextFor(request, "edit");
   if ("error" in resolved) return resolved.error;
+  await ensureHouseholdFinanceTable();
   if (Number(request.headers.get("content-length") || 0) > 2_000_000) {
     return NextResponse.json({ error: "Finans çalışma kitabı güvenli aktarım sınırını aşıyor." }, { status: 413 });
   }
