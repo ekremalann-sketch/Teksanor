@@ -27,6 +27,15 @@ async function sha256(value: string) {
   return toHex(await crypto.subtle.digest("SHA-256", encoder.encode(value)));
 }
 
+function constantTimeTextEqual(left: string, right: string) {
+  const a = encoder.encode(left);
+  const b = encoder.encode(right);
+  let diff = a.length ^ b.length;
+  const length = Math.max(a.length, b.length);
+  for (let index = 0; index < length; index += 1) diff |= (a[index] ?? 0) ^ (b[index] ?? 0);
+  return diff === 0;
+}
+
 export async function enforceAuthRateLimit(request: Request, action: "login" | "register", identity = "") {
   await ensureSchema();
   const database = getDb();
@@ -142,9 +151,28 @@ export async function loginWithUsername(input: { username: string; password: str
     .prepare(`SELECT u.*, COALESCE(sec.mfa_enabled, 0) AS mfa_enabled FROM users u LEFT JOIN user_security sec ON sec.user_id = u.id WHERE u.username = ?`)
     .bind(username)
     .first<AppUser & { password_hash: string; password_salt: string }>();
-  if (!user || !user.active || !(await verifyPassword(input.password, user.password_salt, user.password_hash))) {
+  if (!user || !user.active) {
     throw new Error("Kullanıcı adı veya parola hatalı.");
   }
+  let passwordValid = await verifyPassword(input.password, user.password_salt, user.password_hash);
+  // Bootstrap yöneticileri için kontrollü kurtarma: Cloudflare secret değiştirildiğinde
+  // yeni değer ilk başarılı girişte D1'e aktarılır ve eski oturumlar kapatılır.
+  if (!passwordValid && (username === "admin1" || username === "admin2")) {
+    const secrets = env as unknown as { ADMIN1_PASSWORD?: string; ADMIN2_PASSWORD?: string };
+    const recoveryPassword = username === "admin1" ? secrets.ADMIN1_PASSWORD : secrets.ADMIN2_PASSWORD;
+    if (recoveryPassword && recoveryPassword.length >= 10 && constantTimeTextEqual(input.password, recoveryPassword)) {
+      const credentials = await hashPassword(input.password);
+      await database.batch([
+        database.prepare("UPDATE users SET password_hash = ?, password_salt = ? WHERE id = ?")
+          .bind(credentials.hash, credentials.salt, user.id),
+        database.prepare("DELETE FROM sessions WHERE user_id = ?").bind(user.id),
+        database.prepare("DELETE FROM mfa_challenges WHERE user_id = ?").bind(user.id),
+      ]);
+      await addAudit(user.id, "bootstrap_password_rotated", "user", user.id, "Yönetici parolası runtime secret ile güvenli biçimde yenilendi.");
+      passwordValid = true;
+    }
+  }
+  if (!passwordValid) throw new Error("Kullanıcı adı veya parola hatalı.");
   await addAudit(user.id, "login", "session", null);
   return user;
 }

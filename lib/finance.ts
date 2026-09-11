@@ -20,12 +20,24 @@ export function parseLocalizedNumber(value: unknown) {
       : cleaned.replace(/,/g, "");
   } else if (hasComma) {
     normalized = cleaned.replace(",", ".");
-  } else if ((cleaned.match(/\./g) ?? []).length > 1) {
-    normalized = cleaned.replace(/\./g, "");
+  } else if (hasDot) {
+    const pieces = cleaned.split(".");
+    normalized = pieces.length > 1 && pieces.slice(1).every((piece) => piece.length === 3)
+      ? pieces.join("")
+      : cleaned;
   }
 
   const number = Number(normalized);
   return Number.isFinite(number) ? number : 0;
+}
+
+export function parseOptionalLocalizedNumber(value: unknown, label = "Tutar") {
+  if (value === null || value === undefined || String(value).trim() === "") return null;
+  const parsed = parseLocalizedNumber(value);
+  const cleaned = String(value).replace(/[₺$€£\s]/g, "").replace(/[^0-9,.-]/g, "");
+  if (!cleaned || !Number.isFinite(parsed)) throw new Error(`${label} geçerli bir sayı olmalıdır.`);
+  if (parsed < 0) throw new Error(`${label} sıfırdan küçük olamaz.`);
+  return parsed;
 }
 
 export function nonNegativeNumber(value: unknown) {
