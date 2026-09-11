@@ -4,12 +4,12 @@ export type ReadinessPriority = "critical" | "high" | "medium" | "low";
 export const readinessSnapshot = {
   version: "2026-09-06-pilot-v3",
   title: "Teksanor ürün durumu, güvenlik ve pilot hazırlık özeti",
-  summary: "Son kaynak kodda finans, proje, görev, iş emri, saha ziyareti, varlık envanteri, periyodik bakım, satın alma, CRM, İK, risk, otomasyon ve ajan sohbeti çekirdeği eklendi. Kurumsal canlı satış için kimlik güvenliği, yedek dönüş, ödeme/faturalama ve KVKK seti hâlâ tamamlanmalıdır.",
+  summary: "Finans, proje, görev, servis, saha, varlık, bakım, satın alma, CRM, İK, risk ve otomasyon çekirdeği çalışır. Kurumsal canlı satıştan önce gerçek ortam kabulü, D1/R2 geri dönüş tatbikatı, dosya tarama politikası, faturalama ve KVKK seti tamamlanmalıdır.",
   stats: [
     { label: "Çalışan çekirdek", value: "13+ akış", note: "Finans, proje, görev, saha, varlık, bakım, satın alma, CRM, İK, risk, otomasyon ve ajan sohbeti" },
     { label: "Departman gerçekliği", value: "Kayıt düzeyi", note: "Birçok departman artık veri modeli + API + panel ekranı seviyesine çıkarıldı" },
     { label: "Güvenlik uygulandı", value: "Başlık + Origin", note: "CSP/HSTS, cross-site mutation kontrolü ve dosya imza kontrolü eklendi" },
-    { label: "Canlı satış kararı", value: "Pilot sonrası", note: "MFA, e-posta doğrulama, parola kurtarma, yedek ve sözleşme seti kapanmadan açık müşteri alınmaz" },
+    { label: "Canlı satış kararı", value: "Pilot sonrası", note: "Kurtarma ve MFA gerçek hesapla; yedek, depolama ve sözleşme seti kontrollü pilotta doğrulanır" },
   ],
 } as const;
 
@@ -27,8 +27,8 @@ export const workingModules = [
 ] as const;
 
 export const criticalBacklog = [
-  { priority: "critical" as ReadinessPriority, title: "Hesap güvenliği bağlantılarının canlı doğrulanması", impact: "Admin hesabı ele geçirilirse kurumsal veri riske girer.", exit: "MFA isteğe bağlı kurulur; e-posta bağlantıları gerçek test hesabında doğrulanır." },
-  { priority: "critical" as ReadinessPriority, title: "Kurumsal test paketi", impact: "Çok modüllü panelde küçük bir API hatası müşteri güvenini bozar.", exit: "Tenant izolasyonu, rol yetkisi, iş emri, saha ziyareti, dosya yükleme ve finans akışları otomatik testtedir." },
+  { priority: "critical" as ReadinessPriority, title: "Hesap kurtarmanın canlı doğrulanması", impact: "Kurtarma yolu çalışmazsa yönetici çalışma alanına erişemez.", exit: "Gerçek admin hesabında secret rotasyonu, e-posta kurtarma, eski oturum iptali ve MFA birlikte doğrulanır." },
+  { priority: "critical" as ReadinessPriority, title: "Üretim kabul paketi", impact: "Otomatik testler gerçek Cloudflare binding ve cihaz davranışını tek başına kanıtlamaz.", exit: "Tenant, rol, servis, mobil, yükleme, finans ve geri dönüş senaryoları gerçek pilot ortamında imzalanır." },
   { priority: "high" as ReadinessPriority, title: "Dosya karantina ve zararlı içerik taraması", impact: "Magic-byte kontrolü iyi başlangıçtır ama antivirüs değildir.", exit: "Şüpheli dosya R2'ye kalıcı yazılmadan karantinaya alınır veya reddedilir." },
   { priority: "high" as ReadinessPriority, title: "D1/R2 yedekleme ve geri yükleme tatbikatı", impact: "Yedek almak ile geri dönebilmek aynı şey değildir.", exit: "Aylık geri dönüş denemesi, süre ve sorumlu kişiyle kayıt altına alınır." },
   { priority: "high" as ReadinessPriority, title: "Faturalama ve abonelik yönetimi", impact: "Plan/trial alanı var ama tahsilat, yenileme ve fatura akışı ürünleşmeden gelir takibi elle kalır.", exit: "iyzico/Stripe veya fatura tabanlı kurumsal billing akışı test edilir." },

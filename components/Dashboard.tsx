@@ -26,8 +26,9 @@ type Payment = {
   id: string; period: string; owner_name: string; bank_name: string; account_name: string;
   total_limit: number; total_debt: number; restructuring: number; monthly_payment: number;
   next_installment: number; overdraft_debt: number; overdraft_limit: number; interest_rate: number;
-  minimum_payment: number; due_date: string | null; important_note: string | null;
+  interest_debt: number; minimum_payment: number; due_date: string | null; important_note: string | null;
   paid_amount: number; payment_status: "planned" | "partial" | "paid" | "overdue"; paid_at: string | null;
+  missing_fields?: string;
   workflow_status: "draft" | "submitted" | "approved";
 };
 type Expense = { id: string; period: string; owner_name: string; category: string; description: string; amount: number; workflow_status: string; created_at: string };
@@ -50,6 +51,7 @@ type TreasuryData = {
   summary: { totalCashTL: number; totalManualDebtTL: number; latestExpenseTL: number; netAfterDebtAndExpense: number; unresolvedGoldCount: number };
 };
 type Project = { id: string; name: string; code?: string; department: string; owner_name?: string; status: "planning" | "active" | "on_hold" | "completed"; priority: string; start_date?: string; target_date?: string; budget: number; progress: number; description?: string };
+type ServiceHealth = { ok: boolean; dependency?: "database" | "schema" | "storage"; checkedAt?: string };
 
 const navItems = [
   { id: "overview", label: "Şirket merkezi", icon: LayoutDashboard },
@@ -82,6 +84,9 @@ const number = new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 0 });
 const formatMoney = (value: number) => money.format(Number(value || 0));
 const shortMoney = (value: number) => value >= 1_000_000 ? `${(value / 1_000_000).toLocaleString("tr-TR", { maximumFractionDigits: 2 })} Mn ₺` : `${number.format(value / 1000)} Bin ₺`;
 const statusText = { approved: "Kaydedildi", submitted: "Kaydedildi", draft: "Kaydedildi" };
+function paymentFieldMissing(payment: Payment, field: string) {
+  try { return (JSON.parse(payment.missing_fields || "[]") as string[]).includes(field); } catch { return false; }
+}
 
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -111,6 +116,7 @@ export default function Dashboard() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [serviceHealth, setServiceHealth] = useState<ServiceHealth | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
   const topbarActionsRef = useRef<HTMLDivElement>(null);
@@ -178,6 +184,20 @@ export default function Dashboard() {
   }
 
   useEffect(() => { void load(); }, []);
+
+  useEffect(() => {
+    let activeRequest = true;
+    const check = async () => {
+      try {
+        const response = await fetch("/api/health", { cache: "no-store" });
+        const result = await response.json() as ServiceHealth;
+        if (activeRequest) setServiceHealth({ ...result, ok: response.ok && result.ok === true });
+      } catch { if (activeRequest) setServiceHealth({ ok: false }); }
+    };
+    void check();
+    const timer = window.setInterval(() => void check(), 120_000);
+    return () => { activeRequest = false; window.clearInterval(timer); };
+  }, []);
 
   useEffect(() => {
     const validPanels = new Set(navItems.map((item) => item.id));
@@ -454,12 +474,13 @@ export default function Dashboard() {
           <button type="button" className="mobile-menu" onClick={() => setMobileNav(true)} aria-label="Menüyü aç"><Menu size={21} /></button>
           {active !== "overview" && <button type="button" className="mobile-panel-back" onClick={goBack} aria-label="Önceki bölüme dön"><ArrowLeft size={21} /></button>}
           <div className="topbar-search"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Kayıt ara..." /></div>
+          <div className={`live-service-state ${serviceHealth?.ok ? "healthy" : serviceHealth ? "attention" : "checking"}`} title={serviceHealth?.ok ? "Veritabanı, şema ve dosya alanı hazır" : "Bir servis bağımlılığı kontrol bekliyor"}><i /><span>{serviceHealth?.ok ? "Sistem hazır" : serviceHealth ? "Servis kontrolü" : "Kontrol ediliyor"}</span></div>
           <div className="topbar-actions" ref={topbarActionsRef}>
             <button type="button" className={topbarPanel === "notifications" ? "active" : ""} title="Bildirimler" aria-label="Bildirimleri aç" aria-expanded={topbarPanel === "notifications"} onClick={toggleNotifications}><Bell size={19} />{notificationUnread && <i />}</button>
             <button type="button" className={topbarPanel === "settings" ? "active" : ""} title="Ayarlar" aria-label="Ayarları aç" aria-expanded={topbarPanel === "settings"} onClick={() => setTopbarPanel((value) => value === "settings" ? null : "settings")}><Settings size={19} /></button>
             {topbarPanel === "notifications" && <div className="topbar-popover notification-popover">
               <div className="popover-head"><div><span>Bildirim merkezi</span><b>Güncel durum</b></div><button type="button" onClick={() => setTopbarPanel(null)} aria-label="Bildirimleri kapat"><X size={17} /></button></div>
-              <div className="notification-summary"><ShieldCheck size={19} /><span><b>Sistem ve veriler erişilebilir</b><small>Çalışma alanınız güvenli oturumla korunuyor.</small></span></div>
+              <div className="notification-summary"><ShieldCheck size={19} /><span><b>Güvenli oturum açık</b><small>Buradaki durum sistem sağlığı değil, yalnızca mevcut oturum bilgisidir.</small></span></div>
               {dueNotifications.map(n=><a href="/servis" className="notification-row" key={n.id}><span className="notification-mark warning"/><span><b>{n.title}</b><small>{n.body}</small></span></a>)}
               {data.attentionCount > 0 ? <button type="button" className="notification-row" onClick={() => { navigate("payments"); setTopbarPanel(null); }}><span className="notification-mark warning" /><span><b>{data.attentionCount} finansal kayıt takip bekliyor</b><small>Ödemeler ve borçlar bölümünü açın.</small></span><ArrowRight size={16} /></button> : <div className="notification-empty"><Check size={20} /><span><b>Bekleyen önemli bildirim yok</b><small>Yeni gelişmeler burada gösterilecek.</small></span></div>}
               {data.activity.slice(0, 2).map((item) => <div className="notification-row static" key={item.id}><span className="notification-mark" /><span><b>{item.details || "Çalışma alanında işlem yapıldı"}</b><small>{new Date(item.created_at).toLocaleString("tr-TR")}</small></span></div>)}
@@ -569,9 +590,25 @@ function PanelReadinessView() {
 
 function CompanyHome({ data, projects, tasks, workOrders, fieldVisits, procurement, risks, onNavigate }: { data: DashboardData; projects: Project[]; tasks: Task[]; workOrders: WorkOrder[]; fieldVisits: FieldVisit[]; procurement: ProcurementRequest[]; risks: Risk[]; onNavigate: (page: string) => void }) {
   const activeProjects = projects.filter((item) => item.status === "active").length;
+  const today = new Date().toISOString().slice(0, 10);
+  const overdueTasks = tasks.filter((item) => item.due_date && item.due_date < today && !["done", "cancelled"].includes(item.status)).length;
+  const openCriticalRisks = risks.filter((item) => item.impact === "critical" && !["resolved", "accepted"].includes(item.status)).length;
+  const pendingPurchases = procurement.filter((item) => item.status === "pending").length;
+  const openWorkOrders = workOrders.filter((item) => !["completed", "cancelled"].includes(item.status)).length;
+  const actions = [
+    overdueTasks ? { label: `${overdueTasks} geciken görev`, text: "Termin geçmiş; sorumlu ve durumu kontrol edin.", page: "tasks", level: "critical" } : null,
+    openCriticalRisks ? { label: `${openCriticalRisks} kritik risk`, text: "Önlem ve sorumluyu gözden geçirin.", page: "risks", level: "critical" } : null,
+    data.attentionCount ? { label: `${data.attentionCount} finans kaydı`, text: "Ödeme durumu takip bekliyor.", page: "payments", level: "warning" } : null,
+    pendingPurchases ? { label: `${pendingPurchases} satın alma talebi`, text: "Yönetici kararı bekliyor.", page: "procurement", level: "warning" } : null,
+    openWorkOrders ? { label: `${openWorkOrders} açık iş emri`, text: "Operasyon akışını kontrol edin.", page: "work-orders", level: "info" } : null,
+  ].filter(Boolean) as { label: string; text: string; page: string; level: string }[];
   return <>
     <section className="company-command-hero"><div><span>KURUMSAL ÇALIŞMA ALANI</span><h2>{data.profile?.legal_name || data.organization.name}</h2><p>{data.profile?.about || "Firmanızın temel bilgilerini, projelerini ve günlük çalışmalarını burada bir arada tutun."}</p><button type="button" onClick={() => onNavigate("company")}>Firma bilgilerini aç <ArrowRight size={16} /></button></div><div className="command-hero-mark"><Building2 size={42} /><span>Faaliyet alanı</span><b>{data.profile?.sector || "Henüz eklenmedi"}</b></div></section>
     <OverviewModuleWidgets tasks={tasks} workOrders={workOrders} fieldVisits={fieldVisits} procurement={procurement} risks={risks} onNavigate={onNavigate} />
+    <section className="proactive-action-center">
+      <div className="proactive-action-head"><span><Zap size={18} /><b>Bugünün aksiyonları</b></span><small>Kayıtlardaki tarih, önem ve bekleyen durumlara göre otomatik hazırlanır.</small></div>
+      {actions.length ? <div className="proactive-action-grid">{actions.slice(0, 5).map((action) => <button type="button" key={`${action.page}-${action.label}`} onClick={() => onNavigate(action.page)} className={action.level}><i /><span><b>{action.label}</b><small>{action.text}</small></span><ArrowRight size={17} /></button>)}</div> : <div className="proactive-action-empty"><Check size={18} /><span><b>Öncelikli aksiyon görünmüyor</b><small>Yeni gecikme veya kritik kayıt oluşursa burada gösterilir.</small></span></div>}
+    </section>
     <section className="company-command-grid">
       <button onClick={() => onNavigate("departments")}><Building2 size={22} /><span><b>Departmanlar</b><small>Şirket birimleri ve görev alanları</small></span><ArrowRight size={17} /></button>
       <button onClick={() => onNavigate("projects")}><BriefcaseBusiness size={22} /><span><b>Proje portföyü</b><small>{projects.length} proje · {activeProjects} aktif çalışma</small></span><ArrowRight size={17} /></button>
@@ -653,7 +690,7 @@ function FinancialOverview({ data, latest, previous, debtChange, payments, canMa
 function CardTitle({ title, subtitle }: { title: string; subtitle: string }) { return <div className="card-title"><div><h3>{title}</h3><p>{subtitle}</p></div><span className="card-menu-icon" aria-hidden="true"><MoreHorizontal size={18} /></span></div>; }
 
 function RecentPayments({ payments, isAdmin, onEdit, onDelete }: { payments: Payment[]; isAdmin: boolean; onEdit?: (payment: Payment) => void; onDelete: (id: string) => void }) {
-  return <section className="table-card"><div className="table-heading"><div><h3>Ödeme kayıtları</h3><p>Her kayıt seçilen aya bağlı tutulur; düzeltmeler yalnızca o ayı etkiler.</p></div><span>{payments.length} kayıt</span></div><div className="responsive-table"><table><thead><tr><th>Dönem</th><th>Kişi / hesap</th><th>Banka</th><th>Toplam borç</th><th>Aylık ödeme</th><th>Asgari ödeme</th><th>Durum</th><th /></tr></thead><tbody>{payments.map((item) => <tr key={item.id}><td><b>{item.period}</b></td><td><div className="table-account"><span>{item.owner_name[0]}</span><div><b>{item.owner_name}</b><small>{item.account_name}</small></div></div></td><td>{item.bank_name}</td><td><b>{formatMoney(item.total_debt)}</b></td><td>{formatMoney(item.monthly_payment)}</td><td>{formatMoney(item.minimum_payment)}</td><td><span className={`status-badge ${item.workflow_status}`}>{statusText[item.workflow_status]}</span></td><td>{isAdmin && <div className="row-actions">{onEdit && <button title="Kaydı düzenle" onClick={() => onEdit(item)}><Pencil size={15} /></button>}<button className="danger" title="Sil" onClick={() => onDelete(item.id)}><Trash2 size={16} /></button></div>}</td></tr>)}</tbody></table></div></section>;
+  return <section className="table-card"><div className="table-heading"><div><h3>Ödeme kayıtları</h3><p>Her kayıt seçilen aya bağlı tutulur; düzeltmeler yalnızca o ayı etkiler.</p></div><span>{payments.length} kayıt</span></div><div className="responsive-table"><table><thead><tr><th>Dönem</th><th>Kişi / hesap</th><th>Banka</th><th>Toplam borç</th><th>Aylık ödeme</th><th>Asgari ödeme</th><th>Durum</th><th /></tr></thead><tbody>{payments.map((item) => <tr key={item.id}><td><b>{item.period}</b></td><td><div className="table-account"><span>{item.owner_name[0]}</span><div><b>{item.owner_name}</b><small>{item.account_name}</small></div></div></td><td>{item.bank_name}</td><td><b>{paymentFieldMissing(item,"totalDebt") ? "Bilgi eksik" : formatMoney(item.total_debt)}</b></td><td>{paymentFieldMissing(item,"monthlyPayment") ? "Bilgi eksik" : formatMoney(item.monthly_payment)}</td><td>{paymentFieldMissing(item,"minimumPayment") ? "Bilgi eksik" : formatMoney(item.minimum_payment)}</td><td><span className={`status-badge ${item.workflow_status}`}>{statusText[item.workflow_status]}</span></td><td>{isAdmin && <div className="row-actions">{onEdit && <button title="Kaydı düzenle" onClick={() => onEdit(item)}><Pencil size={15} /></button>}<button className="danger" title="Sil" onClick={() => onDelete(item.id)}><Trash2 size={16} /></button></div>}</td></tr>)}</tbody></table></div></section>;
 }
 
 function PaymentsView({ payments, periods, selectedPeriod, onPeriodChange, organizationId, isAdmin, onNew, onExport, onSaved, onNavigate, onDelete }: { payments: Payment[]; periods: string[]; selectedPeriod: string; onPeriodChange: (period: string) => void; organizationId: string; isAdmin: boolean; onNew: () => void; onExport: () => void; onSaved: () => Promise<void>; onNavigate: (page: string) => void; onDelete: (id: string) => void }) {
@@ -674,13 +711,14 @@ function PaymentsView({ payments, periods, selectedPeriod, onPeriodChange, organ
 }
 
 function FinanceSheetRow({ payment, organizationId, editable, onSaved, onDelete }: { payment: Payment; organizationId: string; editable: boolean; onSaved: () => Promise<void>; onDelete: (id: string) => void }) {
-  const [row, setRow] = useState({ period: payment.period, ownerName: payment.owner_name, bankName: payment.bank_name, accountName: payment.account_name, totalLimit: payment.total_limit, totalDebt: payment.total_debt, paidAmount: payment.paid_amount || 0, paymentStatus: payment.payment_status || "planned", paidAt: payment.paid_at ?? "", monthlyPayment: payment.monthly_payment, minimumPayment: payment.minimum_payment, dueDate: payment.due_date ?? "", importantNote: payment.important_note ?? "" });
+  const initial = (field: string, value: number) => paymentFieldMissing(payment, field) ? "" : value;
+  const [row, setRow] = useState({ period: payment.period, ownerName: payment.owner_name, bankName: payment.bank_name, accountName: payment.account_name, totalLimit: initial("totalLimit", payment.total_limit), totalDebt: initial("totalDebt", payment.total_debt), paidAmount: initial("paidAmount", payment.paid_amount || 0), paymentStatus: payment.payment_status || "planned", paidAt: payment.paid_at ?? "", monthlyPayment: initial("monthlyPayment", payment.monthly_payment), minimumPayment: initial("minimumPayment", payment.minimum_payment), dueDate: payment.due_date ?? "", importantNote: payment.important_note ?? "" });
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
-  const change = (key: keyof typeof row, value: string) => { setDirty(true); setRow((current) => ({ ...current, [key]: ["totalLimit", "totalDebt", "paidAmount", "monthlyPayment", "minimumPayment"].includes(key) ? Number(value) : value })); };
+  const change = (key: keyof typeof row, value: string) => { setDirty(true); setRow((current) => ({ ...current, [key]: value })); };
   async function save() {
     setSaving(true);
-    const response = await fetch(`/api/payments/${payment.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", "X-Organization-Id": organizationId }, body: JSON.stringify({ ...row, restructuring: payment.restructuring, nextInstallment: payment.next_installment, overdraftDebt: payment.overdraft_debt, overdraftLimit: payment.overdraft_limit }) });
+    const response = await fetch(`/api/payments/${payment.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", "X-Organization-Id": organizationId }, body: JSON.stringify({ ...row, restructuring: payment.restructuring, nextInstallment: payment.next_installment, overdraftDebt: payment.overdraft_debt, overdraftLimit: payment.overdraft_limit, interestRate: payment.interest_rate, interestDebt: payment.interest_debt }) });
     setSaving(false);
     if (!response.ok) return;
     setDirty(false);

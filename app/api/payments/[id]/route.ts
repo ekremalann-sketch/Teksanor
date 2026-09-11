@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { addAudit, getDb, refreshOrganizationPeriodSummary } from "@/lib/db";
 import { canManageOrganization, requireOrganization } from "@/lib/tenancy";
 import { rejectCrossSiteMutation } from "@/lib/security";
+import { assertPaymentAmounts, inferredPaymentStatus, parseOptionalLocalizedNumber } from "@/lib/finance";
 
 export async function PATCH(request: Request, routeContext: { params: Promise<{ id: string }> }) {
   const rejected = rejectCrossSiteMutation(request); if (rejected) return rejected;
@@ -26,16 +27,32 @@ export async function PATCH(request: Request, routeContext: { params: Promise<{ 
   const previous = await getDb().prepare("SELECT period FROM payment_records WHERE id = ? AND organization_id = ?")
     .bind(id, orgContext.organization.id).first<{ period: string }>();
   if (!previous) return NextResponse.json({ error: "Kayıt bulunamadı." }, { status: 404 });
-  const numberValue = (key: string) => Number(body[key] ?? 0) || 0;
+  const numericFields = ["totalLimit", "totalDebt", "restructuring", "monthlyPayment", "nextInstallment", "overdraftDebt", "overdraftLimit", "interestRate", "interestDebt", "minimumPayment", "paidAmount"] as const;
+  let values: Record<(typeof numericFields)[number], number | null>;
+  try { values = Object.fromEntries(numericFields.map((key) => [key, parseOptionalLocalizedNumber(body[key], key)])) as typeof values; }
+  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Tutarlar geçersiz." }, { status: 400 }); }
+  const totalDebt = values.totalDebt ?? 0;
+  const paidAmount = values.paidAmount ?? 0;
+  try { assertPaymentAmounts({ totalDebt, paidAmount }); }
+  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Tutarlar geçersiz." }, { status: 400 }); }
+  const missingFields = numericFields.filter((key) => values[key] === null);
+  const stored = Object.fromEntries(numericFields.map((key) => [key, values[key] ?? 0])) as Record<(typeof numericFields)[number], number>;
+  const allowedStatuses = new Set(["planned", "partial", "paid", "overdue"]);
+  const paymentStatus = body.paymentStatus ? String(body.paymentStatus) : inferredPaymentStatus({ totalDebt, paidAmount });
+  if (!allowedStatuses.has(paymentStatus)) return NextResponse.json({ error: "Ödeme durumu geçersiz." }, { status: 400 });
+  if ((paymentStatus === "paid" && totalDebt > 0 && paidAmount < totalDebt) || (paymentStatus === "partial" && (paidAmount <= 0 || paidAmount >= totalDebt))) {
+    return NextResponse.json({ error: "Ödeme durumu ile ödenen tutar birbiriyle uyuşmuyor." }, { status: 400 });
+  }
   await getDb().prepare(`UPDATE payment_records SET
     period = ?, owner_name = ?, bank_name = ?, account_name = ?, total_limit = ?, total_debt = ?, restructuring = ?,
-    monthly_payment = ?, next_installment = ?, overdraft_debt = ?, overdraft_limit = ?, minimum_payment = ?,
-    due_date = ?, important_note = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP
+    monthly_payment = ?, next_installment = ?, overdraft_debt = ?, overdraft_limit = ?, interest_rate = ?, interest_debt = ?, minimum_payment = ?,
+    paid_amount = ?, payment_status = ?, paid_at = ?, missing_fields = ?, due_date = ?, important_note = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ? AND organization_id = ?`)
     .bind(
       String(body.period), String(body.ownerName), String(body.bankName), String(body.accountName),
-      numberValue("totalLimit"), numberValue("totalDebt"), numberValue("restructuring"), numberValue("monthlyPayment"),
-      numberValue("nextInstallment"), numberValue("overdraftDebt"), numberValue("overdraftLimit"), numberValue("minimumPayment"),
+      stored.totalLimit, stored.totalDebt, stored.restructuring, stored.monthlyPayment,
+      stored.nextInstallment, stored.overdraftDebt, stored.overdraftLimit, stored.interestRate, stored.interestDebt, stored.minimumPayment,
+      stored.paidAmount, paymentStatus, body.paidAt ? String(body.paidAt) : null, JSON.stringify(missingFields),
       body.dueDate ? String(body.dueDate) : null, body.importantNote ? String(body.importantNote) : null,
       user.id, id, orgContext.organization.id,
     ).run();

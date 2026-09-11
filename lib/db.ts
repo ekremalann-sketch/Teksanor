@@ -178,6 +178,7 @@ const schemaStatements = [
   paid_amount REAL NOT NULL DEFAULT 0,
   payment_status TEXT NOT NULL CHECK (payment_status IN ('planned', 'partial', 'paid', 'overdue')) DEFAULT 'planned',
   paid_at TEXT,
+  missing_fields TEXT NOT NULL DEFAULT '[]',
   due_date TEXT,
   important_note TEXT,
   workflow_status TEXT NOT NULL CHECK (workflow_status IN ('draft', 'submitted', 'approved')) DEFAULT 'draft',
@@ -564,6 +565,9 @@ async function initializeSchema() {
   }
   if (!paymentColumns.results.some((column) => column.name === "paid_at")) {
     await database.prepare("ALTER TABLE payment_records ADD COLUMN paid_at TEXT").run();
+  }
+  if (!paymentColumns.results.some((column) => column.name === "missing_fields")) {
+    await database.prepare("ALTER TABLE payment_records ADD COLUMN missing_fields TEXT NOT NULL DEFAULT '[]'").run();
   }
   await migrateTreasuryCurrencyTables(database);
   await database.prepare("CREATE INDEX IF NOT EXISTS idx_payment_org ON payment_records(organization_id)").run();
