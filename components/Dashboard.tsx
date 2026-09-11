@@ -13,6 +13,7 @@ import {
   type Task, type WorkOrder, type FieldVisit, type ProcurementRequest, type Customer, type Employee, type Risk, type AutomationRule,
 } from "./modules/OperationsModules";
 import { AssetsView, MaintenanceView, type Asset, type MaintenancePlan } from "./modules/AssetMaintenanceModules";
+import HouseholdFinanceView from "./HouseholdFinanceView";
 import { parseLocalizedNumber } from "@/lib/finance";
 import { criticalBacklog, departmentReality, priorityLabel, readinessSnapshot, roadmapPhases, statusLabel as readinessStatusLabel, workingModules } from "@/lib/readiness";
 
@@ -68,6 +69,7 @@ const navItems = [
   { id: "agents", label: "Yapay zekâ ekibi", icon: Bot },
   { id: "readiness", label: "Ürün durumu", icon: ShieldCheck },
   { id: "financial", label: "Finansal durum", icon: Landmark },
+  { id: "household-finance", label: "Kişisel ve aile finansı", icon: FileSpreadsheet },
   { id: "payments", label: "Ödemeler ve borçlar", icon: CreditCard },
   { id: "expenses", label: "Gelir ve giderler", icon: WalletCards },
   { id: "treasury", label: "Nakit ve elden borç", icon: HandCoins },
@@ -501,6 +503,7 @@ export default function Dashboard() {
           {active === "agents" && <AgentWorkforceView agents={agentCatalog} organizationId={organizationId} notify={notify} />}
           {active === "readiness" && <PanelReadinessView />}
           {active === "financial" && <FinancialOverview data={data} latest={latest} previous={previous} debtChange={debtChange} payments={filteredPayments} canManage={canManage} onDelete={remove} onNavigate={navigate} />}
+          {active === "household-finance" && <HouseholdFinanceView organizationId={organizationId} canEdit={data.access.editModules.includes("household-finance")} />}
           {active === "payments" && <PaymentsView payments={filteredPayments} periods={[...new Set(data.payments.map((item) => item.period))]} selectedPeriod={paymentPeriod} onPeriodChange={setPaymentPeriod} organizationId={organizationId} isAdmin={canManage} onNew={() => { setEditingPayment(null); setModal("payment"); }} onExport={() => void exportExcel()} onSaved={async () => { notify("Satır kaydedildi; aylık özet ve raporlar yenilendi."); await load(organizationId); }} onNavigate={navigate} onDelete={remove} />}
           {active === "expenses" && <ExpensesView expenses={data.expenses} latest={latest} />}
           {active === "treasury" && treasury && <TreasuryView data={treasury} onBalance={() => setModal("balance")} onDebt={() => setModal("manualDebt")} />}
@@ -539,6 +542,7 @@ function PageHeader({ active, period, organization, onBack, onNew, onImport, can
     agents: ["Yapay zekâ ekibi", "Departman görevlerine göre yapılandırılabilen kontrollü ajan prototiplerini inceleyin."],
     readiness: ["Ürün durumu", "Çalışan modülleri, sertleştirmeleri ve canlı müşteri öncesi kalan işleri görün."],
     financial: ["Finansal durum", "Borç, ödeme, limit ve dönemsel değişimleri ayrı finans çalışma alanında değerlendirin."],
+    "household-finance": ["Kişisel ve aile finansı", "Evren ve Ekrem'in kart, KMH, gider, altın ve şirket hareketlerini dönem bazında izleyin."],
     payments: ["Ödemeler ve borçlar", "Kart, yapılandırma, KMH ve ödeme planlarını yönetin."],
     expenses: ["Gelir ve giderler", "Dönemsel giderleri sade biçimde kaydedin ve izleyin."],
     treasury: ["Finansal analiz", "Eldeki nakdi, dövizleri, elden ve ziynet borçlarını TL karşılığıyla birlikte izleyin."],
