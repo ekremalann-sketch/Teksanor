@@ -5,21 +5,21 @@ import type { Organization } from "./tenancy";
 export const moduleIds = [
   "overview", "departments", "projects", "tasks", "work-orders", "assets", "maintenance",
   "field-visits", "procurement", "crm", "hr", "risks", "automations", "agents", "readiness",
-  "financial", "household-finance", "payments", "expenses", "treasury", "reports", "files", "company", "users",
+  "financial", "payments", "expenses", "treasury", "reports", "files", "company", "users",
 ] as const;
 
 export type ModuleId = typeof moduleIds[number];
 export type AccessProfile = "owner" | "company_admin" | "ceo" | "manager" | "finance" | "hr" | "it" | "employee";
 type Rule = { view: ModuleId[]; edit: ModuleId[]; label: string };
 const operational: ModuleId[] = ["overview", "departments", "projects", "tasks", "work-orders", "assets", "maintenance", "field-visits", "procurement", "crm", "risks", "automations", "agents", "readiness", "reports", "files", "company"];
-const finance: ModuleId[] = ["financial", "household-finance", "payments", "expenses", "treasury", "reports"];
+const finance: ModuleId[] = ["financial", "payments", "expenses", "treasury", "reports"];
 
 export const accessRules: Record<AccessProfile, Rule> = {
   owner: { label: "Firma sahibi", view: [...moduleIds], edit: [...moduleIds] },
   company_admin: { label: "Firma yöneticisi", view: [...moduleIds], edit: [...moduleIds] },
   ceo: { label: "Üst yönetim", view: [...operational, ...finance, "hr"], edit: [...operational, ...finance] },
   manager: { label: "Birim yöneticisi", view: operational, edit: ["projects", "tasks", "work-orders", "assets", "maintenance", "field-visits", "procurement", "crm", "risks", "files"] },
-  finance: { label: "Finans ekibi", view: ["overview", "financial", "household-finance", "payments", "expenses", "treasury", "reports", "files", "company"], edit: ["household-finance", "payments", "expenses", "treasury", "reports", "files"] },
+  finance: { label: "Finans ekibi", view: ["overview", "financial", "payments", "expenses", "treasury", "reports", "files", "company"], edit: ["payments", "expenses", "treasury", "reports", "files"] },
   hr: { label: "İnsan kaynakları", view: ["overview", "departments", "tasks", "hr", "reports", "files", "company"], edit: ["tasks", "hr", "files"] },
   it: { label: "Bilgi işlem", view: operational, edit: ["projects", "tasks", "work-orders", "assets", "maintenance", "automations", "agents", "readiness", "files"] },
   employee: { label: "Çalışan", view: ["overview", "departments", "projects", "tasks", "work-orders", "files", "company"], edit: ["tasks", "work-orders", "files"] },
