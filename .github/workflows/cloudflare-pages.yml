@@ -13,7 +13,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  security-gate:
+    uses: ./.github/workflows/security.yml
+    permissions:
+      contents: read
   build-and-deploy:
+    needs: security-gate
     runs-on: ubuntu-latest
     permissions:
       contents: read
