@@ -23,11 +23,10 @@ export async function GET(){
 
   dependency="storage";
   const bucket=(env as unknown as {UPLOADS?:{head:(key:string)=>Promise<unknown>}}).UPLOADS;
-  if(!bucket)throw new Error("UPLOADS bağlantısı bulunamadı.");
-  await bucket.head("__teksanor_health_probe__");
+  if(bucket)await bucket.head("__teksanor_health_probe__");
 
   return NextResponse.json(
-   {ok:true,version:__TEKSANOR_COMMIT__,checkedAt:new Date().toISOString()},
+   {ok:true,version:__TEKSANOR_COMMIT__,checkedAt:new Date().toISOString(),capabilities:{storage:bucket?"available":"disabled"},warnings:bucket?[]:["Dosya yükleme kapalı: UPLOADS bağlantısı yapılandırılmadı."]},
    {headers:{"Cache-Control":"no-store"}},
   );
  }catch(error){
@@ -36,7 +35,7 @@ export async function GET(){
    message:error instanceof Error?error.message:"Bilinmeyen hata",
   });
   return NextResponse.json(
-   {ok:false,code:"DEPENDENCY_NOT_READY",dependency,message:"Servis bağımlılıkları hazır değil."},
+   {ok:false,version:__TEKSANOR_COMMIT__,checkedAt:new Date().toISOString(),code:"DEPENDENCY_NOT_READY",dependency,message:"Servis bağımlılıkları hazır değil."},
    {status:503,headers:{"Cache-Control":"no-store"}},
   );
  }

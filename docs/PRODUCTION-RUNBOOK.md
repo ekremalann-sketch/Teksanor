@@ -15,7 +15,8 @@
 ## Üretim bağımlılıkları
 
 - D1 binding adı: `DB`
-- R2 binding adı: `UPLOADS`
+- İsteğe bağlı R2 binding adı: `UPLOADS`. Mevcut demo R2 olmadan çalışır;
+  dosya yükleme kapalıdır. Billing/subscription etkinleştirilmez.
 - Uygulama kökü: `APP_ORIGIN=https://teksanor.pages.dev`
 - E-posta: `RESEND_API_KEY` ve doğrulanmış `MAIL_FROM`
 - MFA: en az 32 baytlık `MFA_ENCRYPTION_KEY`
@@ -24,6 +25,8 @@
 
 `/api/health` yanıtı `ok:true` vermeden üretim hazır kabul edilmez. Yanıttaki
 `version`, GitHub `main` commit SHA'sıyla aynı olmalıdır.
+`capabilities.storage=disabled` temel demoyu arızalı yapmaz; dosya işlemleri
+hazır kabul edilmez. Bağlanmış fakat erişilemeyen bucket yine 503 üretir.
 
 ## Yedek ve geri dönüş
 
