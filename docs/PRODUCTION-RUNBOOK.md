@@ -30,6 +30,12 @@ hazır kabul edilmez. Bağlanmış fakat erişilemeyen bucket yine 503 üretir.
 
 ## Yedek ve geri dönüş
 
+- `node scripts/backup-d1.mjs teksanor-db` yalnızca açık kullanıcı yetkisi ve
+  Cloudflare erişimiyle çalıştırılır. D1 dışa aktarımını yeni, geçici yerel SQLite
+  ortamında geri yükler; bütünlük, yabancı anahtar ve zorunlu tablo kontrolünü
+  manifest'e kaydeder. Başarısız test yedeği doğrulanmış saymaz.
+- Mevcut demo R2 kullanmaz. Aşağıdaki R2 adımları ancak dosya depolama daha
+  sonra etkinleştirilirse uygulanır; bu betik R2 yedeği aldığını iddia etmez.
 - D1 dışa aktarımı ve R2 nesne kopyası aynı tarih/sürüm etiketiyle saklanır.
 - Yedekler uygulamanın herkese açık depolama alanında tutulmaz.
 - Her ay izole bir D1/R2 ortamına geri yükleme yapılır.
