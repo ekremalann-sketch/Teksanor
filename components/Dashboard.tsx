@@ -51,7 +51,7 @@ type TreasuryData = {
   summary: { totalCashTL: number; totalManualDebtTL: number; latestExpenseTL: number; netAfterDebtAndExpense: number; unresolvedGoldCount: number };
 };
 type Project = { id: string; name: string; code?: string; department: string; owner_name?: string; status: "planning" | "active" | "on_hold" | "completed"; priority: string; start_date?: string; target_date?: string; budget: number; progress: number; description?: string };
-type ServiceHealth = { ok: boolean; dependency?: "database" | "schema" | "storage"; checkedAt?: string };
+type ServiceHealth = { ok: boolean; dependency?: "database" | "schema" | "storage"; checkedAt?: string; capabilities?: { storage: "available" | "disabled" } };
 
 const navItems = [
   { id: "overview", label: "Şirket merkezi", icon: LayoutDashboard },
@@ -474,7 +474,7 @@ export default function Dashboard() {
           <button type="button" className="mobile-menu" onClick={() => setMobileNav(true)} aria-label="Menüyü aç"><Menu size={21} /></button>
           {active !== "overview" && <button type="button" className="mobile-panel-back" onClick={goBack} aria-label="Önceki bölüme dön"><ArrowLeft size={21} /></button>}
           <div className="topbar-search"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Kayıt ara..." /></div>
-          <div className={`live-service-state ${serviceHealth?.ok ? "healthy" : serviceHealth ? "attention" : "checking"}`} title={serviceHealth?.ok ? "Veritabanı, şema ve dosya alanı hazır" : "Bir servis bağımlılığı kontrol bekliyor"}><i /><span>{serviceHealth?.ok ? "Sistem hazır" : serviceHealth ? "Servis kontrolü" : "Kontrol ediliyor"}</span></div>
+          <div className={`live-service-state ${serviceHealth?.ok ? "healthy" : serviceHealth ? "attention" : "checking"}`} title={serviceHealth?.ok ? (serviceHealth.capabilities?.storage === "disabled" ? "Veritabanı ve şema hazır. Dosya yükleme bu demoda kapalı." : "Veritabanı, şema ve dosya alanı hazır") : "Bir servis bağımlılığı kontrol bekliyor"}><i /><span>{serviceHealth?.ok ? "Sistem hazır" : serviceHealth ? "Servis kontrolü" : "Kontrol ediliyor"}</span></div>
           <div className="topbar-actions" ref={topbarActionsRef}>
             <button type="button" className={topbarPanel === "notifications" ? "active" : ""} title="Bildirimler" aria-label="Bildirimleri aç" aria-expanded={topbarPanel === "notifications"} onClick={toggleNotifications}><Bell size={19} />{notificationUnread && <i />}</button>
             <button type="button" className={topbarPanel === "settings" ? "active" : ""} title="Ayarlar" aria-label="Ayarları aç" aria-expanded={topbarPanel === "settings"} onClick={() => setTopbarPanel((value) => value === "settings" ? null : "settings")}><Settings size={19} /></button>
@@ -526,7 +526,7 @@ export default function Dashboard() {
           {active === "expenses" && <ExpensesView expenses={data.expenses} latest={latest} />}
           {active === "treasury" && treasury && <TreasuryView data={treasury} onBalance={() => setModal("balance")} onDebt={() => setModal("manualDebt")} />}
           {active === "reports" && <ReportsView summaries={data.summaries} />}
-          {active === "files" && <FilesView files={files} organizationId={organizationId} onUpload={() => uploadRef.current?.click()} />}
+          {active === "files" && <><p className="muted">{serviceHealth?.capabilities?.storage === "disabled" ? "Dosya yükleme bu demoda kapalı. R2 etkinleştirilmedi; diğer modüller kullanılabilir." : "Dosya depolama bağlantısı sağlık kontrolünden doğrulanır."}</p><FilesView files={files} organizationId={organizationId} onUpload={() => serviceHealth?.capabilities?.storage === "available" ? uploadRef.current?.click() : notify("Dosya yükleme şu anda kullanılamıyor; depolama bağlantısı hazır değil.")} /></>}
           {active === "company" && <CompanyView organization={data.organization} profile={data.profile} canManage={canManage} onEdit={() => setModal("company")} />}
           {active === "users" && canManage && <UsersView onAdd={() => setModal("user")} />}
           <input ref={uploadRef} hidden type="file" accept="image/png,image/jpeg,image/webp,application/pdf,.xlsx,.csv" onChange={(event) => event.target.files?.[0] && void uploadFile(event.target.files[0])} />

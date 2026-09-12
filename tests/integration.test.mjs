@@ -59,7 +59,7 @@ await test('bootstrap admin secret rotation restores access and revokes old sess
  const saved=sql.prepare("SELECT password_hash,password_salt FROM users WHERE id='admin-reset'").get();
  assert.ok(await api.auth.verifyPassword('New-password-456!',saved.password_salt,saved.password_hash));
 });
-await test('health detects unavailable DB/storage instead of only checking HTML',async()=>{assert.equal((await api.health.GET()).status,200);globalThis.__teksanorTestEnv.UPLOADS=undefined;assert.equal((await api.health.GET()).status,503)});
+await test('health allows disabled optional storage but rejects broken configured storage',async()=>{assert.equal((await api.health.GET()).status,200);globalThis.__teksanorTestEnv.UPLOADS=undefined;const response=await api.health.GET();assert.equal(response.status,200);assert.equal((await response.json()).capabilities.storage,'disabled');globalThis.__teksanorTestEnv.UPLOADS={head:async()=>{throw new Error('Storage unavailable')}};assert.equal((await api.health.GET()).status,503);globalThis.__teksanorTestEnv.UPLOADS={head:async()=>null}});
 await test('work completion, customer acceptance and final collection finish the full service lifecycle',async()=>{
  let r=await api.jobs.POST(req('employee','/api/service/jobs','POST',{action:'update',id:job,version:4,stage:'completed',outcome:'Pompa kontrol edildi. Bağlantı sıkıldı.'}));assert.equal(r.status,200);
  r=await api.jobs.POST(req('boss','/api/service/jobs','POST',{action:'share',id:job,version:5,purpose:'completion'}));const t=new URLSearchParams((await json(r)).path.split('#')[1]).get('token');
