@@ -5,7 +5,7 @@
 
   Teknik servis, bakım ve mühendislik ekipleri için kurumsal web sitesi ile rol tabanlı operasyon portalını aynı uygulamada birleştiren uçtan uca ürün prototipi.
 
-  [Canlı demoyu aç](https://teksanor.pages.dev/) · [Demoda ne var?](#canlı-demoda-ne-görebilirsiniz) · [Yol haritası](docs/ROADMAP.md) · [Portföy özeti](docs/PORTFOLIO.md)
+  [Canlı demoyu aç](https://teksanor.pages.dev/) · [English](README.en.md) · [Demoda ne var?](#canlı-demoda-ne-görebilirsiniz) · [Yol haritası](docs/ROADMAP.md) · [Portföy özeti](docs/PORTFOLIO.md)
 
   ![Cloudflare Pages](https://img.shields.io/badge/Cloudflare-Pages-F38020?logo=cloudflare&logoColor=white)
   ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=111827)
@@ -136,12 +136,13 @@ Bu proje; ihtiyaç analizi, kurumsal arayüz tasarımı, rol ve firma bazlı ver
 | Ticari kullanım ve lisans açıklaması | [`docs/LICENSING.md`](docs/LICENSING.md) |
 | Destek kapsamı ve doğru iletişim kanalı | [`SUPPORT.md`](SUPPORT.md) |
 | Katkı davranış kuralları | [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) |
+| İngilizce ürün ve güven belgeleri | [`README.en.md`](README.en.md) · [`SECURITY.en.md`](SECURITY.en.md) · [`docs/ETHICAL-USE.en.md`](docs/ETHICAL-USE.en.md) |
 
 Teksanor; çalışanları gizlice izlemek, yüksek etkili kararları insan denetimi olmadan vermek veya doğrulanmamış çıktıları kesin kayıt gibi sunmak için tasarlanmamıştır.
 
 ## Katkı ve kullanım hakkı
 
-Katkı süreci [`CONTRIBUTING.md`](CONTRIBUTING.md) dosyasında açıklanmıştır. Kaynak kodu herkese açık olarak incelenebilir; ancak kopyalama, yeniden dağıtma, ticari kullanım veya türev ürün oluşturma izni verilmemiştir. Bağlayıcı koşullar [`LICENSE`](LICENSE) dosyasındadır.
+Katkı süreci [`CONTRIBUTING.md`](CONTRIBUTING.md) dosyasında açıklanmıştır. Kaynak kodu herkese açık olarak incelenebilir; ancak kopyalama, yeniden dağıtma, ticari kullanım veya türev ürün oluşturma izni verilmemiştir. Bağlayıcı koşullar [`LICENSE`](LICENSE) dosyasındadır. Uluslararası okuyucular için açık telif bildirimi [`NOTICE`](NOTICE) dosyasında yer alır. Deponun herkese görünür olması açık kaynak lisansı veya kopyalama izni anlamına gelmez.
 
 ---
 
