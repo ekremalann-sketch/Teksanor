@@ -5,7 +5,7 @@
 
   Teknik servis, bakım ve mühendislik ekipleri için kurumsal web sitesi ile rol tabanlı operasyon portalını aynı uygulamada birleştiren uçtan uca ürün prototipi.
 
-  [Canlı demoyu aç](https://teksanor.pages.dev/) · [Özellikleri incele](#öne-çıkan-yetenekler) · [Yol haritası](docs/ROADMAP.md) · [Portföy özeti](docs/PORTFOLIO.md)
+  [Canlı demoyu aç](https://teksanor.pages.dev/) · [Demoda ne var?](#canlı-demoda-ne-görebilirsiniz) · [Yol haritası](docs/ROADMAP.md) · [Portföy özeti](docs/PORTFOLIO.md)
 
   ![Cloudflare Pages](https://img.shields.io/badge/Cloudflare-Pages-F38020?logo=cloudflare&logoColor=white)
   ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=111827)
@@ -16,6 +16,18 @@
 > **Portföy ve ürün prototipi:** Bu depo gerçek bir işletme problemini çözmek amacıyla geliştirilmiş çalışan bir demonstrasyondur. Canlı ortamda yalnızca demo/test verileri kullanılmalıdır. Teksanor resmî muhasebe, bankacılık veya ERP ürünü değildir.
 
 ![Teksanor saha operasyonları](public/assets/teksanor-field-operations.svg)
+
+## Canlı demoda ne görebilirsiniz?
+
+Teksanor bir ekran koleksiyonu değil, teknik işin yaşam döngüsünü gösteren çalışan bir ürün prototipidir:
+
+1. Talep veya iş emrini kaydedin.
+2. İşi ekip, proje, müşteri ve varlıkla ilişkilendirin.
+3. Saha notu, bakım geçmişi ve belgeleri aynı kayıtta izleyin.
+4. Yetkiye göre operasyon ve finans görünümünü ayırın.
+5. Servis formu ve denetim geçmişiyle süreci kapatın.
+
+> Demo, ürün yaklaşımını ve teknik yetkinliği göstermek içindir. Herkese açık ortamda gerçek kişi, müşteri, finans veya kimlik verisi kullanılmamalıdır.
 
 ## Yeni servis masası
 
@@ -115,9 +127,21 @@ Teksanor çalışan bir **ürün prototipidir**; ticari üretim sistemi olarak s
 
 Bu proje; ihtiyaç analizi, kurumsal arayüz tasarımı, rol ve firma bazlı veri modeli, API geliştirme, üçüncü taraf veri entegrasyonu, test, CI/CD ve Cloudflare dağıtımını tek üründe birleştirebilme yetkinliğini gösterir. Daha kısa ve işe alım odaklı anlatım için [`docs/PORTFOLIO.md`](docs/PORTFOLIO.md) dosyasını kullanabilirsiniz.
 
+## Güven, etik ve kullanım sınırları
+
+| Konu | Belge |
+|---|---|
+| Güvenlik açığı bildirimi ve üretim kapıları | [`SECURITY.md`](SECURITY.md) |
+| Etik, veri ve otomasyon ilkeleri | [`docs/ETHICAL-USE.md`](docs/ETHICAL-USE.md) |
+| Ticari kullanım ve lisans açıklaması | [`docs/LICENSING.md`](docs/LICENSING.md) |
+| Destek kapsamı ve doğru iletişim kanalı | [`SUPPORT.md`](SUPPORT.md) |
+| Katkı davranış kuralları | [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) |
+
+Teksanor; çalışanları gizlice izlemek, yüksek etkili kararları insan denetimi olmadan vermek veya doğrulanmamış çıktıları kesin kayıt gibi sunmak için tasarlanmamıştır.
+
 ## Katkı ve kullanım hakkı
 
-Katkı süreci [`CONTRIBUTING.md`](CONTRIBUTING.md) dosyasında açıklanmıştır. Kaynak kodu herkese açık olarak incelenebilir; ancak kopyalama, yeniden dağıtma, ticari kullanım veya türev ürün oluşturma izni verilmemiştir. Ayrıntılar için [`LICENSE`](LICENSE) dosyasına bakın.
+Katkı süreci [`CONTRIBUTING.md`](CONTRIBUTING.md) dosyasında açıklanmıştır. Kaynak kodu herkese açık olarak incelenebilir; ancak kopyalama, yeniden dağıtma, ticari kullanım veya türev ürün oluşturma izni verilmemiştir. Bağlayıcı koşullar [`LICENSE`](LICENSE) dosyasındadır.
 
 ---
 
