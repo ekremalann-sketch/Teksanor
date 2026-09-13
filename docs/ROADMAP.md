@@ -38,8 +38,8 @@ Bu belge çalışan prototip kapsamını, ticari pilot için gerekenleri ve tam 
 - [ ] Dosya türü, boyut ve zararlı içerik kontrolleri
 - [ ] D1 ve R2 yedekleme/geri yükleme prosedürü
 - [ ] Merkezi hata izleme, çalışma süresi alarmı ve olay günlüğü
-- [x] Bağımlılık, secret ve statik kod güvenlik taraması (npm audit,
-  Dependency Review, Gitleaks ve CodeQL; bulgular GitHub Security'de izlenir)
+- [x] Bağımlılık, secret ve statik kod güvenlik taraması (`npm audit`,
+  Gitleaks ve CodeQL; Dependency Graph açılırsa PR fark taraması ayrıca eklenebilir)
 - [ ] KVKK veri envanteri, saklama, silme ve aydınlatma süreci
 - [ ] Kullanım koşulları ve gizlilik metinleri
 - [ ] Pilot müşteriye özel kabul kriterleri ve destek kapsamı
