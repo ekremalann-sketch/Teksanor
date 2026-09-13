@@ -5,7 +5,7 @@
 
   Teknik servis, bakım ve mühendislik ekipleri için kurumsal web sitesi ile rol tabanlı operasyon portalını aynı uygulamada birleştiren uçtan uca ürün prototipi.
 
-  [Canlı demoyu aç](https://teksanor.pages.dev/) · [English](README.en.md) · [Demoda ne var?](#canlı-demoda-ne-görebilirsiniz) · [Yol haritası](docs/ROADMAP.md) · [Portföy özeti](docs/PORTFOLIO.md)
+  [Canlı demoyu aç](https://teksanor.pages.dev/) · [English](README.en.md) · [Proje dosyası](docs/PROJECT.md) · [Demoda ne var?](#canlı-demoda-ne-görebilirsiniz) · [Yol haritası](docs/ROADMAP.md)
 
   ![Cloudflare Pages](https://img.shields.io/badge/Cloudflare-Pages-F38020?logo=cloudflare&logoColor=white)
   ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=111827)
