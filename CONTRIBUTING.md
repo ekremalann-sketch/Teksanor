@@ -27,6 +27,8 @@ npm run build:pages
 - [ ] Arayüz değişikliği masaüstü ve mobil görünümde kontrol edildi.
 - [ ] Erişilebilirlik etiketleri ve klavye kullanımı gözden geçirildi.
 - [ ] README veya yol haritası gerekiyorsa güncellendi.
+- [ ] Değişiklik, [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) ve [`docs/ETHICAL-USE.md`](docs/ETHICAL-USE.md) ilkeleriyle uyumlu.
+- [ ] Otomatik öneri veya puan ekleniyorsa insan onayı, veri kaynağı ve sınırlar görünür.
 
 ## Kod ve veri güvenliği
 
