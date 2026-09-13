@@ -13,5 +13,18 @@
   },
   "cache": {
     "enabled": true
-  }
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "teksanor-d1",
+      "database_id": "11111111-2222-4333-8444-555555555555"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "UPLOADS",
+      "bucket_name": "teksanor-uploads"
+    }
+  ]
 }

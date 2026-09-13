@@ -1,0 +1,59 @@
+/* Servis masası ekranı */
+.service-shell { max-width: 1200px; margin: 0 auto; padding: 1.5rem 1.25rem 4rem; color: #0f172a; }
+.service-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.service-header a { color: #2563eb; text-decoration: none; font-size: 0.9rem; }
+.service-header h1 { margin: 0.35rem 0 0.15rem; font-size: 1.6rem; }
+.service-header p { margin: 0; color: #64748b; }
+.service-header button { padding: 0.7rem 1.1rem; border: 0; border-radius: 10px; background: #2563eb; color: #fff; font-weight: 600; cursor: pointer; }
+.service-message { min-height: 1.25rem; color: #b45309; font-size: 0.9rem; margin: 0.75rem 0; }
+
+.service-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 1.25rem; box-shadow: 0 6px 20px rgba(15, 23, 42, 0.05); }
+.service-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.85rem 1rem; margin-top: 1rem; }
+.service-grid h2 { grid-column: 1 / -1; margin: 0; font-size: 1.15rem; }
+.service-grid label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.85rem; color: #334155; }
+.service-grid input, .service-grid select, .service-grid textarea, .service-list input {
+  padding: 0.6rem 0.7rem; border: 1px solid #cbd5f5; border-radius: 8px; font: inherit; background: #fff; }
+.service-grid textarea { resize: vertical; }
+.service-wide { grid-column: 1 / -1; }
+.service-grid button { grid-column: 1 / -1; justify-self: start; padding: 0.7rem 1.3rem; border: 0; border-radius: 10px; background: #16a34a; color: #fff; font-weight: 600; cursor: pointer; }
+.service-grid button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.service-workspace { display: grid; grid-template-columns: 320px 1fr; gap: 1.25rem; margin-top: 1.25rem; align-items: start; }
+.service-list { display: flex; flex-direction: column; gap: 0.6rem; }
+.service-list > label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.85rem; color: #334155; }
+.service-item { text-align: left; display: flex; flex-direction: column; gap: 0.15rem; padding: 0.75rem 0.85rem; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; cursor: pointer; }
+.service-item.selected { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15); }
+.service-item small { color: #94a3b8; font-size: 0.72rem; }
+.service-item strong { font-size: 0.98rem; }
+.service-item span { color: #64748b; font-size: 0.85rem; }
+.service-stage { display: inline-block; align-self: flex-start; padding: 0.15rem 0.55rem; border-radius: 999px; background: #eff6ff; color: #1d4ed8; font-size: 0.75rem; font-weight: 600; }
+
+.service-detail-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.service-detail-heading h2 { margin: 0.2rem 0; font-size: 1.3rem; }
+.service-detail-heading small { color: #94a3b8; }
+.service-detail-heading p { margin: 0; color: #64748b; }
+.service-totals { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 0.2rem; padding: 0.75rem 0.9rem; background: #f8fafc; border-radius: 10px; }
+.service-totals small { color: #94a3b8; }
+.service-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1rem; align-items: center; }
+.service-actions button { padding: 0.6rem 1rem; border: 1px solid #cbd5f5; border-radius: 9px; background: #fff; color: #1e293b; font-weight: 500; cursor: pointer; }
+.service-actions button:disabled { opacity: 0.6; cursor: not-allowed; }
+.service-upload { display: inline-flex; flex-direction: column; gap: 0.25rem; font-size: 0.82rem; color: #334155; }
+.service-share { margin-top: 1rem; padding: 0.9rem; border: 1px dashed #cbd5f5; border-radius: 10px; display: flex; flex-direction: column; gap: 0.5rem; }
+.service-share input { padding: 0.55rem 0.7rem; border: 1px solid #cbd5f5; border-radius: 8px; font: inherit; }
+.service-share button { align-self: flex-start; padding: 0.5rem 1rem; border: 0; border-radius: 8px; background: #2563eb; color: #fff; cursor: pointer; }
+.service-empty { text-align: center; color: #64748b; }
+.service-empty h2 { color: #0f172a; }
+
+.service-print { display: none; }
+@media print {
+  .service-shell > *:not(.service-workspace),
+  .service-workspace > .service-list,
+  .service-card form, .service-card .service-actions, .service-card .service-share, .service-card ul { display: none !important; }
+  .service-print { display: block; }
+  .service-print h1 { font-size: 1.4rem; }
+}
+
+@media (max-width: 900px) {
+  .service-workspace { grid-template-columns: 1fr; }
+  .service-grid { grid-template-columns: 1fr; }
+}
