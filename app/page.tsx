@@ -78,11 +78,11 @@ export default function Home() {
           <Link href="/guven">Güven</Link>
           <Link href="/hakkimizda">Hakkımızda</Link>
         </nav>
-        <Link className="login-link" href={authenticated ? "/panel" : "/giris"}>
+        <div className="header-actions"><Link className="language-link" href="/en" hrefLang="en" aria-label="View Teksanor in English">EN</Link><Link className="login-link" href={authenticated ? "/panel" : "/giris"}>
           <span className="login-link-icon"><UserRound size={17} /></span>
           <span className="login-link-label">{authenticated ? "Panel" : "Giriş"}</span>
           <ArrowRight className="login-link-arrow" size={16} />
-        </Link>
+        </Link></div>
       </header>
 
       <section className="hero" id="kurumsal">
@@ -335,7 +335,7 @@ export default function Home() {
       <footer className="site-footer">
         <div><img src="/assets/teksanor-logo.png" alt="Teksanor" /><p>Akıllı sistemler. Ölçülebilir ilerleme.</p></div>
         <div className="footer-note">Teksanor, mühendislik ve teknoloji çözümleri için geliştirilen marka kimliğidir. Resmî şirket ve iletişim bilgileri kuruluş süreci tamamlandığında eklenecektir.</div>
-        <div className="footer-end">© 2026 Teksanor</div>
+        <div className="footer-end">© 2026 Ekrem Alan · Tüm hakları saklıdır. Lisansın açıkça izin verdiği durumlar dışında kopyalama ve ticari kullanım yasaktır.</div>
       </footer>
     </main>
   );
