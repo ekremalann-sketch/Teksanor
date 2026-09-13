@@ -1,0 +1,13 @@
+# Yerel geliştirme örneği. Gerçek değerleri .dev.vars içine yazın.
+APP_ORIGIN=http://localhost:5173
+RESEND_API_KEY=
+MAIL_FROM=
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-4o-mini
+FILE_SCAN_URL=
+FILE_SCAN_TOKEN=
+FILE_SCAN_REQUIRED=false
+APP_CRON_TOKEN=
+ADMIN1_PASSWORD=
+ADMIN2_PASSWORD=
+MFA_ENCRYPTION_KEY=

@@ -29,13 +29,17 @@ Bu belge çalışan prototip kapsamını, ticari pilot için gerekenleri ve tam 
 
 ## Aşama 2 — ücretli pilot öncesi kritik kapılar
 
+- [ ] `noUncheckedIndexedAccess` seçeneğini modül modül aç; dizilerde ve sözlük
+  erişimlerinde bulunan olası `undefined` durumlarını düzelttikten sonra genel
+  TypeScript ayarına taşı
 - [ ] Demo ve müşteri ortamlarını tamamen ayırma
 - [ ] Her firma/rol kombinasyonu için otomatik yetki testleri
 - [ ] Rate limiting, hesap kilitleme ve oturum yenileme politikası
 - [ ] Dosya türü, boyut ve zararlı içerik kontrolleri
 - [ ] D1 ve R2 yedekleme/geri yükleme prosedürü
 - [ ] Merkezi hata izleme, çalışma süresi alarmı ve olay günlüğü
-- [ ] Bağımlılık, secret ve statik kod güvenlik taraması
+- [x] Bağımlılık, secret ve statik kod güvenlik taraması (`npm audit`,
+  Gitleaks ve CodeQL; Dependency Graph açılırsa PR fark taraması ayrıca eklenebilir)
 - [ ] KVKK veri envanteri, saklama, silme ve aydınlatma süreci
 - [ ] Kullanım koşulları ve gizlilik metinleri
 - [ ] Pilot müşteriye özel kabul kriterleri ve destek kapsamı
