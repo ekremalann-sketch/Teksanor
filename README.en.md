@@ -4,7 +4,7 @@
 
 An end-to-end product prototype combining a public corporate website and a role-based operations workspace for technical service, maintenance and engineering teams.
 
-[Open live demo](https://teksanor.pages.dev/en) · [View Turkish README](README.md) · [Roadmap](docs/ROADMAP.md) · [Security](SECURITY.en.md)
+[Open live demo](https://teksanor.pages.dev/en) · [Executive case study](docs/CASE-STUDY.en.md) · [Five-minute demo guide](docs/DEMO-GUIDE.en.md) · [Architecture](docs/ARCHITECTURE.en.md) · [Türkçe](README.md)
 
 </div>
 
