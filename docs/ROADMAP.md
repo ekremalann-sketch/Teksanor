@@ -22,6 +22,7 @@ Bu belge çalışan prototip kapsamını, ticari pilot için gerekenleri ve tam 
 - [x] Kurulum, test ve dağıtım açıklaması
 - [x] Güvenlik ve katkı politikaları
 - [x] Kaynak kod kullanım/lisans sınırı
+- [x] Etik kullanım, davranış ve destek politikaları
 - [ ] Güncel, anonimleştirilmiş masaüstü ekran görüntüleri
 - [ ] Mobil görünüm ekran görüntüleri
 - [ ] GitHub About açıklaması, web sitesi ve konu etiketleri
@@ -42,7 +43,8 @@ Bu belge çalışan prototip kapsamını, ticari pilot için gerekenleri ve tam 
   Gitleaks ve CodeQL; Dependency Graph açılırsa PR fark taraması ayrıca eklenebilir)
 - [ ] KVKK veri envanteri, saklama, silme ve aydınlatma süreci
 - [ ] Kullanım koşulları ve gizlilik metinleri
-- [ ] Pilot müşteriye özel kabul kriterleri ve destek kapsamı
+- [x] Pilot destek kapsamının belge düzeyinde tanımlanması
+- [ ] Pilot müşteriye özel kabul kriterleri, yanıt süreleri ve sözleşme kapsamı
 
 ## Aşama 3 — ticari üretim
 
