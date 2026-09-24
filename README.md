@@ -5,7 +5,7 @@
 
   Teknik servis, bakım ve mühendislik ekipleri için kurumsal web sitesi ile rol tabanlı operasyon portalını aynı uygulamada birleştiren uçtan uca ürün prototipi.
 
-  [Canlı demoyu aç](https://teksanor.pages.dev/) · [Özellikleri incele](#öne-çıkan-yetenekler) · [Yol haritası](docs/ROADMAP.md) · [Portföy özeti](docs/PORTFOLIO.md)
+  [Canlı demoyu aç](https://teksanor.pages.dev/) · [Özellikleri incele](#öne-çıkan-yetenekler) · [Yol haritası](docs/ROADMAP.md) · [English](README.en.md)
 
   ![Cloudflare Pages](https://img.shields.io/badge/Cloudflare-Pages-F38020?logo=cloudflare&logoColor=white)
   ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=111827)
@@ -16,6 +16,8 @@
 > **Portföy ve ürün prototipi:** Bu depo gerçek bir işletme problemini çözmek amacıyla geliştirilmiş çalışan bir demonstrasyondur. Canlı ortamda yalnızca demo/test verileri kullanılmalıdır. Teksanor resmî muhasebe, bankacılık veya ERP ürünü değildir.
 
 ![Teksanor saha operasyonları](public/assets/teksanor-field-operations.svg)
+
+**Ürün turu:** [Herkese açık ürün vitrini](https://teksanor.pages.dev/) → [Servis akışı](https://teksanor.pages.dev/servis) → [Güven ve ürün sınırları](https://teksanor.pages.dev/guven). Görsel ürün akışını anlatır; müşteri ekran görüntüsü veya gerçek işlem kaydı değildir.
 
 ## Yeni servis masası
 
@@ -40,7 +42,7 @@ Teksanor bu dağınık akışı tek çalışma alanında toplar. Her firma kendi
 - İş emri, saha ziyareti, ekipman ve periyodik bakım yönetimi
 - Ödeme, borç, gider, nakit, döviz ve ziynet takibi
 - TCMB günlük kurları ve referans altın fiyatıyla TL karşılığı
-- Excel içe aktarma, belge yükleme ve kontrollü indirme
+- Excel içe aktarma; R2 etkinleştirilirse belge yükleme ve kontrollü indirme
 - İşlem geçmişi ve denetim kayıtları
 - Cloudflare D1 veri tabanı ve R2 dosya depolama desteği
 - GitHub Actions üzerinden test, derleme ve Cloudflare Pages dağıtımı
@@ -52,7 +54,7 @@ Teksanor bu dağınık akışı tek çalışma alanında toplar. Her firma kendi
 | Arayüz | React 19, TypeScript, Vinext, Tailwind CSS |
 | Sunucu | Vinext Worker, Cloudflare çalışma zamanı |
 | Veri | Cloudflare D1 / SQLite uyumlu sorgular |
-| Dosyalar | Cloudflare R2 |
+| Dosyalar | Cloudflare R2 isteğe bağlı; bağlantı yoksa yükleme kapalı |
 | Entegrasyon | TCMB döviz verisi, altın referans servisi |
 | Dağıtım | GitHub Actions, Wrangler, Cloudflare Pages |
 | Kalite | Node test runner, otomatik üretim derlemesi |
@@ -98,7 +100,7 @@ Uygulama koduna gerçek kimlik bilgisi yazılmaz. Yerel değişken adları için
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
 
-D1 ve R2 binding'leri hedef Cloudflare projesinde tanımlanmalıdır. Gizli değerleri issue, commit, ekran görüntüsü veya loglarda paylaşmayın.
+D1 bağlantısı gereklidir. R2 isteğe bağlıdır; etkin değilse dosya yükleme kapalı kalır. Gizli değerleri issue, commit, ekran görüntüsü veya loglarda paylaşmayın.
 
 ## Demo güvenliği
 

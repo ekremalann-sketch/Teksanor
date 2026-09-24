@@ -30,6 +30,9 @@ export async function POST(request: Request) {
   catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Tutarlar geçersiz." }, { status: 400 }); }
   const totalDebt = values.totalDebt ?? 0;
   const paidAmount = values.paidAmount ?? 0;
+  if (values.totalDebt === null && paidAmount > 0) {
+    return NextResponse.json({ error: "Ödeme kaydetmeden önce toplam borcu girin." }, { status: 400 });
+  }
   const missingFields = numericFields.filter((field) => values[field] === null);
   const stored = Object.fromEntries(numericFields.map((field) => [field, values[field] ?? 0])) as Record<(typeof numericFields)[number], number>;
   try { assertPaymentAmounts({ totalDebt, paidAmount }); }
@@ -37,6 +40,9 @@ export async function POST(request: Request) {
   const allowedStatuses = new Set(["planned", "partial", "paid", "overdue"]);
   const requestedStatus = body.paymentStatus ? String(body.paymentStatus) : inferredPaymentStatus({ totalDebt, paidAmount });
   if (!allowedStatuses.has(requestedStatus)) return NextResponse.json({ error: "Ödeme durumu geçersiz." }, { status: 400 });
+  if (values.totalDebt === null && (requestedStatus === "paid" || requestedStatus === "partial")) {
+    return NextResponse.json({ error: "Borç bilinmeden ödeme tamamlandı veya kısmi ödendi olarak işaretlenemez." }, { status: 400 });
+  }
   if ((requestedStatus === "paid" && totalDebt > 0 && paidAmount < totalDebt) || (requestedStatus === "partial" && (paidAmount <= 0 || paidAmount >= totalDebt))) {
     return NextResponse.json({ error: "Ödeme durumu ile ödenen tutar birbiriyle uyuşmuyor." }, { status: 400 });
   }

@@ -26,4 +26,10 @@ test("Türkçe para ve ondalık formatlarını güvenli okur", () => {
   assert.equal(parseLocalizedNumber(""), 0);
   assert.equal(parseOptionalLocalizedNumber(""), null);
   assert.throws(() => parseOptionalLocalizedNumber("abc"));
+  assert.throws(() => parseOptionalLocalizedNumber("12abc"));
+  assert.throws(() => parseOptionalLocalizedNumber("1,2,3"));
+  assert.throws(() => parseOptionalLocalizedNumber("1,000"));
+  assert.throws(() => parseOptionalLocalizedNumber(Infinity));
+  assert.equal(parseOptionalLocalizedNumber(0), 0);
+  assert.equal(parseOptionalLocalizedNumber("1,000.75"), 1000.75);
 });
