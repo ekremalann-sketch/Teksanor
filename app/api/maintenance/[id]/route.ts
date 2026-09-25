@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { errorStatus } from "@/lib/access";
 import { getCurrentUser } from "@/lib/auth";
 import { addAudit, getDb } from "@/lib/db";
 import { rejectCrossSiteMutation } from "@/lib/security";
@@ -38,7 +39,7 @@ export async function PUT(request: Request, routeContext: { params: Promise<{ id
     }
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Bakım planı güncellenemedi." }, { status: 400 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Bakım planı güncellenemedi." }, { status: errorStatus(error) });
   }
 }
 
@@ -49,10 +50,12 @@ export async function DELETE(request: Request, routeContext: { params: Promise<{
   try {
     const { organization } = await requireOrganization(request, user);
     const { id } = await routeContext.params;
-    await getDb().prepare("DELETE FROM maintenance_plans WHERE id=? AND organization_id=?").bind(id, organization.id).run();
+    const removed = await getDb().prepare("DELETE FROM maintenance_plans WHERE id=? AND organization_id=?").bind(id, organization.id).run();
+    // Başka firmanın veya olmayan bir kaydın silinmesi başarı ve denetim kaydı üretmez.
+    if (!removed.meta?.changes) return NextResponse.json({ error: "Kayıt bulunamadı." }, { status: 404 });
     await addAudit(user.id, "delete", "maintenance_plan", id, undefined, organization.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Bakım planı silinemedi." }, { status: 400 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Bakım planı silinemedi." }, { status: errorStatus(error) });
   }
 }

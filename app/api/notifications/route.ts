@@ -1,4 +1,4 @@
-import { getMemberAccess } from "@/lib/access";
+import { getMemberAccess, errorStatus } from "@/lib/access";
 import { createDueNotifications } from "@/lib/reminders";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
         text(body.entityType, 60) || null, text(body.entityId, 80) || null).run();
     return NextResponse.json({ ok: true, id });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Bildirim oluşturulamadı." }, { status: 400 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Bildirim oluşturulamadı." }, { status: errorStatus(error) });
   }
 }
 
@@ -61,6 +61,6 @@ export async function PATCH(request: Request) {
     await addAudit(user.id, "update", "notification", null, "Bildirimler okundu olarak işaretlendi.", context.organization.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Bildirimler güncellenemedi." }, { status: 400 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Bildirimler güncellenemedi." }, { status: errorStatus(error) });
   }
 }

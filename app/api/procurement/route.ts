@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { errorStatus } from "@/lib/access";
 import { getCurrentUser } from "@/lib/auth";
 import { addAudit, createId, getDb } from "@/lib/db";
 import { requireOrganization } from "@/lib/tenancy";
@@ -52,6 +53,6 @@ export async function POST(request: Request) {
     await addAudit(user.id, "create", "procurement_request", id, `${requestNumber} satın alma talebi oluşturuldu.`, context.organization.id);
     return NextResponse.json({ ok: true, id, requestNumber });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Satın alma talebi oluşturulamadı." }, { status: 400 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Satın alma talebi oluşturulamadı." }, { status: errorStatus(error) });
   }
 }
