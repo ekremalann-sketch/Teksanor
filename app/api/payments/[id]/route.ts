@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { addAudit, getDb, refreshOrganizationPeriodSummary } from "@/lib/db";
 import { canManageOrganization, requireOrganization } from "@/lib/tenancy";
 import { rejectCrossSiteMutation } from "@/lib/security";
-import { assertPaymentAmounts, inferredPaymentStatus, parseOptionalLocalizedNumber } from "@/lib/finance";
+import { parseOptionalLocalizedNumber, paymentFieldLabels, resolvePaymentStatus } from "@/lib/finance";
 
 export async function PATCH(request: Request, routeContext: { params: Promise<{ id: string }> }) {
   const rejected = rejectCrossSiteMutation(request); if (rejected) return rejected;
@@ -16,8 +16,9 @@ export async function PATCH(request: Request, routeContext: { params: Promise<{ 
   const { id } = await routeContext.params;
   const body = (await request.json()) as Record<string, unknown>;
   if (body.action === "approve") {
-    await getDb().prepare("UPDATE payment_records SET workflow_status = 'approved', updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND organization_id = ?")
-      .bind(user.id, id, orgContext.organization.id).run();
+    const approved = await getDb().prepare("UPDATE payment_records SET workflow_status = 'approved', updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND organization_id = ? RETURNING id")
+      .bind(user.id, id, orgContext.organization.id).first<{ id: string }>();
+    if (!approved) return NextResponse.json({ error: "Kayıt bulunamadı." }, { status: 404 });
     await addAudit(user.id, "approve", "payment_record", id, undefined, orgContext.organization.id);
     return NextResponse.json({ ok: true });
   }
@@ -29,20 +30,13 @@ export async function PATCH(request: Request, routeContext: { params: Promise<{ 
   if (!previous) return NextResponse.json({ error: "Kayıt bulunamadı." }, { status: 404 });
   const numericFields = ["totalLimit", "totalDebt", "restructuring", "monthlyPayment", "nextInstallment", "overdraftDebt", "overdraftLimit", "interestRate", "interestDebt", "minimumPayment", "paidAmount"] as const;
   let values: Record<(typeof numericFields)[number], number | null>;
-  try { values = Object.fromEntries(numericFields.map((key) => [key, parseOptionalLocalizedNumber(body[key], key)])) as typeof values; }
-  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Tutarlar geçersiz." }, { status: 400 }); }
-  const totalDebt = values.totalDebt ?? 0;
-  const paidAmount = values.paidAmount ?? 0;
-  try { assertPaymentAmounts({ totalDebt, paidAmount }); }
+  try { values = Object.fromEntries(numericFields.map((key) => [key, parseOptionalLocalizedNumber(body[key], paymentFieldLabels[key])])) as typeof values; }
   catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Tutarlar geçersiz." }, { status: 400 }); }
   const missingFields = numericFields.filter((key) => values[key] === null);
   const stored = Object.fromEntries(numericFields.map((key) => [key, values[key] ?? 0])) as Record<(typeof numericFields)[number], number>;
-  const allowedStatuses = new Set(["planned", "partial", "paid", "overdue"]);
-  const paymentStatus = body.paymentStatus ? String(body.paymentStatus) : inferredPaymentStatus({ totalDebt, paidAmount });
-  if (!allowedStatuses.has(paymentStatus)) return NextResponse.json({ error: "Ödeme durumu geçersiz." }, { status: 400 });
-  if ((paymentStatus === "paid" && totalDebt > 0 && paidAmount < totalDebt) || (paymentStatus === "partial" && (paidAmount <= 0 || paidAmount >= totalDebt))) {
-    return NextResponse.json({ error: "Ödeme durumu ile ödenen tutar birbiriyle uyuşmuyor." }, { status: 400 });
-  }
+  let paymentStatus: string;
+  try { paymentStatus = resolvePaymentStatus({ totalDebt: values.totalDebt, paidAmount: values.paidAmount, status: body.paymentStatus }); }
+  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Tutarlar geçersiz." }, { status: 400 }); }
   await getDb().prepare(`UPDATE payment_records SET
     period = ?, owner_name = ?, bank_name = ?, account_name = ?, total_limit = ?, total_debt = ?, restructuring = ?,
     monthly_payment = ?, next_installment = ?, overdraft_debt = ?, overdraft_limit = ?, interest_rate = ?, interest_debt = ?, minimum_payment = ?,

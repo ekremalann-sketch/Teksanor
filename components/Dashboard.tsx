@@ -13,7 +13,7 @@ import {
   type Task, type WorkOrder, type FieldVisit, type ProcurementRequest, type Customer, type Employee, type Risk, type AutomationRule,
 } from "./modules/OperationsModules";
 import { AssetsView, MaintenanceView, type Asset, type MaintenancePlan } from "./modules/AssetMaintenanceModules";
-import { parseLocalizedNumber } from "@/lib/finance";
+import { paymentImportPayload } from "@/lib/finance";
 import { criticalBacklog, departmentReality, priorityLabel, readinessSnapshot, roadmapPhases, statusLabel as readinessStatusLabel, workingModules } from "@/lib/readiness";
 
 type User = { id: string; username: string; fullName: string; role: "admin" | "user" };
@@ -356,38 +356,18 @@ export default function Dashboard() {
       }
       if (!rows.length) throw new Error("Dosyada okunabilir satır bulunamadı.");
       if (rows.length > 100) notify("İlk 100 satır aktarılacak; büyük dosyalar için parça parça yükleyin.");
-      const normalize = (key: string) => key.toLocaleLowerCase("tr-TR").replace(/[^a-z0-9ğüşöçı]+/g, " ").trim();
-      const get = (row: Record<string, unknown>, words: string[]) => {
-        const found = Object.keys(row).find((key) => words.every((word) => normalize(key).includes(word)));
-        return found ? row[found] : "";
-      };
       let created = 0;
-      for (const row of rows.slice(0, 100)) {
-        const payload = {
-          period: String(get(row, ["dönem"]) || latest?.period || "Temmuz - Ağustos 2026"),
-          ownerName: String(get(row, ["kişi"]) || get(row, ["sahip"]) || get(row, ["kredi", "kartları"]) || "Belirtilmedi"),
-          bankName: String(get(row, ["banka"]) || get(row, ["kredi", "kartları"]) || "Belirtilmedi"),
-          accountName: String(get(row, ["hesap"]) || get(row, ["kredi", "kartları"]) || "Excel aktarımı"),
-          totalLimit: parseLocalizedNumber(get(row, ["toplam", "limit"])),
-          totalDebt: parseLocalizedNumber(get(row, ["toplam", "borç"])),
-          restructuring: parseLocalizedNumber(get(row, ["yapılandırma"])),
-          monthlyPayment: parseLocalizedNumber(get(row, ["aylık", "ödeme"])),
-          nextInstallment: parseLocalizedNumber(get(row, ["gelecek", "dönem"])),
-          overdraftDebt: parseLocalizedNumber(get(row, ["kmh", "borç"])),
-          overdraftLimit: parseLocalizedNumber(get(row, ["kmh", "limit"])),
-          interestRate: parseLocalizedNumber(get(row, ["faiz", "oran"])),
-          interestDebt: parseLocalizedNumber(get(row, ["faiz", "borç"])),
-          minimumPayment: parseLocalizedNumber(get(row, ["asgari", "ödeme"])),
-          paidAmount: parseLocalizedNumber(get(row, ["ödenen", "tutar"])),
-          paymentStatus: String(get(row, ["ödeme", "durumu"]) || "planned"),
-          paidAt: String(get(row, ["ödeme", "tarihi"]) || ""),
-          dueDate: String(get(row, ["son", "ödeme", "tarihi"]) || get(row, ["vade"]) || ""),
-          importantNote: String(get(row, ["önemli", "not"]) || ""),
-          upsert: true,
-        };
+      const rejected: string[] = [];
+      for (const [index, row] of rows.slice(0, 100).entries()) {
+        const payload = paymentImportPayload(row, latest?.period || "Temmuz - Ağustos 2026");
         const response = await fetch("/api/payments", { method: "POST", headers: { "Content-Type": "application/json", "X-Organization-Id": organizationId }, body: JSON.stringify(payload) });
         if (response.ok) created += 1;
+        else {
+          const result = await response.json().catch(() => ({})) as { error?: string };
+          rejected.push(`${index + 1}. kayıt: ${result.error ?? "kaydedilemedi"}`);
+        }
       }
+      if (rejected.length) setError(`${rejected.length} satır aktarılmadı. ${rejected.slice(0, 3).join(" · ")}${rejected.length > 3 ? " …" : ""}`);
       notify(`${created} satır sisteme eklendi veya güncellendi.`);
       await load(organizationId);
     } catch (reason) {

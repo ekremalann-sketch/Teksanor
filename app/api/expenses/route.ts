@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { addAudit, createId, getDb, refreshOrganizationPeriodSummary } from "@/lib/db";
 import { requireOrganization } from "@/lib/tenancy";
 import { rejectCrossSiteMutation } from "@/lib/security";
-import { parseLocalizedNumber } from "@/lib/finance";
+import { parseRequiredPositiveAmount } from "@/lib/finance";
 import { requireModuleAccess } from "@/lib/access";
 
 export async function POST(request: Request) {
@@ -15,16 +15,20 @@ export async function POST(request: Request) {
   catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Çalışma alanına erişim reddedildi." }, { status: 403 }); }
   try { await requireModuleAccess(user, context.organization, "expenses", "edit"); }
   catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Yetki reddedildi." }, { status: 403 }); }
-  const body = (await request.json()) as { period?: string; ownerName?: string; category?: string; description?: string; amount?: number; dueDate?: string };
+  const body = (await request.json()) as { period?: string; ownerName?: string; category?: string; description?: string; amount?: unknown; dueDate?: string };
   if (!body.period || !body.ownerName || !body.category || !body.description) {
     return NextResponse.json({ error: "Dönem, kişi, kategori ve açıklama gereklidir." }, { status: 400 });
   }
+  let amount: number;
+  // "abc", negatif veya boş tutar sessizce 0 sayılmaz; dönem özetini bozmadan reddedilir.
+  try { amount = parseRequiredPositiveAmount(body.amount, "Gider tutarı"); }
+  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Gider tutarı geçersiz." }, { status: 400 }); }
   const id = createId("expense");
   const workflow = "approved";
   await getDb().prepare(`INSERT INTO expenses
     (id, period, owner_name, category, description, amount, due_date, workflow_status, created_by, organization_id)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .bind(id, body.period, body.ownerName, body.category, body.description, parseLocalizedNumber(body.amount), body.dueDate || null, workflow, user.id, context.organization.id)
+    .bind(id, body.period, body.ownerName, body.category, body.description, amount, body.dueDate || null, workflow, user.id, context.organization.id)
     .run();
   await refreshOrganizationPeriodSummary(context.organization.id, body.period);
   await addAudit(user.id, "create", "expense", id, `${body.description} gideri eklendi.`, context.organization.id);
