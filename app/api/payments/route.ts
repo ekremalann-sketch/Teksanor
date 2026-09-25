@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { addAudit, createId, getDb, refreshOrganizationPeriodSummary } from "@/lib/db";
 import { canManageOrganization, requireOrganization } from "@/lib/tenancy";
 import { rejectCrossSiteMutation } from "@/lib/security";
-import { assertPaymentAmounts, inferredPaymentStatus, parseOptionalLocalizedNumber } from "@/lib/finance";
+import { parseOptionalLocalizedNumber, paymentFieldLabels, resolvePaymentStatus } from "@/lib/finance";
 import { requireModuleAccess } from "@/lib/access";
 
 const numericFields = [
@@ -26,26 +26,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Dönem, kişi, banka ve hesap adı gereklidir." }, { status: 400 });
   }
   let values: Record<(typeof numericFields)[number], number | null>;
-  try { values = Object.fromEntries(numericFields.map((field) => [field, parseOptionalLocalizedNumber(body[field], field)])) as typeof values; }
+  try { values = Object.fromEntries(numericFields.map((field) => [field, parseOptionalLocalizedNumber(body[field], paymentFieldLabels[field])])) as typeof values; }
   catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Tutarlar geçersiz." }, { status: 400 }); }
-  const totalDebt = values.totalDebt ?? 0;
-  const paidAmount = values.paidAmount ?? 0;
-  if (values.totalDebt === null && paidAmount > 0) {
-    return NextResponse.json({ error: "Ödeme kaydetmeden önce toplam borcu girin." }, { status: 400 });
-  }
   const missingFields = numericFields.filter((field) => values[field] === null);
   const stored = Object.fromEntries(numericFields.map((field) => [field, values[field] ?? 0])) as Record<(typeof numericFields)[number], number>;
-  try { assertPaymentAmounts({ totalDebt, paidAmount }); }
+  let requestedStatus: string;
+  try { requestedStatus = resolvePaymentStatus({ totalDebt: values.totalDebt, paidAmount: values.paidAmount, status: body.paymentStatus }); }
   catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Tutarlar geçersiz." }, { status: 400 }); }
-  const allowedStatuses = new Set(["planned", "partial", "paid", "overdue"]);
-  const requestedStatus = body.paymentStatus ? String(body.paymentStatus) : inferredPaymentStatus({ totalDebt, paidAmount });
-  if (!allowedStatuses.has(requestedStatus)) return NextResponse.json({ error: "Ödeme durumu geçersiz." }, { status: 400 });
-  if (values.totalDebt === null && (requestedStatus === "paid" || requestedStatus === "partial")) {
-    return NextResponse.json({ error: "Borç bilinmeden ödeme tamamlandı veya kısmi ödendi olarak işaretlenemez." }, { status: 400 });
-  }
-  if ((requestedStatus === "paid" && totalDebt > 0 && paidAmount < totalDebt) || (requestedStatus === "partial" && (paidAmount <= 0 || paidAmount >= totalDebt))) {
-    return NextResponse.json({ error: "Ödeme durumu ile ödenen tutar birbiriyle uyuşmuyor." }, { status: 400 });
-  }
   const workflow = canManageOrganization(user, context.organization) ? "approved" : "submitted";
   if (body.upsert === true) {
     const existing = await getDb().prepare(`SELECT id FROM payment_records
