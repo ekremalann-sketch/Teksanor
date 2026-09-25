@@ -11,8 +11,11 @@ export async function GET(request:Request){return handle(request);}
 export async function POST(request:Request){const r=rejectCrossSiteMutation(request);return r||handle(request);}
 async function handle(request:Request){
  const user=await getCurrentUser(request);if(!user)return NextResponse.json({error:"Oturum gerekli."},{status:401});
+ let organization;
+ // Yetki reddi 400 değil 403 döner; istemci hatayı doğru yorumlar.
+ try{({organization}=await requireOrganization(request,user));}catch(e){return NextResponse.json({error:e instanceof Error?e.message:"Erişim reddedildi."},{status:403});}
  try{
-  const {organization}=await requireOrganization(request,user);const access=await getMemberAccess(user,organization);const db=getDb();
+  const access=await getMemberAccess(user,organization);const db=getDb();
   const manage=["owner","company_admin","ceo","manager"].includes(access.profile);const canWrite=access.editModules.includes("work-orders");
   if(request.method==="GET"){
    const jobs=await db.prepare(`SELECT w.title,w.description,w.customer_name,w.location,w.scheduled_date,w.order_number,w.assigned_to,s.*,a.asset_code,a.name AS asset_name
@@ -34,9 +37,18 @@ async function handle(request:Request){
    const date=txt(b.scheduledDate,10)||null;if(date&&!/^\d{4}-\d{2}-\d{2}$/.test(date))throw new Error("Geçerli tarih girin.");
    const id=createId("wo");const number=`SRV-${crypto.randomUUID().slice(0,12).toUpperCase()}`;
    await db.batch([
-    db.prepare(`INSERT INTO work_orders(id,organization_id,order_number,title,description,customer_name,location,scheduled_date,created_by) VALUES(?,?,?,?,?,?,?,?,?)`).bind(id,organization.id,number,title,txt(b.description),txt(b.customerName,240),txt(b.location,400),date,user.id),
-    db.prepare("INSERT INTO service_jobs(id,organization_id,asset_id,assigned_user_id) VALUES(?,?,?,?)").bind(id,organization.id,asset,assigned),
-   ]);await addAudit(user.id,"create","service_job",id,"Servis talebi oluşturuldu.",organization.id);return NextResponse.json({ok:true,id},{status:201});
+    // Çift gönderim koruması: aynı yöneticinin 60 sn içindeki aynı başlık+müşteri+atama talebi yeni iş açmaz.
+    db.prepare(`INSERT INTO work_orders(id,organization_id,order_number,title,description,customer_name,location,scheduled_date,created_by)
+     SELECT ?,?,?,?,?,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM work_orders w JOIN service_jobs s ON s.id=w.id
+      WHERE w.organization_id=? AND w.title=? AND COALESCE(w.customer_name,'')=? AND w.created_by=? AND COALESCE(s.assigned_user_id,'')=? AND w.created_at>datetime('now','-60 seconds'))`)
+     .bind(id,organization.id,number,title,txt(b.description),txt(b.customerName,240),txt(b.location,400),date,user.id,organization.id,title,txt(b.customerName,240),user.id,assigned),
+    db.prepare("INSERT INTO service_jobs(id,organization_id,asset_id,assigned_user_id) SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM work_orders WHERE id=?)").bind(id,organization.id,asset,assigned,id),
+   ]);
+   if(!await db.prepare("SELECT id FROM service_jobs WHERE id=?").bind(id).first()){
+    const existing=await db.prepare(`SELECT w.id FROM work_orders w JOIN service_jobs s ON s.id=w.id WHERE w.organization_id=? AND w.title=? AND COALESCE(w.customer_name,'')=? AND w.created_by=? ORDER BY w.created_at DESC LIMIT 1`).bind(organization.id,title,txt(b.customerName,240),user.id).first<{id:string}>();
+    return NextResponse.json({ok:true,id:existing?.id,duplicate:true});
+   }
+   await addAudit(user.id,"create","service_job",id,"Servis talebi oluşturuldu.",organization.id);return NextResponse.json({ok:true,id},{status:201});
   }
   const id=txt(b.id,100);const job=await serviceJob(id,organization.id);
   if(!job||(!manage&&job.assigned_user_id!==user.id))return NextResponse.json({error:"Servis kaydı bulunamadı."},{status:404});

@@ -276,7 +276,7 @@ export default function Home() {
             </aside>
           </div>
 
-          <div className="insights-topics" aria-label="İçerik başlıkları">
+          <div className="insights-topics" role="region" tabIndex={0} aria-label="İçerik başlıkları">
             <span>İş analizi</span><span>Mühendislik</span><span>Finansal görünürlük</span><span>Süreç tasarımı</span>
           </div>
 

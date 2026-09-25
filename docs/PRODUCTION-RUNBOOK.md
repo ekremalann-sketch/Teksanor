@@ -34,6 +34,18 @@ hazır kabul edilmez. Bağlanmış fakat erişilemeyen bucket yine 503 üretir.
   Cloudflare erişimiyle çalıştırılır. D1 dışa aktarımını yeni, geçici yerel SQLite
   ortamında geri yükler; bütünlük, yabancı anahtar ve zorunlu tablo kontrolünü
   manifest'e kaydeder. Başarısız test yedeği doğrulanmış saymaz.
+- **Önemli (25.09.2026 tatbikatı):** `wrangler d1 export` tabloları alfabetik sırayla
+  yazar; çocuk tablo satırları (ör. `audit_logs → users`) üst tablodan önce geldiği için
+  ham dosya boş bir D1'e `d1 execute --file` ile **doğrudan yüklenemez** ("no such table").
+  Betik bu yüzden `database.restore.sql` adlı sıralanmış bir kopya üretir ve doğrulamayı
+  yabancı anahtar denetimi açıkken bu dosyada yapar. Geri yükleme yalnız boş/yeni bir D1'e:
+  `wrangler d1 execute <HEDEF-DB> --remote --file database.restore.sql`. Üretim veri
+  tabanının üzerine geri yükleme yapılmaz.
+- `npm run drill:restore` hesap gerektirmeyen, tamamen yerel tatbikattır: sentetik veriyle
+  yerel D1 → export → boş yerel D1'e geri yükleme → 36 tablonun satır/içerik özeti
+  karşılaştırması → uygulamanın geri yüklenen veride giriş yapıp pano ve servis masasını
+  okuması. Gerçek D1 yedeğinin geri yüklenmesi ayrıca, Cloudflare erişimiyle, boş bir
+  test D1 veritabanında yapılmalıdır.
 - Mevcut demo R2 kullanmaz. Aşağıdaki R2 adımları ancak dosya depolama daha
   sonra etkinleştirilirse uygulanır; bu betik R2 yedeği aldığını iddia etmez.
 - D1 dışa aktarımı ve R2 nesne kopyası aynı tarih/sürüm etiketiyle saklanır.

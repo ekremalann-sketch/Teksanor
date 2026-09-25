@@ -1,4 +1,4 @@
-import { requireModuleAccess } from "@/lib/access";
+import { requireModuleAccess, errorStatus } from "@/lib/access";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { addAudit, createId, getDb } from "@/lib/db";
@@ -31,7 +31,7 @@ export async function PUT(request: Request, routeContext: { params: Promise<{ id
     await addAudit(user.id, "update", "automation_rule", id, `${existing.name} kuralı güncellendi.`, context.organization.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Otomasyon güncellenemedi." }, { status: 400 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Otomasyon güncellenemedi." }, { status: errorStatus(error) });
   }
 }
 
@@ -42,11 +42,13 @@ export async function DELETE(request: Request, routeContext: { params: Promise<{
   try {
     const context = await requireOrganization(request, user);
     const { id } = await routeContext.params;
-    await getDb().prepare("DELETE FROM automation_rules WHERE id = ? AND organization_id = ?").bind(id, context.organization.id).run();
+    const removed = await getDb().prepare("DELETE FROM automation_rules WHERE id = ? AND organization_id = ?").bind(id, context.organization.id).run();
+    // Başka firmanın veya olmayan bir kaydın silinmesi başarı ve denetim kaydı üretmez.
+    if (!removed.meta?.changes) return NextResponse.json({ error: "Kayıt bulunamadı." }, { status: 404 });
     await addAudit(user.id, "delete", "automation_rule", id, undefined, context.organization.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Otomasyon silinemedi." }, { status: 400 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Otomasyon silinemedi." }, { status: errorStatus(error) });
   }
 }
 
@@ -119,6 +121,6 @@ export async function POST(request: Request, routeContext: { params: Promise<{ i
     const message = `${scanned} kayıt tarandı, ${matched} işlem simüle edildi. ${detail}`;
     return NextResponse.json({ ok: true, scanned, matched, message });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Otomasyon tetiklenemedi." }, { status: 400 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Otomasyon tetiklenemedi." }, { status: errorStatus(error) });
   }
 }

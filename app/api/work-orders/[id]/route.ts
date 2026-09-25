@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { errorStatus } from "@/lib/access";
 import { getCurrentUser } from "@/lib/auth";
 import { addAudit, getDb } from "@/lib/db";
 import { requireOrganization } from "@/lib/tenancy";
@@ -39,7 +40,7 @@ export async function PUT(request: Request, routeContext: { params: Promise<{ id
     await addAudit(user.id, "update", "work_order", id, `${existing.order_number} iş emri güncellendi.`, context.organization.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "İş emri güncellenemedi." }, { status: 400 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "İş emri güncellenemedi." }, { status: errorStatus(error) });
   }
 }
 
@@ -51,10 +52,12 @@ export async function DELETE(request: Request, routeContext: { params: Promise<{
     const context = await requireOrganization(request, user);
     const { id } = await routeContext.params;
     if(await getDb().prepare("SELECT id FROM service_jobs WHERE id=? AND organization_id=?").bind(id,context.organization.id).first())return NextResponse.json({error:"Bu kaydı Servis masası üzerinden yönetin."},{status:409});
-    await getDb().prepare("DELETE FROM work_orders WHERE id = ? AND organization_id = ?").bind(id, context.organization.id).run();
+    const removed = await getDb().prepare("DELETE FROM work_orders WHERE id = ? AND organization_id = ?").bind(id, context.organization.id).run();
+    // Başka firmanın veya olmayan bir kaydın silinmesi başarı ve denetim kaydı üretmez.
+    if (!removed.meta?.changes) return NextResponse.json({ error: "Kayıt bulunamadı." }, { status: 404 });
     await addAudit(user.id, "delete", "work_order", id, undefined, context.organization.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "İş emri silinemedi." }, { status: 400 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "İş emri silinemedi." }, { status: errorStatus(error) });
   }
 }
