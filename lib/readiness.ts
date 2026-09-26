@@ -3,8 +3,8 @@ export type ReadinessPriority = "critical" | "high" | "medium" | "low";
 
 export const readinessSnapshot = {
   version: "2026-09-06-pilot-v3",
-  title: "Teksanor ürün durumu, güvenlik ve pilot hazırlık özeti",
-  summary: "Finans, proje, görev, servis, saha, varlık, bakım, satın alma, CRM, İK, risk ve otomasyon çekirdeği çalışır. Kurumsal canlı satıştan önce gerçek ortam kabulü, D1/R2 geri dönüş tatbikatı, dosya tarama politikası, faturalama ve KVKK seti tamamlanmalıdır.",
+  title: "Ürün durumu ve pilot hazırlığı",
+  summary: "Finans, proje, servis ve saha akışları çalışıyor. Kurumsal kullanımdan önce erişim, geri yükleme ve veri koruma süreçleri gerçek ortamda doğrulanmalı. Dosya yükleme bu demoda kapalıdır.",
   stats: [
     { label: "Çalışan çekirdek", value: "13+ akış", note: "Finans, proje, görev, saha, varlık, bakım, satın alma, CRM, İK, risk, otomasyon ve ajan sohbeti" },
     { label: "Departman gerçekliği", value: "Kayıt düzeyi", note: "Birçok departman artık veri modeli + API + panel ekranı seviyesine çıkarıldı" },

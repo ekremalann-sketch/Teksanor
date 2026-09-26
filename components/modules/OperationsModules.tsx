@@ -487,16 +487,17 @@ export function AgentWorkforceView({ agents, organizationId, notify }: { agents:
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [modelAvailable, setModelAvailable] = useState<boolean | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const persona = agents.find((a) => a.name === activeAgent) ?? null;
 
   useEffect(() => {
-    if (!activeAgent) { setMessages([]); return; }
+    if (!activeAgent) { setMessages([]); setModelAvailable(null); return; }
     let cancelled = false;
     setLoading(true);
     fetch(`/api/agents/chat?agent=${encodeURIComponent(activeAgent)}`, { headers: { "X-Organization-Id": organizationId }, cache: "no-store" })
       .then((r) => r.ok ? r.json() : { messages: [] })
-      .then((d: { messages?: AgentChat[] }) => { if (!cancelled) setMessages(d.messages ?? []); })
+      .then((d: { messages?: AgentChat[]; modelAvailable?: boolean }) => { if (!cancelled) { setMessages(d.messages ?? []); setModelAvailable(d.modelAvailable ?? false); } })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [activeAgent, organizationId]);
@@ -506,32 +507,32 @@ export function AgentWorkforceView({ agents, organizationId, notify }: { agents:
   async function send(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const message = input.trim();
-    if (!message || !activeAgent || sending) return;
+    if (!message || !activeAgent || sending || modelAvailable !== true) return;
     setSending(true); setInput("");
     const temp: AgentChat = { id: `tmp-${Date.now()}`, agent_name: activeAgent, role: "user", content: message, created_at: new Date().toISOString() };
     setMessages((prev) => [...prev, temp]);
     try {
       const r = await api("/api/agents/chat", organizationId, "POST", { agentName: activeAgent, message, organizationId }) as { reply?: string; source?: string };
       setMessages((prev) => [...prev, { id: `a-${Date.now()}`, agent_name: activeAgent, role: "assistant", content: r.reply || "", created_at: new Date().toISOString() }]);
-      if (r.source !== "llm") notify("Güncel kayıt özeti gösterildi; yapay zekâ analizi yapılmadı.");
     } catch (e) { notify(e instanceof Error ? e.message : "Yanıt alınamadı."); setMessages((prev) => prev.filter((m) => m.id !== temp.id)); }
     finally { setSending(false); }
   }
 
   return <section className="agent-workforce">
-    <div className="agent-prototype-banner"><div><Bot size={30} /><span>CANLI ASİSTAN</span></div><h2>Departman verilerinizi bilen asistanlarla sohbet edin.</h2><p>Her asistan, kendi görev ve yetki sınırları içinde şirket verilerinizi özetler. OpenAI bağlantısı etkinse gerçek yanıt, değilse şirket verinize dayalı örnek yanıt üretilir. Asistanlar kayıt silmez ve onayınız olmadan işlem başlatmaz.</p></div>
+    <div className="agent-prototype-banner"><div><Bot size={30} /><span>YAPAY ZEKÂ SOHBETİ</span></div><h2>Yetkili şirket verileriyle sorularınızı yanıtlayın.</h2><p>Bu sohbet yalnızca OpenAI bağlantısı etkinse yanıt üretir. Bağlantı yoksa hazır metin gerçek yanıt gibi gösterilmez. Asistanlar kayıt değiştirmez.</p></div>
     {persona ? <div className="table-card agent-chat-panel">
       <div className="table-heading agent-chat-heading"><div className="agent-chat-identity"><div className="agent-avatar"><Bot size={22} /></div><div><h3>{persona.name}</h3><p>{persona.department}</p></div></div><button className="outline-button" onClick={() => setActiveAgent(null)}><X size={15} /> Kapat</button></div>
+      {modelAvailable === false && <p role="status" className="agent-chat-availability">Yapay zekâ bağlantısı etkin değil. Sohbet şu anda kullanılamıyor; mevcut kayıtlarınızı ilgili modüllerde inceleyebilirsiniz.</p>}
       <div ref={scrollRef} className="agent-chat-messages">
         {loading ? <div className="empty-state"><Loader2 className="spin" size={22} /><p>Geçmiş yükleniyor...</p></div> : <>
-          {!messages.length && <div className="agent-chat-intro"><b>Görevi</b><p>{persona.task}</p><b>Yetki sınırı</b><p>{persona.boundary}</p><small>Sohbet devamlıdır; önceki mesajlarınızı hatırlar, güncel sorunuza göre özet, karşılaştırma veya aksiyon planı hazırlayabilir.</small></div>}
+          {!messages.length && <div className="agent-chat-intro"><b>Görevi</b><p>{persona.task}</p><b>Yetki sınırı</b><p>{persona.boundary}</p><small>Yalnızca erişim izniniz olan kayıtlar bağlam olarak kullanılır. Eksik verilerden sonuç çıkarılmaz.</small></div>}
           {messages.map((m) => <div key={m.id} className={`agent-chat-message ${m.role}`}>{m.content}</div>)}
           {sending && <div className="agent-chat-message assistant waiting"><Loader2 className="spin" size={16} /> Yanıt hazırlanıyor...</div>}
         </>}
       </div>
       <form onSubmit={send} className="agent-chat-form">
-        <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }} placeholder={`${persona.name} ile konuşmaya devam edin...`} rows={2} disabled={sending} />
-        <button className="panel-primary" disabled={sending || !input.trim()} aria-label="Mesajı gönder"><Send size={17} /></button>
+        <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }} placeholder={modelAvailable === false ? "Yapay zekâ bağlantısı etkin değil" : `${persona.name} ile konuşmaya devam edin...`} rows={2} disabled={sending || modelAvailable !== true} />
+        <button className="panel-primary" disabled={sending || modelAvailable !== true || !input.trim()} aria-label="Mesajı gönder"><Send size={17} /></button>
       </form>
     </div> : <div className="agent-card-grid">{agents.map((agent) => <article key={agent.name}>
       <div className="agent-avatar"><Bot size={22} /></div><span>{agent.department}</span><h3>{agent.name}</h3>
