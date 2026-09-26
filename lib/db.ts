@@ -545,6 +545,8 @@ async function initializeSchema() {
     ["mfa_challenges", "attempts", "INTEGER NOT NULL DEFAULT 0"],
     ["user_security", "last_totp_counter", "INTEGER NOT NULL DEFAULT -1"],
     ["user_security", "mfa_setup_expires_at", "TEXT"],
+    // Müşteri imzası (isteğe bağlı, doğrulanmış SVG yolu). Mevcut satırlar NULL kalır.
+    ["service_approvals", "signature_path", "TEXT"],
   ]) {
     const columns = await database.prepare(`PRAGMA table_info(${table})`).all<{ name: string }>();
     if (!columns.results.some(c => c.name === column)) await database.prepare(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`).run();

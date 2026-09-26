@@ -35,6 +35,8 @@ tarama bağlantıları için [pilot teslim belgesini](docs/PILOT-DELIVERY.md) ok
 | Giriş, kayıt, rol ve firma kapsamı | Canlı. Rol × firma sınırları davranış testleriyle doğrulanır (`tests/access-matrix.test.mjs`). |
 | Servis masası: iş emri → teklif → müşteri onayı → saha → servis formu → tahsilat | Canlı; uçtan uca davranış testi var (`tests/workflow-e2e.test.mjs`). Fotoğraf/belge eki R2 gerektirdiği için kapalı. |
 | Finans kayıtları, gider, Excel/CSV içe/dışa aktarma | Canlı. Eksik değer 0 sayılmaz; çift gönderim ve tekrar içe aktarma mükerrer kayıt açmaz. |
+| Müşteri imzası | Onay sayfasında isteğe bağlı parmakla imza; sunucuda doğrulanmış SVG yolu olarak D1'de saklanır (R2 gerekmez). Servis formunda görünür. Nitelikli elektronik imza değildir. |
+| Telefonda ana ekrana ekleme ve çevrimdışı | Web uygulaması olarak eklenebilir. Bağlantı yoksa "Bağlantı yok" sayfası açılır; saha notu "Cihazda taslak sakla" ile tutulur. Kayıtlar ve API yanıtları cihazda önbelleğe **alınmaz**; çevrimdışı kayıt eşitleme yoktur. |
 | Dosya yükleme / indirme | **Kapalı**: R2 bağlı değil; `/api/health` bunu uyarı olarak gösterir. |
 | TCMB kuru ve altın referansı | Canlı (`/api/public/fx`); bilgi amaçlı referanstır, bağlayıcı fiyat değildir. |
 | E-posta ile parola kurtarma, üretken yapay zekâ, harici dosya tarama | Yapılandırmaya bağlıdır; anahtar yoksa özellik açıkça kapalı/etiketli çalışır ve çalışıyormuş gibi gösterilmez. |

@@ -1,3 +1,4 @@
+import { metaFor } from "@/lib/seo";
 import type { AnchorHTMLAttributes } from "react";
 import { ArrowRight, Bot, CheckCircle2, CircleDollarSign, FileCheck2, LockKeyhole, ShieldCheck, Users } from "lucide-react";
 
@@ -22,3 +23,5 @@ export default function AiServicePage() {
     <section className="ai-legal"><div><span>HUKUKİ VE OPERASYONEL ÇERÇEVE</span><h2>Gerçek kullanıma geçmeden önce açık rıza değil, doğru hukuki dayanak ve açık bilgilendirme gerekir.</h2></div><div><article><ShieldCheck /><h3>Veri işleme</h3><p>Hangi verinin, hangi amaçla, ne kadar süre işlendiği müşteriye açıklanır. Özel nitelikli veya gereksiz kişisel veri ajana gönderilmez.</p></article><article><LockKeyhole /><h3>Yetki ve sorumluluk</h3><p>Ajanın yapabileceği işlemler sözleşmede tanımlanır. Finansal, hukuki ve çalışan haklarını etkileyen kararlar yalnızca yetkili insan onayıyla sonuçlanır.</p></article><article><FileCheck2 /><h3>Satış öncesi bilgilendirme</h3><p>Hizmet kapsamı, toplam fiyat, yenileme, iptal, kullanım limiti ve üçüncü taraf altyapı bilgisi ödeme öncesinde gösterilir.</p></article></div><p className="ai-legal-warning">Bu sayfa ürün taslağını açıklar; hukuk danışmanlığı veya nihai sözleşme değildir. Teksanor’un resmî şirket bilgileri tamamlanmadan ücretli satış açılmaz. KVKK aydınlatma metni, hizmet sözleşmesi, veri işleme eki, gizlilik politikası ve ticari koşullar bir hukukçu tarafından şirket bilgileriyle son kez doğrulanmalıdır.</p></section>
     <footer className="article-footer"><img src="/assets/teksanor-logo.png" alt="Teksanor" /><span>Mühendislik aklı. Kontrollü yapay zekâ.</span><span>© 2026 Teksanor</span></footer></main>;
 }
+
+export const metadata = metaFor("/yapay-zeka-hizmeti");

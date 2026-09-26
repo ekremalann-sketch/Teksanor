@@ -21,6 +21,8 @@ Teksanor is a working prototype that brings service requests, approvals, field v
 | Sign-in, sign-up, role and organization scope | Live. Role × organization boundaries are behaviour-tested (`tests/access-matrix.test.mjs`). |
 | Service desk: work order → quote → customer approval → field work → service record → collection | Live; covered by an end-to-end behaviour test (`tests/workflow-e2e.test.mjs`). Photo/document attachments need R2 and are off. |
 | Finance records, expenses, Excel/CSV import and export | Live. Missing values are not treated as zero; double submissions and repeated imports do not create duplicates. |
+| Customer signature | Optional finger-drawn signature on the approval page; validated server-side and stored in D1 as an SVG path (no R2 needed). Shown on the service record. Not a qualified e-signature. |
+| Add to home screen and offline | Installable as a web app. Without a connection an offline page opens; field notes can be kept with "save draft on device". Records and API responses are **never** cached on the device; there is no offline sync. |
 | File upload / download | **Off**: R2 is not bound; `/api/health` reports this as a warning. |
 | Central Bank FX and gold reference | Live (`/api/public/fx`); informational reference, not a binding price. |
 | Email password recovery, generative AI, external file scanning | Depend on configuration; without keys they are clearly disabled or labelled and never shown as working. |

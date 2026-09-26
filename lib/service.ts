@@ -18,6 +18,20 @@ export const serviceSchema=[
 `CREATE INDEX IF NOT EXISTS service_org_stage ON service_jobs(organization_id,stage)`,
 ];
 export async function initializeService(db:Database){for(const sql of serviceSchema)await db.prepare(sql).run();}
+// Yalnız eklemeli geçiş: mevcut canlı veri tabanında imza sütunu yoksa ekler.
+// Genel şema sürümü bilerek yükseltilmedi; o yol tüm kurulum adımlarını (eski tablolardan
+// kopyalama dahil) yeniden çalıştırır. Bu fonksiyon başka hiçbir tabloya dokunmaz.
+let serviceColumns:Promise<void>|null=null;
+export function ensureServiceColumns(db:Database=getDb()){
+ if(!serviceColumns)serviceColumns=(async()=>{
+  const cols=await db.prepare("PRAGMA table_info(service_approvals)").all<{name:string}>();
+  if(cols.results.length&&!cols.results.some(c=>c.name==="signature_path")){
+   try{await db.prepare("ALTER TABLE service_approvals ADD COLUMN signature_path TEXT").run();}
+   catch(e){if(!/duplicate column/i.test(String(e)))throw e;} // eşzamanlı ilk istek
+  }
+ })().catch(e=>{serviceColumns=null;throw e;});
+ return serviceColumns;
+}
 export function cents(value:unknown){const n=Number(value);if(!Number.isFinite(n)||n<0||n>100000000)throw new Error("Tutar 0–100.000.000 TL arasında olmalı.");return Math.round(n*100);}
 export const transitions:Record<string,string[]>={requested:["quoted","cancelled"],quoted:["requested","cancelled"],quote_approved:["in_progress","cancelled"],in_progress:["completed","cancelled"],completed:["in_progress"],accepted:["collected"],collected:[],cancelled:[]};
 export function validateTransition(current:string,next:string){if(current!==next&&!transitions[current]?.includes(next))throw new Error("Bu durum değişikliği için önceki adımları tamamlayın.");}

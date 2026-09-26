@@ -2,10 +2,12 @@ import {NextResponse} from "next/server";
 import {ensureSchema,getDb,addAudit} from "@/lib/db";
 import {tokenDigest} from "@/lib/account-tokens";
 import {rejectCrossSiteMutation} from "@/lib/security";
+import {signaturePath,SignatureError} from "@/lib/signature";
+import {ensureServiceColumns} from "@/lib/service";
 export async function GET(request:Request){return handle(request);}
 export async function POST(request:Request){const rejected=rejectCrossSiteMutation(request);return rejected||handle(request);}
 async function handle(request:Request){
- await ensureSchema();
+ await ensureSchema();await ensureServiceColumns();
  const token=request.headers.get("authorization")?.replace(/^Bearer /,"")||"";
  if(!/^[a-f0-9]{64}$/.test(token))return NextResponse.json({error:"Bağlantı geçersiz."},{status:404});
  const db=getDb();const hash=await tokenDigest(token);
@@ -15,18 +17,20 @@ async function handle(request:Request){
  WHERE token_hash=? AND a.revoked_at IS NULL AND a.expires_at>CURRENT_TIMESTAMP AND o.active=1`).bind(hash).first<Record<string,unknown>>();
  if(!a||(!a.approved_at&&a.job_version!==a.version))return NextResponse.json({error:"Bağlantının süresi dolmuş veya kayıt değişmiş. Yeni bağlantı isteyin."},{status:410});
  if(request.method==="GET")return NextResponse.json({title:a.title,number:a.order_number,company:a.organization_name,customer:a.customer_name,quote:Number(a.quote_cents)/100,outcome:a.purpose==="completion"?a.outcome:"",purpose:a.purpose,approvedAt:a.approved_at},{headers:{"Cache-Control":"no-store","Referrer-Policy":"no-referrer"}});
- const b=await request.json() as {name?:string;consent?:boolean};const name=String(b.name||"").trim().slice(0,160);
+ const b=await request.json() as {name?:string;consent?:boolean;signature?:unknown};const name=String(b.name||"").trim().slice(0,160);
  if(!name||b.consent!==true)return NextResponse.json({error:"Adınızı yazın ve onay kutusunu işaretleyin."},{status:400});
+ let signature:string|null;
+ try{signature=signaturePath(b.signature);}catch(e){if(e instanceof SignatureError)return NextResponse.json({error:e.message},{status:400});throw e;}
  const stage=a.purpose==="quote"?"quote_approved":"accepted";const previous=a.purpose==="quote"?"quoted":"completed";
  if(a.approved_at)return NextResponse.json({ok:true});
  // Conditional updates in a single D1 batch prevent approval of a changed report or replay.
  const results=await db.batch([
- db.prepare(`UPDATE service_approvals SET approved_at=CURRENT_TIMESTAMP,approved_by=? WHERE token_hash=? AND approved_at IS NULL AND revoked_at IS NULL
- AND EXISTS(SELECT 1 FROM service_jobs s WHERE s.id=job_id AND s.version=job_version AND s.stage=?) RETURNING id`).bind(name,hash,previous),
+ db.prepare(`UPDATE service_approvals SET approved_at=CURRENT_TIMESTAMP,approved_by=?,signature_path=? WHERE token_hash=? AND approved_at IS NULL AND revoked_at IS NULL
+ AND EXISTS(SELECT 1 FROM service_jobs s WHERE s.id=job_id AND s.version=job_version AND s.stage=?) RETURNING id`).bind(name,signature,hash,previous),
  db.prepare(`UPDATE service_jobs SET stage=?,version=version+1,updated_at=CURRENT_TIMESTAMP WHERE id=? AND version=? AND stage=?
  AND EXISTS(SELECT 1 FROM service_approvals WHERE token_hash=? AND approved_at IS NOT NULL AND revoked_at IS NULL) RETURNING id`).bind(stage,a.job_id,a.job_version,previous,hash),
  ]);
  const changed=results[1] as {results?:unknown[]};if(!changed?.results?.length)return NextResponse.json({error:"Kayıt değişti. Yeni bağlantı isteyin."},{status:409});
- await addAudit(null,"customer_approval","service_job",String(a.job_id),`${a.purpose} müşteri onayı kaydedildi.`,String(a.organization_id));
+ await addAudit(null,"customer_approval","service_job",String(a.job_id),`${a.purpose} müşteri onayı kaydedildi${signature?" (imzalı)":""}.`,String(a.organization_id));
  return NextResponse.json({ok:true});
 }

@@ -1,11 +1,9 @@
+import { metaFor } from "@/lib/seo";
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, ShieldAlert, ShieldCheck, Workflow, Wrench } from "lucide-react";
 import { criticalBacklog, departmentReality, priorityLabel, readinessSnapshot, roadmapPhases, statusLabel, workingModules } from "@/lib/readiness";
 
-export const metadata = {
-  title: "Teksanor Kurumsal Durum ve Yol Haritası",
-  description: "Teksanor'un çalışan modülleri, kritik eksikleri, pilot öncesi yapılacakları ve kurumsal hazırlık yol haritası.",
-};
+export const metadata = metaFor("/kurumsal-durum");
 
 export default function CorporateReadinessPage() {
   return (
