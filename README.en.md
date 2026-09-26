@@ -13,6 +13,19 @@ Teksanor is a working prototype that brings service requests, approvals, field v
 - Cloudflare Workers and D1 deployment backed by automated tests, security checks, and production health verification.
 - Optional R2 attachment support. File uploads stay unavailable when storage is not configured; the core product demo does not require R2.
 
+## What is live and what is not (25 Sep 2026)
+
+| Capability | Status |
+|---|---|
+| Public product pages | Live; the UI is Turkish only (this README is the English entry point). |
+| Sign-in, sign-up, role and organization scope | Live. Role × organization boundaries are behaviour-tested (`tests/access-matrix.test.mjs`). |
+| Service desk: work order → quote → customer approval → field work → service record → collection | Live; covered by an end-to-end behaviour test (`tests/workflow-e2e.test.mjs`). Photo/document attachments need R2 and are off. |
+| Finance records, expenses, Excel/CSV import and export | Live. Missing values are not treated as zero; double submissions and repeated imports do not create duplicates. |
+| File upload / download | **Off**: R2 is not bound; `/api/health` reports this as a warning. |
+| Central Bank FX and gold reference | Live (`/api/public/fx`); informational reference, not a binding price. |
+| Email password recovery, generative AI, external file scanning | Depend on configuration; without keys they are clearly disabled or labelled and never shown as working. |
+| D1 backup and restore | Backup script and local drill available (`npm run drill:restore`); a real D1 restore drill still needs Cloudflare access. |
+
 ## Responsible use
 
 The public presentation uses demonstration data. Do not enter real customer, employee, or financial records into the demo. This project is a prototype, not an audited commercial ERP or accounting product. Real-company deployment requires access review, backups and restore testing, privacy documentation, and an acceptance pilot.

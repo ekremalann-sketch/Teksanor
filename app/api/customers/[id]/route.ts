@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { errorStatus } from "@/lib/access";
 import { getCurrentUser } from "@/lib/auth";
 import { addAudit, getDb } from "@/lib/db";
 import { requireOrganization } from "@/lib/tenancy";
@@ -50,7 +51,7 @@ export async function PUT(request: Request, routeContext: { params: Promise<{ id
     await addAudit(user.id, "update", "customer", id, `${existing.name} müşterisi güncellendi.`, context.organization.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Müşteri güncellenemedi." }, { status: 400 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Müşteri güncellenemedi." }, { status: errorStatus(error) });
   }
 }
 
@@ -61,10 +62,12 @@ export async function DELETE(request: Request, routeContext: { params: Promise<{
   try {
     const context = await requireOrganization(request, user);
     const { id } = await routeContext.params;
-    await getDb().prepare("DELETE FROM customers WHERE id = ? AND organization_id = ?").bind(id, context.organization.id).run();
+    const removed = await getDb().prepare("DELETE FROM customers WHERE id = ? AND organization_id = ?").bind(id, context.organization.id).run();
+    // Başka firmanın veya olmayan bir kaydın silinmesi başarı ve denetim kaydı üretmez.
+    if (!removed.meta?.changes) return NextResponse.json({ error: "Kayıt bulunamadı." }, { status: 404 });
     await addAudit(user.id, "delete", "customer", id, undefined, context.organization.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Müşteri silinemedi." }, { status: 400 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Müşteri silinemedi." }, { status: errorStatus(error) });
   }
 }

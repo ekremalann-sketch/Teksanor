@@ -3,6 +3,9 @@ import { getCurrentUser } from "@/lib/auth";
 import { addAudit, createId, getDb } from "@/lib/db";
 import { requireOrganization } from "@/lib/tenancy";
 import { rejectCrossSiteMutation } from "@/lib/security";
+import { getMemberAccess, errorStatus } from "@/lib/access";
+
+const SERVICE_MANAGERS = ["owner", "company_admin", "ceo", "manager"];
 
 function text(value: unknown, max = 200) { return String(value ?? "").trim().slice(0, max); }
 const TYPE = ["maintenance", "repair", "installation", "inspection", "other"];
@@ -14,10 +17,16 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ error: "Oturum gerekli." }, { status: 401 });
   try {
     const context = await requireOrganization(request, user);
+    // Servis işine bağlı iş emirleri /api/service/jobs ile aynı kuralı izler:
+    // yönetici olmayan rol yalnız kendisine atanmış servis işini görür.
+    const access = await getMemberAccess(user, context.organization);
+    const manage = SERVICE_MANAGERS.includes(access.profile);
     const result = await getDb().prepare(
-      `SELECT * FROM work_orders WHERE organization_id = ?
-       ORDER BY CASE status WHEN 'in_progress' THEN 1 WHEN 'assigned' THEN 2 WHEN 'open' THEN 3 WHEN 'completed' THEN 4 ELSE 5 END, created_at DESC`)
-      .bind(context.organization.id).all();
+      `SELECT w.* FROM work_orders w
+       LEFT JOIN service_jobs s ON s.id = w.id AND s.organization_id = w.organization_id
+       WHERE w.organization_id = ? AND (? = 1 OR s.id IS NULL OR s.assigned_user_id = ?)
+       ORDER BY CASE w.status WHEN 'in_progress' THEN 1 WHEN 'assigned' THEN 2 WHEN 'open' THEN 3 WHEN 'completed' THEN 4 ELSE 5 END, w.created_at DESC`)
+      .bind(context.organization.id, manage ? 1 : 0, user.id).all();
     return NextResponse.json({ workOrders: result.results });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "İş emirleri alınamadı." }, { status: 403 });
@@ -49,6 +58,6 @@ export async function POST(request: Request) {
     await addAudit(user.id, "create", "work_order", id, `${orderNumber} iş emri oluşturuldu.`, context.organization.id);
     return NextResponse.json({ ok: true, id, orderNumber });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "İş emri oluşturulamadı." }, { status: 400 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "İş emri oluşturulamadı." }, { status: errorStatus(error) });
   }
 }

@@ -1,4 +1,4 @@
-import { requireModuleAccess, type ModuleId } from "./access";
+import { AccessDeniedError, requireModuleAccess, type ModuleId } from "./access";
 import type { AppUser } from "./auth";
 import { createId, ensureSchema, getDb } from "./db";
 
@@ -42,7 +42,7 @@ export async function requireOrganization(request: Request, user: AppUser) {
   const organizations = await listOrganizations(user);
   const requested = requestedOrganizationId(request);
   const organization = requested ? organizations.find((item) => item.id === requested) : organizations[0];
-  if (!organization) throw new Error("Bu çalışma alanına erişim yetkiniz yok.");
+  if (!organization) throw new AccessDeniedError("Bu çalışma alanına erişim yetkiniz yok.");
   // Enforce server-side module permissions on every organization-scoped API.
   const segment = new URL(request.url).pathname.split("/")[2];
   const modules: Record<string, ModuleId> = {
@@ -55,7 +55,7 @@ export async function requireOrganization(request: Request, user: AppUser) {
   if (modules[segment]) await requireModuleAccess(user, organization, modules[segment],
     ["GET", "HEAD"].includes(request.method) ? "view" : "edit");
   if (segment === "notifications" && request.method === "POST" && !canManageOrganization(user, organization)) {
-    throw new Error("Bildirim oluşturmak için firma yöneticisi yetkisi gerekir.");
+    throw new AccessDeniedError("Bildirim oluşturmak için firma yöneticisi yetkisi gerekir.");
   }
   return { organization, organizations };
 }

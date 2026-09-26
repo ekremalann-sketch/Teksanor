@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { errorStatus } from "@/lib/access";
 import { getCurrentUser } from "@/lib/auth";
 import { addAudit, createId, getDb } from "@/lib/db";
 import { rejectCrossSiteMutation } from "@/lib/security";
@@ -43,6 +44,6 @@ export async function POST(request: Request) {
     await addAudit(user.id, "create", "maintenance_plan", id, `${title} bakım planı oluşturuldu.`, organization.id);
     return NextResponse.json({ ok: true, id });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Bakım planı oluşturulamadı." }, { status: 400 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Bakım planı oluşturulamadı." }, { status: errorStatus(error) });
   }
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { errorStatus } from "@/lib/access";
 import { getCurrentUser } from "@/lib/auth";
 import { addAudit, createId, getDb } from "@/lib/db";
 import { requireOrganization } from "@/lib/tenancy";
@@ -48,6 +49,6 @@ export async function POST(request: Request) {
     await addAudit(user.id, "create", "field_visit", id, `${visitNumber} saha ziyareti oluşturuldu.`, context.organization.id);
     return NextResponse.json({ ok: true, id, visitNumber });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Saha ziyareti oluşturulamadı." }, { status: 400 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Saha ziyareti oluşturulamadı." }, { status: errorStatus(error) });
   }
 }

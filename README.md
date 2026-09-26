@@ -9,7 +9,7 @@
 
   ![Cloudflare Pages](https://img.shields.io/badge/Cloudflare-Pages-F38020?logo=cloudflare&logoColor=white)
   ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=111827)
-  ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
+  ![TypeScript](https://img.shields.io/badge/TypeScript-7-3178C6?logo=typescript&logoColor=white)
   ![Durum](https://img.shields.io/badge/durum-aktif%20prototip-16a34a)
 </div>
 
@@ -26,6 +26,19 @@ servis formu → tahsilat takibi birleştirilir. Onay bağlantıları süreli ve
 bağlıdır. QR etiketi ekipmanın yetkili servis geçmişini açar. PDF çıktısı
 servis formunun yazdırma ekranından alınır. E-posta, yapay zekâ ve harici dosya
 tarama bağlantıları için [pilot teslim belgesini](docs/PILOT-DELIVERY.md) okuyun.
+
+## Canlıda ne var, ne yok (25.09.2026)
+
+| Özellik | Durum |
+|---|---|
+| Kurumsal tanıtım sayfaları | Canlı; arayüz yalnız Türkçedir (İngilizce yalnız README). |
+| Giriş, kayıt, rol ve firma kapsamı | Canlı. Rol × firma sınırları davranış testleriyle doğrulanır (`tests/access-matrix.test.mjs`). |
+| Servis masası: iş emri → teklif → müşteri onayı → saha → servis formu → tahsilat | Canlı; uçtan uca davranış testi var (`tests/workflow-e2e.test.mjs`). Fotoğraf/belge eki R2 gerektirdiği için kapalı. |
+| Finans kayıtları, gider, Excel/CSV içe/dışa aktarma | Canlı. Eksik değer 0 sayılmaz; çift gönderim ve tekrar içe aktarma mükerrer kayıt açmaz. |
+| Dosya yükleme / indirme | **Kapalı**: R2 bağlı değil; `/api/health` bunu uyarı olarak gösterir. |
+| TCMB kuru ve altın referansı | Canlı (`/api/public/fx`); bilgi amaçlı referanstır, bağlayıcı fiyat değildir. |
+| E-posta ile parola kurtarma, üretken yapay zekâ, harici dosya tarama | Yapılandırmaya bağlıdır; anahtar yoksa özellik açıkça kapalı/etiketli çalışır ve çalışıyormuş gibi gösterilmez. |
+| D1 yedek ve geri yükleme | Yedek betiği ve yerel tatbikat hazır (`npm run drill:restore`); gerçek D1 geri yükleme tatbikatı Cloudflare erişimiyle ayrıca yapılmalıdır. |
 
 ## Problem ve çözüm
 
@@ -44,7 +57,7 @@ Teksanor bu dağınık akışı tek çalışma alanında toplar. Her firma kendi
 - TCMB günlük kurları ve referans altın fiyatıyla TL karşılığı
 - Excel içe aktarma; R2 etkinleştirilirse belge yükleme ve kontrollü indirme
 - İşlem geçmişi ve denetim kayıtları
-- Cloudflare D1 veri tabanı ve R2 dosya depolama desteği
+- Cloudflare D1 veri tabanı; R2 dosya depolama isteğe bağlı (canlı demoda kapalı)
 - GitHub Actions üzerinden test, derleme ve Cloudflare Pages dağıtımı
 
 ## Teknik mimari

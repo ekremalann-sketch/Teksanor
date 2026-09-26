@@ -15,13 +15,13 @@ export const readinessSnapshot = {
 
 export const workingModules = [
   { name: "Kullanıcı kaydı, giriş ve çıkış", status: "done" as ReadinessStatus, note: "PBKDF2-SHA256 + benzersiz salt, session cookie ve rate limit var." },
-  { name: "Çok firmalı çalışma alanı", status: "partial" as ReadinessStatus, note: "organization_id ile satır bazlı izolasyon var; otomatik test kapsamı genişletildi ama kurumsal seviyede daha fazla test gerekir." },
+  { name: "Çok firmalı çalışma alanı", status: "partial" as ReadinessStatus, note: "organization_id ile satır bazlı izolasyon var; 9 rol × 2 firma × 17 uç için davranış matrisi (okuma, yazma, başka firmanın kaydını güncelleme/silme) otomatik test edilir. Gerçek ortam kabulü ayrıca gerekir." },
   { name: "Finans ve hazine", status: "done" as ReadinessStatus, note: "Ödeme, borç, gider, nakit, manuel kur, dönem özeti ve altın/döviz referansı aktif." },
   { name: "Proje ve görev yönetimi", status: "done" as ReadinessStatus, note: "Proje kartı, görev, durum, öncelik, bütçe ve ilerleme akışı panelde çalışır." },
   { name: "İş emri ve saha ziyareti", status: "partial" as ReadinessStatus, note: "İş emri ve ziyaret kaydı var; fotoğraf kanıtı/versiyon/onay bağları daha da güçlendirilmeli." },
   { name: "Varlık envanteri ve periyodik bakım", status: "done" as ReadinessStatus, note: "Ekipman kodu, konum, sorumlu, durum, bakım sıklığı ve otomatik sonraki bakım tarihi çalışır." },
   { name: "Satın alma, CRM, İK ve risk", status: "partial" as ReadinessStatus, note: "Temel kayıt, listeleme, durum ve silme/güncelleme akışları var; ileri raporlama ve entegrasyonlar sonraki faz." },
-  { name: "Dosya yükleme", status: "partial" as ReadinessStatus, note: "R2 yükleme, boyut, MIME, uzantı ve magic-byte kontrolü var; gerçek AV/karantina servisi ayrı faz." },
+  { name: "Dosya yükleme", status: "partial" as ReadinessStatus, note: "Canlı demoda kapalı: R2 bağlı değil, yükleme kullanılamaz. Kod hazır: boyut, MIME, uzantı ve magic-byte kontrolü; gerçek AV/karantina servisi ayrı faz." },
   { name: "Excel/CSV içe aktarma", status: "done" as ReadinessStatus, note: "xlsx kaldırıldı; ExcelJS + Türkçe para/ondalık parser kullanılır." },
   { name: "Otomasyon ve yapay zekâ ajanları", status: "partial" as ReadinessStatus, note: "Ajan sohbeti ve otomatik özet var; bağlantı yoksa açıkça etiketlenmiş kayıt özeti gösterilir." },
 ] as const;
@@ -30,7 +30,7 @@ export const criticalBacklog = [
   { priority: "critical" as ReadinessPriority, title: "Hesap kurtarmanın canlı doğrulanması", impact: "Kurtarma yolu çalışmazsa yönetici çalışma alanına erişemez.", exit: "Gerçek admin hesabında secret rotasyonu, e-posta kurtarma, eski oturum iptali ve MFA birlikte doğrulanır." },
   { priority: "critical" as ReadinessPriority, title: "Üretim kabul paketi", impact: "Otomatik testler gerçek Cloudflare binding ve cihaz davranışını tek başına kanıtlamaz.", exit: "Tenant, rol, servis, mobil, yükleme, finans ve geri dönüş senaryoları gerçek pilot ortamında imzalanır." },
   { priority: "high" as ReadinessPriority, title: "Dosya karantina ve zararlı içerik taraması", impact: "Magic-byte kontrolü iyi başlangıçtır ama antivirüs değildir.", exit: "Şüpheli dosya R2'ye kalıcı yazılmadan karantinaya alınır veya reddedilir." },
-  { priority: "high" as ReadinessPriority, title: "D1/R2 yedekleme ve geri yükleme tatbikatı", impact: "Yedek almak ile geri dönebilmek aynı şey değildir.", exit: "Aylık geri dönüş denemesi, süre ve sorumlu kişiyle kayıt altına alınır." },
+  { priority: "high" as ReadinessPriority, title: "D1/R2 yedekleme ve geri yükleme tatbikatı", impact: "Yedek almak ile geri dönebilmek aynı şey değildir. 25.09.2026 yerel/sentetik tatbikatında ham D1 export dosyasının boş veri tabanına doğrudan yüklenemediği bulundu; sıralı geri yükleme dosyası eklendi.", exit: "Gerçek D1 yedeği boş bir test D1 veritabanına geri yüklenir; süre, sorumlu ve sonuç kayda geçer (npm run drill:restore yerel provadır)." },
   { priority: "high" as ReadinessPriority, title: "Faturalama ve abonelik yönetimi", impact: "Plan/trial alanı var ama tahsilat, yenileme ve fatura akışı ürünleşmeden gelir takibi elle kalır.", exit: "iyzico/Stripe veya fatura tabanlı kurumsal billing akışı test edilir." },
   { priority: "medium" as ReadinessPriority, title: "KVKK ve sözleşme seti", impact: "Kurumsal müşteri ürün kadar veri işleme ve olay müdahale sürecini de satın alır.", exit: "Aydınlatma metni, veri işleme eki, saklama-imha ve ihlal müdahale planı hazırdır." },
   { priority: "medium" as ReadinessPriority, title: "Mobil/PWA saha kullanımı", impact: "Saha ekipleri masaüstü panelden çok mobil ve düşük sürtünmeli ekran ister.", exit: "İş emri, ziyaret ve fotoğraf kanıtı mobilde hızlı kaydedilir." },

@@ -9,6 +9,16 @@ export const moduleIds = [
 ] as const;
 
 export type ModuleId = typeof moduleIds[number];
+
+/** Firma veya modül yetkisi reddi. Mesaj aynı kalır; rotalar bunu 403 olarak döndürür. */
+export class AccessDeniedError extends Error {
+  readonly status = 403;
+}
+
+/** Yetki reddini 403'e, diğer hataları verilen varsayılana (genellikle 400) çevirir. */
+export function errorStatus(error: unknown, fallback = 400) {
+  return error instanceof AccessDeniedError ? 403 : fallback;
+}
 export type AccessProfile = "owner" | "company_admin" | "ceo" | "manager" | "finance" | "hr" | "it" | "employee";
 type Rule = { view: ModuleId[]; edit: ModuleId[]; label: string };
 const operational: ModuleId[] = ["overview", "departments", "projects", "tasks", "work-orders", "assets", "maintenance", "field-visits", "procurement", "crm", "risks", "automations", "agents", "readiness", "reports", "files", "company"];
@@ -59,6 +69,6 @@ export function canEdit(access: MemberAccess, module: ModuleId) {
 export async function requireModuleAccess(user: AppUser, organization: Organization, module: ModuleId, mode: "view" | "edit" = "view") {
   const access = await getMemberAccess(user, organization);
   const allowed = mode === "edit" ? canEdit(access, module) : canView(access, module);
-  if (!allowed) throw new Error("Bu bölüm için görev yetkiniz bulunmuyor.");
+  if (!allowed) throw new AccessDeniedError("Bu bölüm için görev yetkiniz bulunmuyor.");
   return access;
 }
