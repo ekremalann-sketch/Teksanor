@@ -1077,7 +1077,18 @@ td { height: 64px; font-size: 11px; }
     radial-gradient(circle at top left, rgba(38, 104, 160, .14), transparent 34rem),
     linear-gradient(180deg, #f7fbff 0%, #ffffff 48%, #f6f8fb 100%);
 }
-.readiness-header { width: min(1180px, calc(100% - 32px)); margin-inline: auto; }
+.readiness-header {
+  position: relative;
+  width: 100%;
+  height: auto;
+  min-height: 76px;
+  padding: 10px max(24px, calc((100% - 1180px) / 2));
+  grid-template-columns: auto 1fr;
+  gap: 32px;
+  background: #071d35;
+}
+.readiness-header .desktop-nav { justify-content: flex-end; flex-wrap: wrap; gap: 12px 28px; }
+.readiness-header .desktop-nav a { min-height: 44px; display: inline-flex; align-items: center; }
 .readiness-hero,
 .readiness-section,
 .readiness-final-cta {
@@ -1085,18 +1096,19 @@ td { height: 64px; font-size: 11px; }
   margin: 0 auto;
 }
 .readiness-hero {
-  padding: 74px 0 34px;
+  padding: 48px 0 34px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 330px);
   gap: 30px;
   align-items: stretch;
 }
+.readiness-hero > div { min-width: 0; }
 .readiness-hero h1 {
   margin: 10px 0 18px;
   max-width: 830px;
-  font-size: clamp(38px, 7vw, 78px);
-  line-height: .95;
-  letter-spacing: -.06em;
+  font-size: clamp(36px, 4.7vw, 62px);
+  line-height: 1.08;
+  letter-spacing: -.04em;
   color: #071d35;
 }
 .readiness-hero p {
@@ -1119,7 +1131,9 @@ td { height: 64px; font-size: 11px; }
 }
 .readiness-verdict svg { color: #d7ad55; }
 .readiness-verdict b { font-size: 28px; letter-spacing: -.03em; }
-.readiness-verdict p { color: rgba(255,255,255,.78); font-size: 16px; line-height: 1.55; }
+.readiness-verdict p { color: rgba(255,255,255,.88); font-size: 16px; line-height: 1.55; margin: 0; }
+.readiness-page .secondary-action { color: #123a62; border-color: #b8cde2; background: #fff; }
+.readiness-page .secondary-action:hover { background: #eaf3fc; }
 .readiness-stats {
   width: min(1180px, calc(100% - 32px));
   margin: 8px auto 48px;
@@ -1142,13 +1156,13 @@ td { height: 64px; font-size: 11px; }
 .roadmap-cards span,
 .backlog-list article > div span {
   color: #6c7a89;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 900;
   letter-spacing: .08em;
   text-transform: uppercase;
 }
 .readiness-stats b { display: block; margin: 8px 0 5px; font-size: 28px; color: #09213d; }
-.readiness-stats p { margin: 0; color: #5f6d7c; line-height: 1.5; }
+.readiness-stats p { margin: 0; color: #45586a; font-size: 15px; line-height: 1.55; }
 .readiness-section { padding: 54px 0; }
 .two-column { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 36px; align-items: start; }
 .readiness-section h2 { margin: 8px 0 12px; font-size: clamp(28px, 4vw, 46px); line-height: 1.05; letter-spacing: -.045em; }
@@ -1218,6 +1232,9 @@ td { height: 64px; font-size: 11px; }
 .readiness-final-cta .primary-action { flex: 0 0 auto; background: #fff; color: #071d35; }
 
 @media (max-width: 900px) {
+  .readiness-header { grid-template-columns: 1fr; gap: 4px; padding: 12px 24px; }
+  .readiness-header .desktop-nav { display: flex; justify-content: flex-start; gap: 4px 18px; }
+  .readiness-header .desktop-nav a { font-size: 14px; }
   .readiness-mini-strip,
   .readiness-final-cta { flex-direction: column; align-items: flex-start; }
   .readiness-hero,
@@ -1227,6 +1244,17 @@ td { height: 64px; font-size: 11px; }
   .roadmap-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 640px) {
+  .readiness-header { padding: 10px 16px; }
+  .readiness-header .desktop-nav { gap: 2px 14px; }
+  .readiness-header .desktop-nav a { font-size: 13px; }
+  .readiness-hero { gap: 18px; }
+  .readiness-hero h1 { font-size: clamp(34px, 9vw, 46px); line-height: 1.12; }
+  .readiness-hero p { font-size: 16px; line-height: 1.6; }
+  .readiness-verdict { padding: 22px; border-radius: 20px; }
+  .readiness-stats { gap: 10px; margin-bottom: 22px; }
+  .readiness-stats article { padding: 18px; }
+  .readiness-stats b { font-size: 24px; }
+  .readiness-section { padding: 36px 0; }
   .readiness-stats,
   .department-reality-grid,
   .roadmap-cards,
@@ -1236,6 +1264,7 @@ td { height: 64px; font-size: 11px; }
 }
 
 /* Panel içi ürün durumu */
+.agent-chat-availability { margin: 12px 18px; padding: 12px 16px; border: 1px solid #e8c88f; border-radius: 10px; color: #6d4812; background: #fff8e8; font-size: 15px; line-height: 1.5; }
 .panel-readiness-workspace { display: grid; gap: 18px; }
 .panel-readiness-hero {
   display: flex;

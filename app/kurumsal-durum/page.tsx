@@ -24,7 +24,7 @@ export default function CorporateReadinessPage() {
 
       <section className="readiness-hero">
         <div>
-          <span className="section-kicker">Canlı siteye eklenen gerçek durum sayfası</span>
+          <span className="section-kicker">Ürün durumu</span>
           <h1>{readinessSnapshot.title}</h1>
           <p>{readinessSnapshot.summary}</p>
           <div className="readiness-actions">
@@ -35,7 +35,7 @@ export default function CorporateReadinessPage() {
         <aside className="readiness-verdict">
           <ShieldAlert size={34} />
           <b>Net karar</b>
-          <p>Açık müşteri satışı değil; güvenlik maddeleri kapanmış kontrollü ücretli pilot.</p>
+          <p>Önce kontrollü pilot ve gerçek ortam doğrulaması; ardından geniş kullanım.</p>
         </aside>
       </section>
 

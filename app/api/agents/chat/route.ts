@@ -28,7 +28,9 @@ async function handle(request: Request) {
       WHERE organization_id=? AND user_id=? AND agent_name=? AND access_scope=? ORDER BY created_at DESC, rowid DESC LIMIT 20`)
       .bind(organization.id, user.id, agent, scope).all<{role:string;content:string}>();
     history.results.reverse();
-    if (request.method === "GET") return NextResponse.json({ messages: history.results });
+    const config = env as unknown as { OPENAI_API_KEY?: string; OPENAI_MODEL?: string };
+    if (request.method === "GET") return NextResponse.json({ messages: history.results, modelAvailable: Boolean(config.OPENAI_API_KEY) });
+    if (!config.OPENAI_API_KEY) return NextResponse.json({ error: "Yapay zekâ bağlantısı etkin değil. Bu sohbet gerçek model yanıtı üretemez." }, { status: 503 });
     const message = clean(body.message);
     if (!message) return NextResponse.json({ error: "Mesaj yazın." }, { status: 400 });
     await enforceAuthRateLimit(request, "login", `chat:${user.id}`);
@@ -49,9 +51,7 @@ async function handle(request: Request) {
     }
     // Query failures reach the error response; they are never presented as zero.
     const snapshot = JSON.stringify(facts);
-    const config = env as unknown as { OPENAI_API_KEY?: string; OPENAI_MODEL?: string };
-    let reply = ""; let source = "summary";
-    if (config.OPENAI_API_KEY) {
+    let reply = "";
       try {
         const result = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.OPENAI_API_KEY}` },
@@ -64,17 +64,15 @@ async function handle(request: Request) {
         if (result.ok) {
           const data = await result.json() as { choices?: {message?:{content?:string}}[] };
           reply = data.choices?.[0]?.message?.content?.trim() || "";
-          if (reply) source = "llm";
         }
-      } catch { /* A clearly labelled record summary remains available. */ }
-    }
-    if (!reply) reply = "Kayıtlardan güncel özet:\n" + Object.entries(facts).map(([k,v]) => `${k}: ${v}`).join("\n") + "\n\nBu yanıt kayıt özetidir; sorunuza özel yapay zekâ analizi yapılmadı.";
+      } catch { /* Provider errors are reported, not disguised as chat replies. */ }
+    if (!reply) return NextResponse.json({ error: "Yapay zekâ yanıtı alınamadı. Daha sonra yeniden deneyin." }, { status: 503 });
     await db.batch([
       db.prepare(`INSERT INTO agent_chats (id,organization_id,agent_name,user_id,role,content,context_snapshot,access_scope) VALUES (?,?,?,?,'user',?,?,?)`).bind(createId("chat"),organization.id,agent,user.id,message,snapshot,scope),
       db.prepare(`INSERT INTO agent_chats (id,organization_id,agent_name,user_id,role,content,context_snapshot,access_scope) VALUES (?,?,?,?,'assistant',?,?,?)`).bind(createId("chat"),organization.id,agent,user.id,reply,snapshot,scope),
     ]);
     await addAudit(user.id,"chat","agent",null,"Asistan yanıtı oluşturuldu.",organization.id);
-    return NextResponse.json({ok:true,reply,source,sources,asOf:new Date().toISOString()});
+    return NextResponse.json({ok:true,reply,source:"llm",sources,asOf:new Date().toISOString()});
   } catch (e) {
     const denied = e instanceof Error && /yetki|erişim/.test(e.message);
     return NextResponse.json({error:denied ? "Bu işlem için yetkiniz yok." : "Veri veya asistan yanıtı alınamadı. Yeniden deneyin."},{status:denied?403:503});
