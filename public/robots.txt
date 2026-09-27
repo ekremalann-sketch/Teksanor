@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /panel
+Disallow: /servis
+Disallow: /hesap-guvenligi
+Disallow: /hesap-kurtarma
+
+Sitemap: https://teksanor.pages.dev/sitemap.xml

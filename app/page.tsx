@@ -99,7 +99,6 @@ export default function Home() {
           <div className="hero-actions">
             <Link className="primary-action" href="/platform">Platformu incele <ArrowRight size={18} /></Link>
             <Link className="secondary-action" href="/pilot"><Gauge size={17} /> Pilot çalışma</Link>
-            <Link className="secondary-action" href={authenticated ? "/panel" : "/giris"}><LockKeyhole size={17} /> {authenticated ? "Panele dön" : "Kurumsal giriş"}</Link>
           </div>
           <div className="trust-row">
             <span><CheckCircle2 size={16} /> Ölçülebilir</span>
@@ -109,9 +108,6 @@ export default function Home() {
         </div>
         <div className="hero-visual engineering-hero-visual" aria-label="Teksanor saha operasyonu yönetimi">
           <img src="/assets/teksanor-field-operations.svg" alt="Saha operasyonunu merkezden yöneten mühendislik ekibi" />
-          <div className="hero-brand-stamp"><img src="/assets/teksanor-logo.png" alt="Teksanor" /><span>ENGINEERING INTELLIGENCE</span></div>
-          <div className="metric-float metric-one"><Database size={19} /><span><b>Tek kaynak</b>Dağınık veriler için</span></div>
-          <div className="metric-float metric-two"><Gauge size={19} /><span><b>Anlık görünürlük</b>Kararlar için</span></div>
         </div>
       </section>
 
@@ -127,6 +123,21 @@ export default function Home() {
           <Link href="/guven"><ShieldCheck size={22}/><b>Güven merkezi</b><small>Mevcut ve planlı kontroller</small><ArrowRight size={17}/></Link>
           <Link href="/pilot"><Gauge size={22}/><b>Ücretli pilot</b><small>6–12 haftada ölçülebilir kanıt</small><ArrowRight size={17}/></Link>
         </div>
+      </section>
+
+      <section className="why-section" aria-labelledby="why-title">
+        <div className="why-head">
+          <span className="section-kicker">NEDEN TEKSANOR</span>
+          <h2 id="why-title">Teklif, saha ve tahsilat aynı kayıt zincirinde.</h2>
+          <p>Teknik servis programlarının çoğu iş emri ve saha ekibini yönetir. Teksanor&apos;un odağı, bir işin tekliften tahsilata kadar denetlenebilir biçimde ilerlemesidir: müşterinin onayladığı teklif ve rapor sonradan değiştirilemez.</p>
+        </div>
+        <div className="why-grid">
+          <article><b>Sürümlü müşteri onayı</b><p>Müşteri teklifi ve iş raporunu bağlantıyla onaylar, isterse imzalar. Kayıt değişirse eski bağlantı geçersiz olur.</p></article>
+          <article><b>Çift kayıt koruması</b><p>Aynı saha formu iki kez gönderilemez; art arda aynı talep, ödeme veya gider tek kayıt olarak kalır.</p></article>
+          <article><b>İş başına brüt fark</b><p>Teklif, işçilik, parça ve ulaşım maliyeti yan yana; kalan tahsilat her işte görünür.</p></article>
+          <article><b>Firma ve rol ayrımı</b><p>Her firmanın verisi ayrıdır; çalışan yalnızca kendisine atanan servisi görür. Kurallar otomatik testlerle denetlenir.</p></article>
+        </div>
+        <p className="why-honest"><b>Henüz yok:</b> e-fatura, SMS bildirimi, harita/rota ve mağaza uygulaması. Telefonda tarayıcıdan ana ekrana eklenerek kullanılır. Güncel durum için <Link href="/kurumsal-durum">kurumsal durum</Link> sayfasına bakın.</p>
       </section>
 
       <section className="operations-command-section" aria-label="Teksanor operasyon omurgası">

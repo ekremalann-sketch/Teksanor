@@ -3,9 +3,10 @@ import {getCurrentUser} from "@/lib/auth";
 import {requireOrganization} from "@/lib/tenancy";
 import {getMemberAccess} from "@/lib/access";
 import {getDb,createId,addAudit} from "@/lib/db";
-import {cents,totals,validateTransition,serviceJob} from "@/lib/service";
+import {cents,totals,validateTransition,serviceJob,ensureServiceColumns} from "@/lib/service";
 import {tokenDigest} from "@/lib/account-tokens";
 import {rejectCrossSiteMutation} from "@/lib/security";
+import {isSafeSignaturePath} from "@/lib/signature";
 const txt=(v:unknown,max=1000)=>String(v??"").trim().slice(0,max);
 export async function GET(request:Request){return handle(request);}
 export async function POST(request:Request){const r=rejectCrossSiteMutation(request);return r||handle(request);}
@@ -15,14 +16,16 @@ async function handle(request:Request){
  // Yetki reddi 400 değil 403 döner; istemci hatayı doğru yorumlar.
  try{({organization}=await requireOrganization(request,user));}catch(e){return NextResponse.json({error:e instanceof Error?e.message:"Erişim reddedildi."},{status:403});}
  try{
-  const access=await getMemberAccess(user,organization);const db=getDb();
+  await ensureServiceColumns();const access=await getMemberAccess(user,organization);const db=getDb();
   const manage=["owner","company_admin","ceo","manager"].includes(access.profile);const canWrite=access.editModules.includes("work-orders");
   if(request.method==="GET"){
-   const jobs=await db.prepare(`SELECT w.title,w.description,w.customer_name,w.location,w.scheduled_date,w.order_number,w.assigned_to,s.*,a.asset_code,a.name AS asset_name
+   const lastApproval=(column:string)=>`(SELECT x.${column} FROM service_approvals x WHERE x.job_id=s.id AND x.organization_id=s.organization_id AND x.approved_at IS NOT NULL ORDER BY x.approved_at DESC,x.created_at DESC,x.rowid DESC LIMIT 1)`;
+   const jobs=await db.prepare(`SELECT w.title,w.description,w.customer_name,w.location,w.scheduled_date,w.order_number,w.assigned_to,s.*,a.asset_code,a.name AS asset_name,
+    ${lastApproval("purpose")} AS approval_purpose,${lastApproval("approved_by")} AS approved_by,${lastApproval("approved_at")} AS approved_at,${lastApproval("signature_path")} AS signature_path
     FROM service_jobs s JOIN work_orders w ON w.id=s.id AND w.organization_id=s.organization_id
     LEFT JOIN assets a ON a.id=s.asset_id AND a.organization_id=s.organization_id
     WHERE s.organization_id=? AND (?=1 OR s.assigned_user_id=?) ORDER BY s.updated_at DESC LIMIT 200`).bind(organization.id,manage?1:0,user.id).all<Record<string,unknown>>();
-   for(const j of jobs.results){if(manage)Object.assign(j,totals(j as never));else for(const key of ["labor_cents","parts_cents","travel_cents","paid_cents"])delete j[key];}
+   for(const j of jobs.results){if(!isSafeSignaturePath(j.signature_path))j.signature_path=null;if(manage)Object.assign(j,totals(j as never));else for(const key of ["labor_cents","parts_cents","travel_cents","paid_cents"])delete j[key];}
    const assets=access.viewModules.includes("assets")?await db.prepare("SELECT id,name,asset_code FROM assets WHERE organization_id=? ORDER BY name LIMIT 500").bind(organization.id).all():{results:[]};
    const members=manage?await db.prepare("SELECT u.id,u.full_name FROM users u JOIN organization_members m ON m.user_id=u.id WHERE m.organization_id=? AND m.active=1 AND u.active=1").bind(organization.id).all():{results:[]};
    return NextResponse.json({jobs:jobs.results,assets:assets.results,members:members.results,manage,canWrite,userId:user.id,organization:{id:organization.id,name:organization.name}});
@@ -63,11 +66,33 @@ async function handle(request:Request){
     db.prepare(`INSERT INTO service_approvals(id,organization_id,job_id,token_hash,purpose,job_version,expires_at,created_by) VALUES(?,?,?,?,?,?,datetime('now','+7 days'),?)`).bind(createId("approval"),organization.id,id,await tokenDigest(token),purpose,job.version,user.id),
    ]);return NextResponse.json({ok:true,path:`/servis/onay#token=${token}`},{headers:{"Cache-Control":"no-store"}});
   }
+  if(b.action==="schedule"){
+   // Planlama panosu: yalnız yönetici tarih ve sorumlu atar. Onaylanmış/kapanmış iş yeniden planlanmaz.
+   if(!manage)return NextResponse.json({error:"Planlamayı yönetici yapar."},{status:403});
+   if(["accepted","collected","cancelled"].includes(String(job.stage)))throw new Error("Kapanmış iş yeniden planlanamaz.");
+   const date=b.scheduledDate===null||b.scheduledDate===""?null:txt(b.scheduledDate,10);
+   if(date&&(!/^\d{4}-\d{2}-\d{2}$/.test(date)||Number.isNaN(Date.parse(date+"T00:00:00Z"))||new Date(date+"T00:00:00Z").toISOString().slice(0,10)!==date))throw new Error("Geçerli tarih girin.");
+   const assigned=b.assignedUserId===undefined?String(job.assigned_user_id||user.id):txt(b.assignedUserId,100);
+   if(assigned!==job.assigned_user_id&&!await db.prepare("SELECT user_id FROM organization_members WHERE user_id=? AND organization_id=? AND active=1").bind(assigned,organization.id).first())throw new Error("Çalışan bu firmaya ait değil.");
+   const moved=await db.prepare("UPDATE service_jobs SET assigned_user_id=?,version=version+1,updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=? AND version=? RETURNING version").bind(assigned,id,organization.id,job.version).first();
+   if(!moved)return NextResponse.json({error:"Kayıt değişti. Yenileyin."},{status:409});
+   await db.batch([
+    db.prepare("UPDATE work_orders SET scheduled_date=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=?").bind(date,id,organization.id),
+    // Plan değişince bekleyen müşteri bağlantısı eski sürüme ait olur; geçersiz kılınır.
+    db.prepare("UPDATE service_approvals SET revoked_at=CURRENT_TIMESTAMP WHERE job_id=? AND approved_at IS NULL").bind(id),
+   ]);
+   await addAudit(user.id,"schedule","service_job",id,`Plan: ${date||"tarihsiz"} → ${assigned}`,organization.id);
+   return NextResponse.json({ok:true});
+  }
   if(b.action!=="update")throw new Error("Geçersiz işlem.");
   const stage=txt(b.stage,30)||String(job.stage);validateTransition(String(job.stage),stage);
   if(!manage&&(!["quote_approved","in_progress"].includes(String(job.stage))||!["in_progress","completed"].includes(stage)))throw new Error("Saha kaydı için onaylı veya devam eden iş seçin.");
   const outcome=b.outcome===undefined?String(job.outcome):txt(b.outcome,6000);
   if(stage==="completed"&&!outcome)throw new Error("Yapılan işlemi yazın.");
+  if(stage==="completed"&&job.stage!=="completed"){
+   const open=await db.prepare("SELECT name FROM service_job_checklists WHERE job_id=? AND organization_id=? AND completed_at IS NULL").bind(id,organization.id).all<{name:string}>();
+   if(open.results.length)throw new Error(`Zorunlu kontrol maddeleri tamamlanmadı: ${open.results.map(r=>r.name).join(", ")}.`);
+  }
   const moneyFields=["quote","labor","parts","travel","paid"] as const;
   const values=moneyFields.map(k=>manage&&b[k]!==undefined?cents(b[k]):Number(job[`${k}_cents`]));
   if(b.quote!==undefined&&values[0]!==Number(job.quote_cents)&&!["requested","quoted"].includes(String(job.stage)))throw new Error("Onaylanmış teklif tutarı değiştirilemez.");

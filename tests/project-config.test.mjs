@@ -11,7 +11,9 @@ test("runtime requirements and environment names are documented", async () => {
 
 test("Pages output applies security and API no-store headers in advanced mode", async () => {
   const builder = await readFile(new URL("../scripts/build-pages.mjs", import.meta.url), "utf8");
-  assert.match(builder, /Content-Security-Policy/);
-  assert.match(builder, /private, no-store/);
-  assert.match(builder, /X-Content-Type-Options/);
+  assert.match(builder, /import \{ secure \} from "\.\/scripts\/pages-security\.mjs"/);
+  const security = await readFile(new URL("../scripts/pages-security.mjs", import.meta.url), "utf8");
+  assert.match(security, /Content-Security-Policy/);
+  assert.match(security, /private, no-store/);
+  assert.match(security, /X-Content-Type-Options/);
 });

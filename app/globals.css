@@ -1492,3 +1492,11 @@ html :is(a, button, select, input, textarea, summary, [tabindex]):focus-visible 
 .enterprise-footer a, .back-home, .login-card p a, .account-security-card > a, .account-security-card p a, .service-header a { display: inline-flex; align-items: center; min-height: 44px; }
 .account-security-card input, .topbar-search input { min-height: 44px; }
 .pricing-grid article > a { display: inline-flex; align-items: center; min-height: 44px; }
+
+/* Ana sayfa görseli: illüstrasyon kırpılmadan (16:10) gösterilir; üstüne binen kartlar kaldırıldı. */
+.engineering-hero-visual { height: auto; min-height: 0; }
+.engineering-hero-visual > img { height: auto; aspect-ratio: 16 / 10; object-fit: contain; mask-image: none; }
+@media (max-width: 760px) {
+  .hero-visual.engineering-hero-visual { height: auto; }
+  .hero-visual.engineering-hero-visual > img { height: auto; aspect-ratio: 16 / 10; object-fit: contain; }
+}

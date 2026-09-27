@@ -22,6 +22,10 @@ type Summary = {
   monthly_payment: number; next_installment: number; overdraft_debt: number; overdraft_limit: number;
   minimum_payment: number; expense_total: number; sort_order: number;
 };
+const EMPTY_SUMMARY: Summary = {
+  id: "empty", period: "", total_limit: 0, total_debt: 0, restructuring: 0, monthly_payment: 0, next_installment: 0,
+  overdraft_debt: 0, overdraft_limit: 0, minimum_payment: 0, expense_total: 0, sort_order: 0,
+};
 type Payment = {
   id: string; period: string; owner_name: string; bank_name: string; account_name: string;
   total_limit: number; total_debt: number; restructuring: number; monthly_payment: number;
@@ -272,7 +276,9 @@ export default function Dashboard() {
     };
   }, [active, organizationId]);
 
-  const latest = data?.summaries.at(-1);
+  // Finans özeti görmeyen roller (çalışan, birim yöneticisi, İK, BT) ve henüz dönem özeti
+  // olmayan firmalar boş özetle çalışır; panel yalnız veri hiç gelmediyse hata gösterir.
+  const latest = data?.summaries.at(-1) ?? EMPTY_SUMMARY;
   const previous = data?.summaries.at(-2);
   const debtChange = latest && previous ? ((latest.total_debt - previous.total_debt) / previous.total_debt) * 100 : 0;
   const filteredPayments = useMemo(() => {
@@ -359,7 +365,7 @@ export default function Dashboard() {
       let created = 0;
       const rejected: string[] = [];
       for (const [index, row] of rows.slice(0, 100).entries()) {
-        const payload = paymentImportPayload(row, latest?.period || "Temmuz - Ağustos 2026");
+        const payload = paymentImportPayload(row, latest.period || "Temmuz - Ağustos 2026");
         const response = await fetch("/api/payments", { method: "POST", headers: { "Content-Type": "application/json", "X-Organization-Id": organizationId }, body: JSON.stringify(payload) });
         if (response.ok) created += 1;
         else {
@@ -417,7 +423,7 @@ export default function Dashboard() {
   }
 
   if (loading && !data) return <LoadingScreen />;
-  if (!data || !latest) return <div className="fatal-state"><AlertTriangle /><h1>Panel açılamadı</h1><p>{error || "Lütfen daha sonra tekrar deneyin."}</p><button onClick={() => void load()}>Tekrar dene</button></div>;
+  if (!data) return <div className="fatal-state"><AlertTriangle /><h1>Panel açılamadı</h1><p>{error || "Lütfen daha sonra tekrar deneyin."}</p><button onClick={() => void load()}>Tekrar dene</button></div>;
 
   const canManage = data.user.role === "admin" || ["owner", "admin"].includes(data.organization.membership_role);
   const roleLabel = data.access?.label || "Kullanıcı";
@@ -766,6 +772,7 @@ function TreasuryView({ data, onBalance, onDebt }: { data: TreasuryData; onBalan
 }
 
 function ReportsView({ summaries }: { summaries: Summary[] }) {
+  if (!summaries.length) return <EmptyState icon={Files} title="Henüz dönem özeti yok" text="İlk finans kaydı eklendiğinde yönetim özeti burada oluşur." />;
   const latest = summaries.at(-1)!;
   return <><section className="report-hero"><div><span>Yönetim özeti</span><h2>{latest.period}</h2><p>Bu rapor resmî muhasebe bilançosu değildir; karar vermeyi kolaylaştıran iç yönetim görünümüdür.</p></div><button className="outline-button" onClick={() => window.print()}><Download size={17} /> PDF olarak yazdır</button></section><section className="table-card"><div className="table-heading"><div><h3>Dönem karşılaştırması</h3><p>Temel finansal göstergeler</p></div></div><div className="responsive-table"><table><thead><tr><th>Dönem</th><th>Toplam limit</th><th>Toplam borç</th><th>Yapılandırma</th><th>Aylık ödeme</th><th>KMH borcu</th><th>Asgari ödeme</th></tr></thead><tbody>{summaries.map((item) => <tr key={item.id}><td><b>{item.period}</b></td><td>{formatMoney(item.total_limit)}</td><td>{formatMoney(item.total_debt)}</td><td>{formatMoney(item.restructuring)}</td><td>{formatMoney(item.monthly_payment)}</td><td>{formatMoney(item.overdraft_debt)}</td><td>{formatMoney(item.minimum_payment)}</td></tr>)}</tbody></table></div></section></>;
 }

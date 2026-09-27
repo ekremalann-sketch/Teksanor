@@ -21,7 +21,7 @@ for(const u of USERS)await h.user(...u);
 // Her firma tablosuna o firmaya özgü işaretli bir satır ekle.
 const ownerOf={a:'boss',b:'outsider'};
 function seed(org){
-  const tables=sql.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r=>r.name).filter(t=>!['organization_members','organization_member_access','organization_profiles','organization_reference_rates','service_approvals','service_jobs'].includes(t));
+  const tables=sql.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r=>r.name).filter(t=>!['organization_members','organization_member_access','organization_profiles','organization_reference_rates','service_approvals','service_jobs','service_job_checklists'].includes(t));
   for(const t of ['assets','customers',...tables.filter(x=>!['assets','customers'].includes(x))]){
     const cols=sql.prepare(`PRAGMA table_info(${t})`).all();if(!cols.some(c=>c.name==='organization_id'))continue;
     const values={};
