@@ -23,6 +23,9 @@ Teksanor is a working prototype that brings service requests, approvals, field v
 | Finance records, expenses, Excel/CSV import and export | Live. Missing values are not treated as zero; double submissions and repeated imports do not create duplicates. |
 | Customer signature | Optional finger-drawn signature on the approval page; validated server-side and stored in D1 as an SVG path (no R2 needed). Shown on the service record. Not a qualified e-signature. |
 | Add to home screen and offline | Installable as a web app. Without a connection an offline page opens; field notes can be kept with "save draft on device". Records and API responses are **never** cached on the device; there is no offline sync. |
+| Field checklists | Managers design form templates (starters: AC maintenance, generator load test, H&S); technicians fill them on site. Required items block completion; forms lock after customer approval. |
+| Scheduling board | `/servis/plan`: weekly technician × day board; managers assign date and owner; warns at 3+ jobs per person per day. |
+| E-invoice draft | UBL 2.1 accounting pre-draft (standards compliance not verified) from an approved job. **Not transmitted**; sending via GİB/Peppol requires a separate provider. |
 | File upload / download | **Off**: R2 is not bound; `/api/health` reports this as a warning. |
 | Central Bank FX and gold reference | Live (`/api/public/fx`); informational reference, not a binding price. |
 | Email password recovery, generative AI, external file scanning | Depend on configuration; without keys they are clearly disabled or labelled and never shown as working. |

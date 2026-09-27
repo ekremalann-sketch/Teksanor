@@ -90,3 +90,47 @@
 @media print{body *{visibility:hidden!important}.service-print,.service-print *{visibility:visible!important}.service-print{display:block;position:absolute;inset:0;background:#fff;padding:25mm;color:#111;font-size:12pt}.service-print h1{font-size:20pt}.service-print .signature-view{border:0}@page{size:A4;margin:0}}
 .service-open-link{display:inline-flex;align-items:center;min-height:44px;padding:0 16px;border-radius:9px;background:var(--sv-navy-2);color:#fff!important;text-decoration:none!important;font-weight:650}
 .service-open-link:hover{background:#15304f}
+
+/* Üst bant araçları */
+.service-header-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end}
+/* Saha formları */
+.checklist-panel{margin:18px 0;padding:18px;border:1px solid var(--sv-line);border-radius:12px;background:#f8fafc}
+.checklist-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.checklist-head h3{margin:0;font-size:18px}
+.checklist-attach{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin:12px 0}
+.checklist-attach label{min-width:260px}
+.checklist-form{margin-top:14px;padding:16px;border:1px solid var(--sv-line);border-radius:10px;background:#fff}
+.checklist-form-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.checklist-form ol{margin:0 0 12px;padding-left:22px;display:grid;gap:12px}
+.checklist-form fieldset{border:0;padding:0;margin:0}
+.checklist-form legend{font-weight:650;font-size:14px;margin-bottom:6px}
+.checklist-choices{display:flex;flex-wrap:wrap;gap:6px 16px}
+.service-shell .checklist-check{flex-direction:row;align-items:center;gap:10px;min-height:44px;font-weight:500}
+.service-shell .checklist-check input{width:24px;min-height:24px;height:24px;accent-color:var(--sv-navy-2)}
+.checklist-form abbr{color:#a4260f;text-decoration:none}
+.checklist-muted{color:var(--sv-muted);font-size:14px;margin:6px 0}
+/* Planlama panosu */
+.plan-toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:18px 0}
+.plan-toolbar strong{font-size:18px;margin:0 6px}
+.plan-grid{display:grid;grid-template-columns:180px repeat(7,minmax(150px,1fr));border:1px solid var(--sv-line);border-radius:12px;background:#fff;overflow-x:auto}
+.plan-grid .plan-h,.plan-grid .plan-person,.plan-grid .plan-cell{padding:10px;border-top:1px solid #e8eef4;border-left:1px solid #e8eef4;min-height:90px}
+.plan-grid .plan-h{min-height:0;background:#f4f7fb;font-weight:700;font-size:14px;border-top:0}
+.plan-grid .plan-h.today{background:#fff4dd}
+.plan-grid .plan-person{font-weight:700;font-size:14px;background:#fbfcfe}
+.plan-cell.overload{background:#fff1ee;box-shadow:inset 0 0 0 2px #e08a73}
+.plan-warn{display:block;color:#8a2b12;font-size:12px;font-weight:700;margin-bottom:6px}
+.service-shell .plan-card{display:block;width:100%;text-align:left;margin-bottom:6px;padding:8px 10px;border:1px solid var(--sv-line);border-left:4px solid var(--sv-gold);border-radius:8px;background:#fff;font-size:13px;color:var(--sv-ink)}
+.service-shell .plan-card b{display:block;font-size:13px}
+.service-shell .plan-card small{color:var(--sv-muted)}
+.plan-editor{margin:16px 0;padding:18px;border:2px solid var(--sv-gold);border-radius:12px;background:#fffbf2;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:end}
+.plan-unscheduled{margin-top:18px}
+.plan-unscheduled ul{list-style:none;padding:0;display:flex;flex-wrap:wrap;gap:8px}
+/* Şablon tasarımcısı ve KVKK */
+.builder-item{display:grid;grid-template-columns:2fr 1fr 1.4fr auto auto;gap:10px;align-items:end;padding:12px;border:1px solid var(--sv-line);border-radius:10px;background:#fff;margin-bottom:8px}
+.builder-starters{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 18px}
+.template-list{display:grid;gap:10px;margin-top:14px}
+.template-list article{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:14px;border:1px solid var(--sv-line);border-radius:10px;background:#fff}
+.kvkk-result{margin-top:16px;padding:16px;border-radius:10px;border:1px solid var(--sv-line);background:#fff}
+.kvkk-danger{border-color:#e3a79a;background:#fff5f2}
+@media(max-width:760px){.service-header-actions{justify-content:flex-start}.plan-editor,.builder-item{grid-template-columns:1fr}}
+.service-shell .plan-card:hover{border-color:var(--sv-gold);background:#fffaf0}
