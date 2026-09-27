@@ -1,19 +1,17 @@
 import { NextResponse } from "next/server";
 import { errorStatus } from "@/lib/access";
+import { isRuleCheck } from "@/lib/automation-rules";
 import { getCurrentUser } from "@/lib/auth";
 import { addAudit, createId, getDb } from "@/lib/db";
 import { requireOrganization } from "@/lib/tenancy";
 import { rejectCrossSiteMutation } from "@/lib/security";
 
 function text(value: unknown, max = 300) { return String(value ?? "").trim().slice(0, max); }
-const TRIGGER = ["schedule", "threshold", "status_change", "manual"];
-const ACTION = ["notify", "create_task", "create_report", "flag_record"];
-
 const templates = [
-  { name: "Vade yaklaşan ödemeler", description: "Son ödeme tarihi yaklaşan finans kayıtlarını günlük tarar ve bildirim oluşturur.", trigger_type: "schedule", action_type: "notify" },
-  { name: "Geciken iş emirleri", description: "Planlanan tarihi geçmiş açık iş emirlerini günlük kontrol eder ve takip görevi açar.", trigger_type: "schedule", action_type: "create_task" },
-  { name: "Aylık proje raporu", description: "Her ayın başında aktif projelerin ilerleme özetini rapor olarak hazırlar.", trigger_type: "schedule", action_type: "create_report" },
-  { name: "Yüksek öncelikli görev bildirimi", description: "Kritik veya yüksek öncelikli bir görev oluştuğunda ilgili ekibe bildirim gönderir.", trigger_type: "status_change", action_type: "notify" },
+  { name: "Vade yaklaşan ödemeler", description: "Son ödeme tarihi yaklaşan finans kayıtlarını günlük tarar ve bildirim oluşturur.", trigger_type: "schedule", action_type: "notify", check: "payments_due" },
+  { name: "Geciken iş emirleri", description: "Planlanan tarihi geçmiş açık iş emirlerini günlük kontrol eder ve uygulama içi bildirim oluşturur.", trigger_type: "schedule", action_type: "notify", check: "work_orders_overdue" },
+  { name: "Aylık proje raporu", description: "Aktif projeleri günlük sayar ve özet bildirimi oluşturur.", trigger_type: "schedule", action_type: "notify", check: "projects_active" },
+  { name: "Yüksek öncelikli görev bildirimi", description: "Açık kritik ve yüksek öncelikli görevleri günlük kontrol eder ve uygulama içi bildirim oluşturur.", trigger_type: "schedule", action_type: "notify", check: "tasks_high_priority" },
 ];
 
 async function seedTemplates(organizationId: string, userId: string) {
@@ -22,9 +20,9 @@ async function seedTemplates(organizationId: string, userId: string) {
   if ((count?.c ?? 0) > 0) return;
   for (const template of templates) {
     await db.prepare(`INSERT INTO automation_rules
-      (id, organization_id, name, description, trigger_type, action_type, is_active, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, 1, ?)`)
-      .bind(createId("auto"), organizationId, template.name, template.description, template.trigger_type, template.action_type, userId).run();
+      (id, organization_id, name, description, trigger_type, trigger_config, action_type, is_active, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`)
+      .bind(createId("auto"), organizationId, template.name, template.description, template.trigger_type, JSON.stringify({ check: template.check }), template.action_type, userId).run();
   }
 }
 
@@ -52,13 +50,15 @@ export async function POST(request: Request) {
     const body = await request.json() as Record<string, unknown>;
     const name = text(body.name);
     if (!name) return NextResponse.json({ error: "Kural adı gereklidir." }, { status: 400 });
-    const triggerType = TRIGGER.includes(text(body.triggerType)) ? text(body.triggerType) : "manual";
-    const actionType = ACTION.includes(text(body.actionType)) ? text(body.actionType) : "notify";
+    if (!isRuleCheck(body.check)) return NextResponse.json({ error: "Kuralın neyi kontrol edeceğini seçin." }, { status: 400 });
+    // Şu an yalnız iki gerçek tetik (günlük zamanlayıcı, el ile) ve bir gerçek eylem (uygulama içi bildirim) vardır.
+    const triggerType = text(body.triggerType) === "manual" ? "manual" : "schedule";
+    const actionType = "notify";
     const id = createId("auto");
     await getDb().prepare(`INSERT INTO automation_rules
-      (id, organization_id, name, description, trigger_type, action_type, is_active, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-      .bind(id, context.organization.id, name, text(body.description, 800) || null, triggerType, actionType,
+      (id, organization_id, name, description, trigger_type, trigger_config, action_type, is_active, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(id, context.organization.id, name, text(body.description, 800) || null, triggerType, JSON.stringify({ check: body.check }), actionType,
         body.isActive === false ? 0 : 1, user.id).run();
     await addAudit(user.id, "create", "automation_rule", id, `${name} otomasyon kuralı oluşturuldu.`, context.organization.id);
     return NextResponse.json({ ok: true, id });
