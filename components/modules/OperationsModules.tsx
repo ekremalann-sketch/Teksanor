@@ -15,7 +15,7 @@ export type Customer = { id: string; name: string; company_name?: string | null;
 export type CustomerInteraction = { id: string; customer_id: string; interaction_type: "call" | "email" | "meeting" | "visit" | "proposal" | "other"; summary: string; outcome?: string | null; interaction_date: string; next_action?: string | null; next_action_date?: string | null; created_at: string };
 export type Employee = { id: string; full_name: string; title?: string | null; department: string; email?: string | null; phone?: string | null; start_date?: string | null; status: "active" | "on_leave" | "inactive"; employment_type: "full_time" | "part_time" | "contractor" | "intern"; notes?: string | null; created_at: string };
 export type Risk = { id: string; title: string; description?: string | null; department: string; category: "financial" | "operational" | "legal" | "technical" | "hr" | "other"; likelihood: "low" | "medium" | "high"; impact: "low" | "medium" | "high" | "critical"; status: "identified" | "mitigating" | "resolved" | "accepted"; owner_name?: string | null; mitigation_plan?: string | null; review_date?: string | null; created_at: string };
-export type AutomationRule = { id: string; name: string; description?: string | null; trigger_type: "schedule" | "threshold" | "status_change" | "manual"; action_type: "notify" | "create_task" | "create_report" | "flag_record"; is_active: number; last_run_at?: string | null; run_count: number; created_at: string };
+export type AutomationRule = { id: string; name: string; description?: string | null; trigger_type: "schedule" | "threshold" | "status_change" | "manual"; action_type: "notify" | "create_task" | "create_report" | "flag_record"; is_active: number; trigger_config?: string | null; last_run_at?: string | null; run_count: number; created_at: string };
 export type AgentChat = { id: string; agent_name: string; role: "user" | "assistant"; content: string; created_at: string };
 
 /* -------------------------------------------------------------- helpers ---- */
@@ -60,8 +60,19 @@ const visitTypeLabel: Record<string, string> = { inspection: "Kontrol", installa
 const interactionLabel: Record<string, string> = { call: "Telefon", email: "E-posta", meeting: "Toplantı", visit: "Ziyaret", proposal: "Teklif", other: "Diğer" };
 const riskCategoryLabel: Record<string, string> = { financial: "Finansal", operational: "Operasyonel", legal: "Hukuki", technical: "Teknik", hr: "İnsan kaynakları", other: "Diğer" };
 const empTypeLabel: Record<string, string> = { full_time: "Tam zamanlı", part_time: "Yarı zamanlı", contractor: "Sözleşmeli", intern: "Stajyer" };
-const triggerLabel: Record<string, string> = { schedule: "Zamanlanmış", threshold: "Eşik değeri", status_change: "Durum değişimi", manual: "El ile" };
-const actionLabel: Record<string, string> = { notify: "Bildirim gönder", create_task: "Görev oluştur", create_report: "Rapor hazırla", flag_record: "Kaydı işaretle" };
+const triggerLabel: Record<string, string> = { schedule: "Her gün 08:15", threshold: "Eşik (her gün 08:15)", status_change: "Durum (her gün 08:15)", manual: "Yalnız el ile" };
+// Sunucudaki lib/automation-rules.ts RULE_CHECKS ile aynı anahtarlar; SQL sunucuda kalır.
+const checkLabel: Record<string, string> = {
+  payments_due: "Vadesi geçen veya 7 gün içinde dolan ödemeler",
+  work_orders_overdue: "Planlanan tarihi geçmiş açık iş emirleri",
+  projects_active: "Aktif projeler (ilerleme özeti)",
+  tasks_high_priority: "Açık yüksek/kritik öncelikli görevler",
+};
+function ruleCheck(rule: { name: string; trigger_config?: string | null }) {
+  try { const c = (JSON.parse(rule.trigger_config || "{}") as { check?: string }).check; if (c && Object.hasOwn(checkLabel, c)) return c; } catch { /* eski kayıt */ }
+  return "";
+}
+type AutomationRun = { id: string; source: "manual" | "schedule"; status: "matched" | "clear" | "skipped"; scanned: number; matched: number; detail: string | null; created_at: string; run_by_name: string | null };
 
 /* --------------------------------------------------------- generic modal --- */
 function ModuleModal({ eyebrow, title, onClose, onSubmit, saving, children, submitLabel = "Kaydet" }: { eyebrow: string; title: string; onClose: () => void; onSubmit: (event: FormEvent<HTMLFormElement>) => void; saving: boolean; children: React.ReactNode; submitLabel?: string }) {
@@ -442,38 +453,55 @@ export function AutomationsView({ items, organizationId, onReload, notify }: Vie
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState<string | null>(null);
+  const [history, setHistory] = useState<{ ruleId: string; runs: AutomationRun[] } | null>(null);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setSaving(true);
     const payload = Object.fromEntries(new FormData(event.currentTarget).entries());
     try { await api("/api/automations", organizationId, "POST", payload); setOpen(false); notify("Otomasyon kuralı oluşturuldu."); await onReload(); }
     catch (e) { notify(e instanceof Error ? e.message : "Oluşturulamadı."); } finally { setSaving(false); }
   }
-  async function toggle(rule: AutomationRule) { try { await api("/api/automations", organizationId, "PATCH", { id: rule.id, isActive: !rule.is_active }); notify(rule.is_active ? "Kural duraklatıldı." : "Kural etkinleştirildi."); await onReload(); } catch (e) { notify(e instanceof Error ? e.message : "Güncellenemedi."); } }
+  async function toggle(rule: AutomationRule) { try { await api("/api/automations", organizationId, "PATCH", { id: rule.id, isActive: !rule.is_active }); notify(rule.is_active ? "Kural duraklatıldı; zamanlayıcı bu kuralı atlayacak." : "Kural etkinleştirildi."); await onReload(); } catch (e) { notify(e instanceof Error ? e.message : "Güncellenemedi."); } }
+  async function loadHistory(ruleId: string) {
+    if (history?.ruleId === ruleId) { setHistory(null); return; }
+    try { const r = await fetch(`/api/automations/${ruleId}`, { headers: { "X-Organization-Id": organizationId }, cache: "no-store" }); const d = await r.json() as { runs?: AutomationRun[]; error?: string }; if (!r.ok) throw new Error(d.error || "Geçmiş alınamadı."); setHistory({ ruleId, runs: d.runs ?? [] }); }
+    catch (e) { notify(e instanceof Error ? e.message : "Geçmiş alınamadı."); }
+  }
   async function trigger(rule: AutomationRule) {
     setRunning(rule.id);
-    try { const r = await api(`/api/automations/${rule.id}`, organizationId, "POST") as { scanned?: number; matched?: number; message?: string }; notify(r.message || `Tarama tamamlandı: ${r.scanned ?? 0} kayıt incelendi, ${r.matched ?? 0} eşleşme.`); await onReload(); }
+    try { const r = await api(`/api/automations/${rule.id}`, organizationId, "POST") as { message?: string }; notify(r.message || "Kural çalıştı."); await onReload(); if (history?.ruleId === rule.id) { setHistory(null); await loadHistory(rule.id); } }
     catch (e) { notify(e instanceof Error ? e.message : "Çalıştırılamadı."); } finally { setRunning(null); }
   }
-  async function remove(id: string) { if (!window.confirm("Bu kuralı silmek istediğinizden emin misiniz?")) return; try { await api(`/api/automations/${id}`, organizationId, "DELETE"); notify("Kural silindi."); await onReload(); } catch (e) { notify(e instanceof Error ? e.message : "Silinemedi."); } }
+  async function remove(id: string) { if (!window.confirm("Bu kuralı silmek istediğinizden emin misiniz? Çalışma geçmişi kayıtlarda kalır.")) return; try { await api(`/api/automations/${id}`, organizationId, "DELETE"); notify("Kural silindi."); await onReload(); } catch (e) { notify(e instanceof Error ? e.message : "Silinemedi."); } }
   const activeCount = items.filter((r) => r.is_active).length;
+  const runStatus: Record<AutomationRun["status"], [string, string, string]> = { matched: ["#fff2e0", "#9a4d05", "Eşleşme var"], clear: ["#e4f5ec", "#146c43", "Temiz"], skipped: ["#eef2f7", "#475467", "Atlandı"] };
   return <>
-    <PanelHead eyebrow="OTOMASYON MERKEZİ" title="Tekrarlanan kontrolleri kurallarla otomatikleştirin." text="Kurallar; eşik, zamanlama veya durum değişimini izler ve el ile de tetiklenebilir." count={`${items.length} kural · ${activeCount} etkin`} action={<button className="panel-primary" onClick={() => setOpen(true)}><Plus size={17} /> Yeni kural</button>} />
+    <PanelHead eyebrow="OTOMASYON MERKEZİ" title="Tekrarlanan kontrolleri kurallarla otomatikleştirin." text="Zamanlayıcı anahtarı iki ortamda da yapılandırılmışsa etkin kurallar her gün 08:15'te (TSİ) çalışır. Yeni kurallar başlangıçta duraklatılır; önce elle deneyip sonra etkinleştirin. E-posta/SMS gönderilmez." count={`${items.length} kural · ${activeCount} etkin`} action={<button className="panel-primary" onClick={() => setOpen(true)}><Plus size={17} /> Yeni kural</button>} />
     {items.length ? <section className="project-card-grid">{items.map((rule) => <article key={rule.id} style={{ opacity: rule.is_active ? 1 : 0.72 }}>
-      <div className="project-card-top"><span>{triggerLabel[rule.trigger_type]}</span><span style={badge(rule.is_active ? "#e4f5ec" : "#eef2f7", rule.is_active ? "#1a8c53" : "#5b6b7f")}>{rule.is_active ? "Etkin" : "Duraklatıldı"}</span></div>
+      <div className="project-card-top"><span>{triggerLabel[rule.trigger_type] || "Eski tetik"}</span><span style={badge(rule.is_active && ruleCheck(rule) ? "#e4f5ec" : "#eef2f7", rule.is_active && ruleCheck(rule) ? "#146c43" : "#475467")}>{!ruleCheck(rule) ? "Kontrol doğrulanacak" : rule.is_active ? "Etkin" : "Duraklatıldı"}</span></div>
       <h3>{rule.name}</h3><p>{rule.description || "Açıklama eklenmedi."}</p>
-      <dl><div><dt>Eylem</dt><dd>{actionLabel[rule.action_type]}</dd></div><div><dt>Çalışma sayısı</dt><dd>{rule.run_count}</dd></div><div><dt>Son çalışma</dt><dd>{rule.last_run_at ? new Date(rule.last_run_at).toLocaleString("tr-TR") : "—"}</dd></div></dl>
+      <dl><div><dt>Kontrol</dt><dd>{checkLabel[ruleCheck(rule)] || "Eski kural: yeni kural oluşturun"}</dd></div><div><dt>Eylem</dt><dd>{rule.action_type === "notify" ? "Uygulama içi bildirim" : "Eski eylem: çalıştırılmaz"}</dd></div><div><dt>Çalışma sayısı</dt><dd>{rule.run_count}</dd></div><div><dt>Son çalışma</dt><dd>{rule.last_run_at ? new Date(`${rule.last_run_at.replace(" ", "T")}Z`).toLocaleString("tr-TR") : "—"}</dd></div></dl>
       <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "center", flexWrap: "wrap" }}>
-        <button className="panel-primary" style={{ padding: "7px 12px" }} disabled={running === rule.id} onClick={() => void trigger(rule)}>{running === rule.id ? <Loader2 className="spin" size={15} /> : <Zap size={15} />} Şimdi çalıştır</button>
-        <button className="outline-button" style={{ padding: "7px 12px" }} onClick={() => void toggle(rule)}>{rule.is_active ? "Duraklat" : "Etkinleştir"}</button>
-        <button className="outline-button" style={{ padding: "7px 10px", marginLeft: "auto" }} onClick={() => void remove(rule.id)}><Trash2 size={15} /></button>
+        <button className="panel-primary" style={{ padding: "7px 12px", minHeight: 44 }} disabled={running === rule.id || !ruleCheck(rule) || rule.action_type !== "notify"} onClick={() => void trigger(rule)}>{running === rule.id ? <Loader2 className="spin" size={15} /> : <Zap size={15} />} Şimdi çalıştır</button>
+        <button className="outline-button" style={{ padding: "7px 12px", minHeight: 44 }} disabled={!ruleCheck(rule) || rule.action_type !== "notify"} onClick={() => void toggle(rule)}>{rule.is_active ? "Duraklat" : "Etkinleştir"}</button>
+        <button className="outline-button" style={{ padding: "7px 12px", minHeight: 44 }} aria-expanded={history?.ruleId === rule.id} onClick={() => void loadHistory(rule.id)}>Geçmiş</button>
+        <button className="outline-button" style={{ padding: "7px 10px", minHeight: 44, marginLeft: "auto" }} aria-label={`${rule.name} kuralını sil`} onClick={() => void remove(rule.id)}><Trash2 size={15} /></button>
       </div>
+      {history?.ruleId === rule.id && <ol style={{ listStyle: "none", padding: 0, margin: "12px 0 0", display: "grid", gap: 8 }} aria-label={`${rule.name} çalışma geçmişi`}>
+        {history.runs.map((run) => <li key={run.id} style={{ borderTop: "1px solid #e4e7ec", paddingTop: 8, fontSize: 13 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}><span style={badge(runStatus[run.status][0], runStatus[run.status][1])}>{runStatus[run.status][2]}</span><b>{new Date(`${run.created_at.replace(" ", "T")}Z`).toLocaleString("tr-TR")}</b><span>{run.source === "schedule" ? "Zamanlayıcı" : run.run_by_name || "El ile"}</span><span>{run.matched}/{run.scanned}</span></div>
+          <p style={{ margin: "4px 0 0", color: "#475467", overflowWrap: "anywhere" }}>{run.detail || "—"}</p>
+        </li>)}
+        {!history.runs.length && <li style={{ fontSize: 13, color: "#475467" }}>Bu kural henüz çalışmadı.</li>}
+      </ol>}
     </article>)}</section> : <section className="table-card"><ModuleEmpty icon={Zap} title="Otomasyon kuralı yok" text="Yeni kural düğmesiyle ilk otomasyonu oluşturun." onAdd={() => setOpen(true)} addLabel="Yeni kural" /></section>}
     {open && <ModuleModal eyebrow="OTOMASYON KURALI" title="Yeni otomasyon kuralı" onClose={() => setOpen(false)} onSubmit={submit} saving={saving}>
       <div className="form-grid">
         <label className="full"><span>Kural adı</span><input name="name" required placeholder="Örn. Vadesi yaklaşan ödemeleri bildir" /></label>
-        <label><span>Tetikleyici</span><select name="triggerType" defaultValue="threshold"><option value="schedule">Zamanlanmış</option><option value="threshold">Eşik değeri</option><option value="status_change">Durum değişimi</option><option value="manual">El ile</option></select></label>
-        <label><span>Eylem</span><select name="actionType" defaultValue="notify"><option value="notify">Bildirim gönder</option><option value="create_task">Görev oluştur</option><option value="create_report">Rapor hazırla</option><option value="flag_record">Kaydı işaretle</option></select></label>
+        <label className="full"><span>Neyi kontrol etsin?</span><select name="check" required defaultValue="work_orders_overdue">{Object.entries(checkLabel).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
+        <label><span>Ne zaman?</span><select name="triggerType" defaultValue="schedule"><option value="schedule">Her gün 08:15 (TSİ)</option><option value="manual">Yalnız el ile</option></select></label>
+        <label><span>Eylem</span><input value="Uygulama içi bildirim" readOnly aria-readonly="true" /></label>
         <label className="full"><span>Açıklama</span><textarea name="description" rows={3} placeholder="Kuralın ne yaptığını açıklayın" /></label>
+        <p className="full" style={{ margin: 0, fontSize: 13, color: "#475467" }}>Görev açma, rapor üretme ve e-posta/SMS henüz yoktur; bu yüzden seçenek olarak sunulmaz.</p>
       </div>
     </ModuleModal>}
   </>;
