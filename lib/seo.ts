@@ -54,7 +54,7 @@ export function structuredData() {
     "@context": "https://schema.org",
     "@graph": [
       { "@type": "Organization", "@id": `${SITE_URL}/#org`, name: SITE_NAME, url: SITE_URL, logo: `${SITE_URL}/assets/teksanor-logo.png`, sameAs: ["https://github.com/ekremalann-sketch/Teksanor"] },
-      { "@type": "SoftwareApplication", name: "Teksanor Kurumsal Operasyon Platformu", applicationCategory: "BusinessApplication", operatingSystem: "Web", url: SITE_URL, inLanguage: "tr", publisher: { "@id": `${SITE_URL}/#org` }, description: PUBLIC_PAGES[0].description },
+      { "@type": "SoftwareApplication", name: "Teksanor Kurumsal Operasyon Platformu", applicationCategory: "BusinessApplication", operatingSystem: "Web", url: SITE_URL, inLanguage: ["tr", "en"], publisher: { "@id": `${SITE_URL}/#org` }, description: PUBLIC_PAGES[0].description },
     ],
   };
 }

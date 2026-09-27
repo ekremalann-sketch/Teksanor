@@ -77,6 +77,7 @@ export default function Home() {
           <Link href="/entegrasyonlar">Entegrasyonlar</Link>
           <Link href="/guven">Güven</Link>
           <Link href="/hakkimizda">Hakkımızda</Link>
+          <Link href="/en" hrefLang="en">English</Link>
         </nav>
         <Link className="login-link" href={authenticated ? "/panel" : "/giris"}>
           <span className="login-link-icon"><UserRound size={17} /></span>
