@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   AlertOctagon, AlertTriangle, ArrowDownRight, ArrowLeft, ArrowRight, ArrowUpRight, Banknote, BarChart3, Bell, Bot, BriefcaseBusiness, Building2, Check,
   CheckSquare, CircleDollarSign, Coins, CreditCard, Database, Download, FileSpreadsheet, Files,
@@ -14,6 +14,7 @@ import {
 } from "./modules/OperationsModules";
 import { AssetsView, MaintenanceView, type Asset, type MaintenancePlan } from "./modules/AssetMaintenanceModules";
 import { paymentImportPayload } from "@/lib/finance";
+import { TodayCard } from "./home/TodayCard";
 import { criticalBacklog, departmentReality, priorityLabel, readinessSnapshot, roadmapPhases, statusLabel as readinessStatusLabel, workingModules } from "@/lib/readiness";
 
 type User = { id: string; username: string; fullName: string; role: "admin" | "user" };
@@ -82,6 +83,15 @@ const navItems = [
   { id: "company", label: "Firma bilgileri", icon: Building2 },
   { id: "users", label: "Kullanıcılar", icon: Users, admin: true },
 ] as const;
+
+// Menü grupları: önce günlük iş, sonra yönetim, finans ve şirket ayarları.
+const NAV_GROUPS: { label: string; ids: string[] }[] = [
+  { label: "GÜNLÜK İŞ", ids: ["overview", "tasks", "work-orders", "field-visits", "maintenance", "assets"] },
+  { label: "YÖNETİM", ids: ["departments", "projects", "procurement", "crm", "hr", "risks"] },
+  { label: "FİNANS", ids: ["financial", "payments", "expenses", "treasury", "reports"] },
+  { label: "ARAÇLAR", ids: ["automations", "agents", "readiness"] },
+  { label: "ŞİRKET", ids: ["files", "company", "users"] },
+];
 
 const money = new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 });
 const number = new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 0 });
@@ -445,10 +455,24 @@ export default function Dashboard() {
           <small>{data.organization.kind === "business" ? "Firma hesabı" : "Bireysel hesap"} · {data.organization.subscription_status === "trialing" ? "Deneme planı" : data.organization.plan}</small>
         </div>
         <nav className="sidebar-nav">
-          <span className="nav-heading">YÖNETİM</span>
-          {visibleNavigation.map(({ id, label, icon: Icon }) => (
-            <button key={id} className={active === id ? "active" : ""} onClick={() => { navigate(id); setMobileNav(false); }}><Icon size={18} /><span>{label}</span>{id === "payments" && data.attentionCount > 0 && <em>{data.attentionCount}</em>}</button>
-          ))}
+          {data.access?.viewModules?.includes("work-orders") && <>
+            <span className="nav-heading">SAHA SERVİSİ</span>
+            <a className="nav-link" href="/servis"><Wrench size={18} /><span>Servis masası</span></a>
+            {["owner", "company_admin", "ceo", "manager"].includes(data.access?.profile || "") && <>
+              <a className="nav-link" href="/servis/plan"><CalendarCheck2 size={18} /><span>Planlama panosu</span></a>
+              <a className="nav-link" href="/servis/sablonlar"><CheckSquare size={18} /><span>Form şablonları</span></a>
+            </>}
+          </>}
+          {NAV_GROUPS.map((group) => {
+            const items = visibleNavigation.filter((item) => group.ids.includes(item.id));
+            if (!items.length) return null;
+            return <Fragment key={group.label}>
+              <span className="nav-heading">{group.label}</span>
+              {items.map(({ id, label, icon: Icon }) => (
+                <button key={id} className={active === id ? "active" : ""} onClick={() => { navigate(id); setMobileNav(false); }}><Icon size={18} /><span>{label}</span>{id === "payments" && data.attentionCount > 0 && <em>{data.attentionCount}</em>}</button>
+              ))}
+            </Fragment>;
+          })}
         </nav>
         <div className="sidebar-security"><ShieldCheck size={19} /><span><b>Güvenli çalışma alanı</b>Finansal veriler şifreli oturumla korunur.</span></div>
         <div className="sidebar-user"><div>{data.user.fullName.split(" ").map((item) => item[0]).join("").slice(0, 2)}</div><span><b>{data.user.fullName}</b><small>{data.user.username} · {roleLabel}</small></span><button type="button" onClick={logout} title="Çıkış yap" aria-label="Çıkış yap"><LogOut size={17} /></button></div>
@@ -492,7 +516,7 @@ export default function Dashboard() {
           <PageHeader active={active} period={latest.period} organization={data.organization} onBack={goBack} onNew={() => { setEditingPayment(null); setModal(active === "projects" ? "project" : active === "expenses" ? "expense" : "payment"); }} onImport={() => importRef.current?.click()} canAdd={["financial", "payments", "expenses", "projects"].includes(active)} />
           <input ref={importRef} hidden type="file" accept=".xlsx,.csv" onChange={(event) => event.target.files?.[0] && void importExcel(event.target.files[0])} />
 
-          {active === "overview" && <CompanyHome data={data} projects={projects} tasks={tasks} workOrders={workOrders} fieldVisits={fieldVisits} procurement={procurement} risks={risks} onNavigate={navigate} />}
+          {active === "overview" && <CompanyHome data={data} organizationId={organizationId} canManage={canManage} projects={projects} tasks={tasks} workOrders={workOrders} fieldVisits={fieldVisits} procurement={procurement} risks={risks} onNavigate={navigate} />}
           {active === "departments" && <DepartmentsView onNavigate={navigate} />}
           {active === "projects" && <ProjectsView projects={projects} onAdd={() => setModal("project")} />}
           {active === "tasks" && <TasksView items={tasks} organizationId={organizationId} onReload={() => load(organizationId)} notify={notify} search={search} />}
@@ -574,7 +598,7 @@ function PanelReadinessView() {
   </section>;
 }
 
-function CompanyHome({ data, projects, tasks, workOrders, fieldVisits, procurement, risks, onNavigate }: { data: DashboardData; projects: Project[]; tasks: Task[]; workOrders: WorkOrder[]; fieldVisits: FieldVisit[]; procurement: ProcurementRequest[]; risks: Risk[]; onNavigate: (page: string) => void }) {
+function CompanyHome({ data, organizationId, canManage, projects, tasks, workOrders, fieldVisits, procurement, risks, onNavigate }: { data: DashboardData; organizationId: string; canManage: boolean; projects: Project[]; tasks: Task[]; workOrders: WorkOrder[]; fieldVisits: FieldVisit[]; procurement: ProcurementRequest[]; risks: Risk[]; onNavigate: (page: string) => void }) {
   const activeProjects = projects.filter((item) => item.status === "active").length;
   const today = new Date().toISOString().slice(0, 10);
   const overdueTasks = tasks.filter((item) => item.due_date && item.due_date < today && !["done", "cancelled"].includes(item.status)).length;
@@ -587,8 +611,10 @@ function CompanyHome({ data, projects, tasks, workOrders, fieldVisits, procureme
     data.attentionCount ? { label: `${data.attentionCount} finans kaydı`, text: "Ödeme durumu takip bekliyor.", page: "payments", level: "warning" } : null,
     pendingPurchases ? { label: `${pendingPurchases} satın alma talebi`, text: "Yönetici kararı bekliyor.", page: "procurement", level: "warning" } : null,
     openWorkOrders ? { label: `${openWorkOrders} açık iş emri`, text: "Operasyon akışını kontrol edin.", page: "work-orders", level: "info" } : null,
-  ].filter(Boolean) as { label: string; text: string; page: string; level: string }[];
+  ].filter((item) => item && (data.access?.viewModules?.includes(item.page) ?? true)) as { label: string; text: string; page: string; level: string }[];
+  const can = (module: string) => data.access?.viewModules?.includes(module) ?? true;
   return <>
+    <TodayCard key={organizationId} organizationId={organizationId} profile={data.profile} canManage={canManage} onNavigate={onNavigate} />
     <section className="company-command-hero"><div><span>KURUMSAL ÇALIŞMA ALANI</span><h2>{data.profile?.legal_name || data.organization.name}</h2><p>{data.profile?.about || "Firmanızın temel bilgilerini, projelerini ve günlük çalışmalarını burada bir arada tutun."}</p><button type="button" onClick={() => onNavigate("company")}>Firma bilgilerini aç <ArrowRight size={16} /></button></div><div className="command-hero-mark"><Building2 size={42} /><span>Faaliyet alanı</span><b>{data.profile?.sector || "Henüz eklenmedi"}</b></div></section>
     <OverviewModuleWidgets tasks={tasks} workOrders={workOrders} fieldVisits={fieldVisits} procurement={procurement} risks={risks} onNavigate={onNavigate} />
     <section className="proactive-action-center">
@@ -596,11 +622,11 @@ function CompanyHome({ data, projects, tasks, workOrders, fieldVisits, procureme
       {actions.length ? <div className="proactive-action-grid">{actions.slice(0, 5).map((action) => <button type="button" key={`${action.page}-${action.label}`} onClick={() => onNavigate(action.page)} className={action.level}><i /><span><b>{action.label}</b><small>{action.text}</small></span><ArrowRight size={17} /></button>)}</div> : <div className="proactive-action-empty"><Check size={18} /><span><b>Öncelikli aksiyon görünmüyor</b><small>Yeni gecikme veya kritik kayıt oluşursa burada gösterilir.</small></span></div>}
     </section>
     <section className="company-command-grid">
-      <button onClick={() => onNavigate("departments")}><Building2 size={22} /><span><b>Departmanlar</b><small>Şirket birimleri ve görev alanları</small></span><ArrowRight size={17} /></button>
-      <button onClick={() => onNavigate("projects")}><BriefcaseBusiness size={22} /><span><b>Proje portföyü</b><small>{projects.length} proje · {activeProjects} aktif çalışma</small></span><ArrowRight size={17} /></button>
-      <button onClick={() => onNavigate("financial")}><Landmark size={22} /><span><b>Finansal durum</b><small>Borç, ödeme ve nakit özeti</small></span><ArrowRight size={17} /></button>
-      <button onClick={() => onNavigate("files")}><Files size={22} /><span><b>Kurumsal belgeler</b><small>Sözleşme, dekont, tablo ve proje dosyaları</small></span><ArrowRight size={17} /></button>
-      <button onClick={() => onNavigate("agents")}><Bot size={22} /><span><b>Akıllı asistanlar</b><small>Onayınızla çalışan görev yardımcıları</small></span><ArrowRight size={17} /></button>
+      {can("departments") && <button onClick={() => onNavigate("departments")}><Building2 size={22} /><span><b>Departmanlar</b><small>Şirket birimleri ve görev alanları</small></span><ArrowRight size={17} /></button>}
+      {can("projects") && <button onClick={() => onNavigate("projects")}><BriefcaseBusiness size={22} /><span><b>Proje portföyü</b><small>{projects.length} proje · {activeProjects} aktif çalışma</small></span><ArrowRight size={17} /></button>}
+      {can("financial") && <button onClick={() => onNavigate("financial")}><Landmark size={22} /><span><b>Finansal durum</b><small>Borç, ödeme ve nakit özeti</small></span><ArrowRight size={17} /></button>}
+      {can("files") && <button onClick={() => onNavigate("files")}><Files size={22} /><span><b>Kurumsal belgeler</b><small>Sözleşme, dekont, tablo ve proje dosyaları</small></span><ArrowRight size={17} /></button>}
+      {can("agents") && <button onClick={() => onNavigate("agents")}><Bot size={22} /><span><b>Akıllı asistanlar</b><small>Onayınızla çalışan görev yardımcıları</small></span><ArrowRight size={17} /></button>}
     </section>
     <section className="company-activity-board"><div><span>SON FAALİYETLER</span><h3>Çalışma alanındaki güncel hareketler</h3></div><div>{data.activity.length ? data.activity.slice(0, 5).map((item) => <article key={item.id}><i /><span><b>{item.details || "Çalışma alanında işlem yapıldı"}</b><small>{new Date(item.created_at).toLocaleString("tr-TR")}</small></span></article>) : <p>Henüz faaliyet kaydı bulunmuyor.</p>}</div></section>
   </>;

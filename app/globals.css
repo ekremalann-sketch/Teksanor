@@ -1500,3 +1500,40 @@ html :is(a, button, select, input, textarea, summary, [tabindex]):focus-visible 
   .hero-visual.engineering-hero-visual { height: auto; }
   .hero-visual.engineering-hero-visual > img { height: auto; aspect-ratio: 16 / 10; object-fit: contain; }
 }
+
+/* Kenar menüsünde servis bağlantıları (düğmelerle aynı görünüm) */
+.sidebar-nav > a.nav-link { min-height: 46px; padding: 0 12px; display: flex; align-items: center; gap: 11px; border-radius: 8px; color: #c9d8ea; text-decoration: none; font-size: 13px; }
+.sidebar-nav > a.nav-link:hover { color: #fff; background: rgba(255,255,255,.05); }
+.sidebar-nav > a.nav-link svg { color: #e0bd73; }
+.sidebar-nav > .nav-heading { margin-top: 10px; color: #8ea2ba; }
+
+/* Panel: Bugün kartı ve başlangıç listesi */
+.today-card { margin: 0 0 18px; padding: 20px; border: 1px solid #dbe3ed; border-radius: 16px; background: #fff; box-shadow: 0 1px 2px rgba(16,32,53,.05); color: #17283d; }
+.today-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; }
+.today-head > span { display: flex; align-items: center; gap: 8px; font-size: 20px; }
+.today-head > span svg { color: #b0812c; }
+.today-counts { display: flex; flex-wrap: wrap; gap: 8px; flex: 1; }
+.today-counts span { padding: 6px 12px; border-radius: 999px; background: #f2f5f9; font-size: 14px; color: #344a60; }
+.today-counts span.bad { background: #fdecea; color: #8a1f11; }
+.today-open { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 16px; border-radius: 10px; background: #0b1929; color: #fff; text-decoration: none; font-weight: 700; font-size: 14px; }
+.today-list { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; }
+.today-list a { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; min-height: 56px; padding: 10px 14px; border: 1px solid #e3e9f0; border-radius: 12px; color: #17283d; text-decoration: none; }
+.today-list a:hover { border-color: #d3ad66; background: #fffbf2; }
+.today-list b { display: block; font-size: 15px; }
+.today-list small { color: #4f6178; font-size: 13px; }
+.today-tag { padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 800; background: #e6eef7; color: #173f66; white-space: nowrap; }
+.today-tag.overdue { background: #fdecea; color: #8a1f11; }
+.today-tag.today { background: #dcf3ea; color: #0b5a3d; }
+.today-empty { display: flex; align-items: center; gap: 8px; margin: 14px 0 0; color: #4f6178; font-size: 15px; }
+.today-more { display: inline-block; margin-top: 10px; color: #0b4f8a; font-weight: 700; }
+.setup-list { margin-top: 16px; padding: 14px 16px; border-radius: 12px; background: #f7f9fc; border: 1px solid #e3e9f0; }
+.setup-head { display: flex; justify-content: space-between; align-items: center; }
+.setup-head button { width: 44px; height: 44px; border: 0; background: transparent; color: #4f6178; cursor: pointer; border-radius: 8px; }
+.setup-list ol { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.setup-list li { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; }
+.setup-list li svg { color: #8a9bb0; }
+.setup-list li.done svg { color: #12805c; }
+.setup-list li.done b { text-decoration: line-through; color: #4f6178; }
+.setup-list li small { display: block; color: #4f6178; font-size: 13px; }
+.setup-list li a, .setup-list li button { min-height: 40px; padding: 0 14px; border-radius: 9px; border: 1px solid #0b1929; background: #fff; color: #0b1929; font: inherit; font-size: 14px; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; cursor: pointer; }
+@media (max-width: 640px) { .today-open { width: 100%; justify-content: center; } .today-list a { grid-template-columns: 1fr auto; } .today-tag { grid-column: 1 / -1; justify-self: start; } }

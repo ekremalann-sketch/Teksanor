@@ -134,3 +134,21 @@
 .kvkk-danger{border-color:#e3a79a;background:#fff5f2}
 @media(max-width:760px){.service-header-actions{justify-content:flex-start}.plan-editor,.builder-item{grid-template-columns:1fr}}
 .service-shell .plan-card:hover{border-color:var(--sv-gold);background:#fffaf0}
+
+/* Kolay kullanım: filtre çipleri, zaman etiketi, sıradaki adım, paylaşım */
+.service-chips{display:flex;flex-wrap:wrap;gap:6px}
+.service-shell .service-chips button{min-height:40px;padding:6px 12px;border-radius:999px;background:#fff;color:var(--sv-ink);border:1px solid var(--sv-line);font-size:14px}
+.service-shell .service-chips button.on{background:var(--sv-navy-2);color:#fff;border-color:var(--sv-navy-2)}
+.service-chips b{font-weight:800;margin-left:2px}
+.service-item-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.service-when{font-size:13px!important;font-weight:700!important;color:#344a60!important}
+.service-when.overdue{color:#9b2c12!important}
+.service-when.today{color:#0b5a3d!important}
+.service-empty-list{font-size:15px;color:var(--sv-muted)}
+.service-next{display:grid;gap:8px;margin:-6px -6px 18px;padding:14px 16px;border-radius:12px;background:#fff8e6;border:1px solid #efd7a2}
+.service-next>span{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#6d4d12}
+.service-next p{margin:0;font-weight:600}
+.service-next button{justify-self:start;background:var(--sv-navy-2)!important;color:#fff!important}
+.service-next small{color:#6d4d12}
+.share-wa{background:#0f6b3a!important}
+.share-wa:hover{background:#0c5a31!important}
