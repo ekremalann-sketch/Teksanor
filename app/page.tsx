@@ -79,6 +79,7 @@ export default function Home() {
           <Link href="/hakkimizda">Hakkımızda</Link>
           <Link href="/en" hrefLang="en">English</Link>
         </nav>
+        <details className="public-mobile-menu"><summary>Menü</summary><nav aria-label="Mobil menü"><Link href="/platform">Platform</Link><Link href="/sektorler">Sektörler</Link><Link href="/guven">Güven</Link><Link href="/pilot">Pilot</Link><Link href="/en" hrefLang="en">English</Link><a href="https://github.com/ekremalann-sketch">Ekrem Alan · GitHub</a></nav></details>
         <Link className="login-link" href={authenticated ? "/panel" : "/giris"}>
           <span className="login-link-icon"><UserRound size={17} /></span>
           <span className="login-link-label">{authenticated ? "Panel" : "Giriş"}</span>
@@ -155,7 +156,7 @@ export default function Home() {
           <Link className="primary-action" href={authenticated ? "/panel#panel=assets" : "/giris"}>Çalışma alanını aç <ArrowRight size={18}/></Link>
         </div>
         <div className="operations-command-visual" aria-label="Operasyon yönetim ekranı örneği">
-          <div className="command-top"><span>TEKSANOR / OPERASYON</span><em>CANLI</em></div>
+          <div className="command-top"><span>TEKSANOR / OPERASYON</span><em>ÖRNEK AKIŞ</em></div>
           <div className="command-stats"><article><small>Aktif ekipman</small><b>Envanter</b><i/></article><article><small>Yaklaşan bakım</small><b>Takvim</b><i/></article><article><small>Açık iş emri</small><b>Saha</b><i/></article></div>
           <div className="command-flow">
             <div><span>01</span><b>Varlık tanımlanır</b><small>Kod · konum · sorumlu</small></div>
@@ -214,14 +215,7 @@ export default function Home() {
         </div>
         <div className="platform-preview" aria-label="Yönetim paneli ön izlemesi">
           <div className="preview-bar"><i /><i /><i /><span>TEKSANOR / YÖNETİM MERKEZİ</span></div>
-          <div className="preview-layout">
-            <div className="preview-sidebar"><b /><span /><span /><span /><span /></div>
-            <div className="preview-content">
-              <div className="preview-heading"><span /><i /></div>
-              <div className="preview-cards"><i /><i /><i /></div>
-              <div className="preview-chart"><span /><span /><span /><span /><span /></div>
-            </div>
-          </div>
+          <div className="product-record-preview"><span className="preview-example">Örnek senaryo · Gerçek müşteri verisi içermez</span><h3>Servis işinin kayıt zinciri</h3><dl><div><dt>İş emri</dt><dd>SRV-1024 · Pompa bakımı</dd></div><div><dt>Sorumlu ekip</dt><dd>Teknik servis · Ekip A</dd></div><div><dt>Durum</dt><dd>Müşteri onayı bekleniyor</dd></div><div><dt>Sonraki adım</dt><dd>Servis raporunu onaya gönder</dd></div></dl><ol><li>Talep kaydı</li><li>Saha kontrol listesi</li><li>Müşteri onayı</li><li>Tahsilat takibi</li></ol><Link href="/platform">Modülleri ve iş akışını incele</Link></div>
         </div>
       </section>
 
@@ -338,16 +332,16 @@ export default function Home() {
       <section className="portal-callout">
         <div>
           <span className="section-kicker">Teksanor Yönetim Portalı</span>
-          <h2>Finansal görünürlüğü Excel karmaşasından çıkarın.</h2>
+          <h2>İşlerinizi ve ödemelerinizi aynı kayıtta takip edin.</h2>
           <p>Ödeme, borç, gider, belge ve dönemsel değişimleri tek panelde yönetin. Kullanıcılar kolayca veri girsin; kritik değişiklikler yönetici kontrolünden geçsin.</p>
         </div>
-        <Link className="primary-action" href={authenticated ? "/panel" : "/giris#kayit"}>{authenticated ? "Panele dön" : "14 gün ücretsiz deneyin"} <ArrowRight size={18} /></Link>
+        <Link className="primary-action" href={authenticated ? "/panel" : "/giris#kayit"}>{authenticated ? "Panele dön" : "Çalışma alanını aç"} <ArrowRight size={18} /></Link>
       </section>
 
       <footer className="site-footer">
         <div><img src="/assets/teksanor-logo.png" alt="Teksanor" /><p>Akıllı sistemler. Ölçülebilir ilerleme.</p></div>
         <div className="footer-note">Teksanor, mühendislik ve teknoloji çözümleri için geliştirilen marka kimliğidir. Resmî şirket ve iletişim bilgileri kuruluş süreci tamamlandığında eklenecektir.</div>
-        <div className="footer-end">© 2026 Teksanor</div>
+        <div className="footer-end">© 2026 Teksanor · Ekrem Alan <a href="https://github.com/ekremalann-sketch" target="_blank" rel="noopener noreferrer">GitHub profili ve projeler</a></div>
       </footer>
     </main>
   );
