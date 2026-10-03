@@ -1,3 +1,4 @@
+import { optionalCalendarDate } from "@/lib/dates";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { addAudit, getDb, refreshOrganizationPeriodSummary } from "@/lib/db";
@@ -16,9 +17,10 @@ export async function PATCH(request: Request, routeContext: { params: Promise<{ 
   const { id } = await routeContext.params;
   const body = (await request.json()) as Record<string, unknown>;
   if (body.action === "approve") {
-    const approved = await getDb().prepare("UPDATE payment_records SET workflow_status = 'approved', updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND organization_id = ? RETURNING id")
-      .bind(user.id, id, orgContext.organization.id).first<{ id: string }>();
+    const approved = await getDb().prepare("UPDATE payment_records SET workflow_status = 'approved', updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND organization_id = ? RETURNING id, period")
+      .bind(user.id, id, orgContext.organization.id).first<{ id: string; period: string }>();
     if (!approved) return NextResponse.json({ error: "Kayıt bulunamadı." }, { status: 404 });
+    await refreshOrganizationPeriodSummary(orgContext.organization.id, approved.period);
     await addAudit(user.id, "approve", "payment_record", id, undefined, orgContext.organization.id);
     return NextResponse.json({ ok: true });
   }
@@ -32,6 +34,10 @@ export async function PATCH(request: Request, routeContext: { params: Promise<{ 
   let values: Record<(typeof numericFields)[number], number | null>;
   try { values = Object.fromEntries(numericFields.map((key) => [key, parseOptionalLocalizedNumber(body[key], paymentFieldLabels[key])])) as typeof values; }
   catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Tutarlar geçersiz." }, { status: 400 }); }
+  let dueDate: string | null;
+  let paidAt: string | null = null;
+  try { dueDate = optionalCalendarDate(body.dueDate); paidAt = optionalCalendarDate(body.paidAt); }
+  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Tarih geçersiz." }, { status: 400 }); }
   const missingFields = numericFields.filter((key) => values[key] === null);
   const stored = Object.fromEntries(numericFields.map((key) => [key, values[key] ?? 0])) as Record<(typeof numericFields)[number], number>;
   let paymentStatus: string;
@@ -46,8 +52,8 @@ export async function PATCH(request: Request, routeContext: { params: Promise<{ 
       String(body.period), String(body.ownerName), String(body.bankName), String(body.accountName),
       stored.totalLimit, stored.totalDebt, stored.restructuring, stored.monthlyPayment,
       stored.nextInstallment, stored.overdraftDebt, stored.overdraftLimit, stored.interestRate, stored.interestDebt, stored.minimumPayment,
-      stored.paidAmount, paymentStatus, body.paidAt ? String(body.paidAt) : null, JSON.stringify(missingFields),
-      body.dueDate ? String(body.dueDate) : null, body.importantNote ? String(body.importantNote) : null,
+      stored.paidAmount, paymentStatus, paidAt, JSON.stringify(missingFields),
+      dueDate, body.importantNote ? String(body.importantNote) : null,
       user.id, id, orgContext.organization.id,
     ).run();
   await refreshOrganizationPeriodSummary(orgContext.organization.id, previous.period);

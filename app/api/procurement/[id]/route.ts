@@ -24,13 +24,16 @@ export async function PUT(request: Request, routeContext: { params: Promise<{ id
     const priority = PRIORITY.includes(text(body.priority)) ? text(body.priority) : String(existing.priority);
     const quantity = Number(body.quantity ?? existing.quantity ?? 1);
     const unitPrice = Number(body.unitPrice ?? existing.unit_price ?? 0);
+    if (!Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(unitPrice) || unitPrice < 0) return NextResponse.json({ error: "Miktar pozitif, birim fiyat sıfır veya pozitif olmalıdır." }, { status: 400 });
+    if (status === "approved" && existing.status !== "approved" && existing.created_by === user.id) return NextResponse.json({ error: "Kendi satın alma talebinizi onaylayamazsınız." }, { status: 403 });
     const totalPrice = quantity * unitPrice;
+    if (!Number.isFinite(totalPrice)) return NextResponse.json({ error: "Toplam fiyat geçersiz." }, { status: 400 });
     const orderDate = status === "ordered" && !existing.order_date ? new Date().toISOString().slice(0, 10) : (existing.order_date ?? null);
     const deliveryDate = status === "delivered" && !existing.delivery_date ? new Date().toISOString().slice(0, 10) : (existing.delivery_date ?? null);
     await getDb().prepare(`UPDATE procurement_requests SET title = ?, description = ?, department = ?, supplier_name = ?,
       quantity = ?, unit = ?, unit_price = ?, total_price = ?, currency = ?, status = ?, priority = ?, required_date = ?,
       order_date = ?, delivery_date = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND organization_id = ?`)
-      .bind(text(body.title) || String(existing.title), text(body.description, 1200) ?? existing.description,
+      .bind(text(body.title) || String(existing.title), body.description !== undefined ? text(body.description, 1200) : existing.description,
         text(body.department) || String(existing.department),
         body.supplierName !== undefined ? text(body.supplierName) || null : existing.supplier_name,
         quantity, text(body.unit, 20) || String(existing.unit ?? "adet"), unitPrice, totalPrice,

@@ -26,11 +26,6 @@ function requestedOrganizationId(request: Request) {
 export async function listOrganizations(user: AppUser): Promise<Organization[]> {
   await ensureSchema();
   const database = getDb();
-  if (user.role === "admin") {
-    const result = await database.prepare(`SELECT o.*, 'owner' AS membership_role FROM organizations o
-      WHERE o.active = 1 ORDER BY o.name`).all<Organization>();
-    return result.results;
-  }
   const result = await database.prepare(`SELECT o.*, m.role AS membership_role
     FROM organization_members m JOIN organizations o ON o.id = m.organization_id
     WHERE m.user_id = ? AND m.active = 1 AND o.active = 1 ORDER BY o.name`)
@@ -61,7 +56,7 @@ export async function requireOrganization(request: Request, user: AppUser) {
 }
 
 export function canManageOrganization(user: AppUser, organization: Organization) {
-  return user.role === "admin" || organization.membership_role === "owner" || organization.membership_role === "admin";
+  return organization.membership_role === "owner" || organization.membership_role === "admin";
 }
 
 function slugify(value: string) {

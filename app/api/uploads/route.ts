@@ -17,11 +17,11 @@ export async function GET(request: Request) {
   try { context = await requireOrganization(request, user); }
   catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Çalışma alanına erişim reddedildi." }, { status: 403 }); }
   const files = await getDb().prepare(`SELECT a.id, a.file_name, a.content_type, a.size_bytes, a.record_type,
-    a.record_id, a.scan_status, a.created_at, u.full_name FROM attachments a JOIN users u ON u.id = a.uploaded_by
+    a.record_id, a.scan_status, a.uploaded_by, a.created_at, u.full_name FROM attachments a JOIN users u ON u.id = a.uploaded_by
     WHERE a.organization_id = ? ORDER BY a.created_at DESC LIMIT 50`).bind(context.organization.id).all();
   const visible = [];
   for (const file of files.results) {
-    try { await requireAttachmentRecord(user, context.organization, file.record_type as string|null, file.record_id as string|null); visible.push(file); } catch { /* Not visible to this role. */ }
+    try { await requireAttachmentRecord(user, context.organization, file.record_type as string|null, file.record_id as string|null, file.uploaded_by as string); visible.push(file); } catch { /* Not visible to this role. */ }
   }
   return NextResponse.json({ files: visible });
 }

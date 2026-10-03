@@ -27,7 +27,7 @@ export async function PUT(request: Request, routeContext: { params: Promise<{ id
     await getDb().prepare(`UPDATE tasks SET title = ?, description = ?, department = ?, assignee_name = ?,
       status = ?, priority = ?, due_date = ?, completed_at = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND organization_id = ?`)
-      .bind(title, text(body.description, 1200) ?? existing.description, text(body.department) || String(existing.department),
+      .bind(title, body.description !== undefined ? text(body.description, 1200) : existing.description, text(body.department) || String(existing.department),
         body.assigneeName !== undefined ? text(body.assigneeName) || null : existing.assignee_name,
         status, priority, body.dueDate !== undefined ? text(body.dueDate, 20) || null : existing.due_date,
         completedAt, id, context.organization.id).run();

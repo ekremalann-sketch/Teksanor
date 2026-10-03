@@ -614,15 +614,17 @@ async function initializeSchema() {
 async function migrateTreasuryCurrencyTables(database: Database) {
   const cashSchema = await database.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'cash_balances'").first<{ sql: string }>();
   if (cashSchema?.sql?.includes("CHECK (currency")) {
-    await database.prepare(`CREATE TABLE IF NOT EXISTS cash_balances_v2 (
+    await database.batch([
+      database.prepare(`CREATE TABLE IF NOT EXISTS cash_balances_v2 (
       id TEXT PRIMARY KEY, account_name TEXT NOT NULL, currency TEXT NOT NULL, amount REAL NOT NULL DEFAULT 0,
       manual_rate REAL, note TEXT, created_by TEXT REFERENCES users(id), created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      organization_id TEXT REFERENCES organizations(id))`).run();
-    await database.prepare(`INSERT OR IGNORE INTO cash_balances_v2
+      organization_id TEXT REFERENCES organizations(id))`),
+      database.prepare(`INSERT OR IGNORE INTO cash_balances_v2
       (id, account_name, currency, amount, manual_rate, note, created_by, created_at, organization_id)
-      SELECT id, account_name, currency, amount, NULL, note, created_by, created_at, organization_id FROM cash_balances`).run();
-    await database.prepare("DROP TABLE cash_balances").run();
-    await database.prepare("ALTER TABLE cash_balances_v2 RENAME TO cash_balances").run();
+      SELECT id, account_name, currency, amount, NULL, note, created_by, created_at, organization_id FROM cash_balances`),
+      database.prepare("DROP TABLE cash_balances"),
+      database.prepare("ALTER TABLE cash_balances_v2 RENAME TO cash_balances"),
+    ]);
   } else {
     const columns = await database.prepare("PRAGMA table_info(cash_balances)").all<{ name: string }>();
     if (!columns.results.some((column) => column.name === "manual_rate")) await database.prepare("ALTER TABLE cash_balances ADD COLUMN manual_rate REAL").run();
@@ -630,16 +632,18 @@ async function migrateTreasuryCurrencyTables(database: Database) {
 
   const debtSchema = await database.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'manual_debts'").first<{ sql: string }>();
   if (debtSchema?.sql?.includes("CHECK (currency")) {
-    await database.prepare(`CREATE TABLE IF NOT EXISTS manual_debts_v2 (
+    await database.batch([
+      database.prepare(`CREATE TABLE IF NOT EXISTS manual_debts_v2 (
       id TEXT PRIMARY KEY, lender_name TEXT NOT NULL, debt_type TEXT NOT NULL DEFAULT 'cash', currency TEXT NOT NULL,
       amount REAL NOT NULL DEFAULT 0, manual_rate REAL, due_date TEXT, note TEXT,
       status TEXT NOT NULL CHECK (status IN ('open', 'paid')) DEFAULT 'open', created_by TEXT REFERENCES users(id),
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, organization_id TEXT REFERENCES organizations(id))`).run();
-    await database.prepare(`INSERT OR IGNORE INTO manual_debts_v2
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, organization_id TEXT REFERENCES organizations(id))`),
+      database.prepare(`INSERT OR IGNORE INTO manual_debts_v2
       (id, lender_name, debt_type, currency, amount, manual_rate, due_date, note, status, created_by, created_at, organization_id)
-      SELECT id, lender_name, debt_type, currency, amount, manual_rate, due_date, note, status, created_by, created_at, organization_id FROM manual_debts`).run();
-    await database.prepare("DROP TABLE manual_debts").run();
-    await database.prepare("ALTER TABLE manual_debts_v2 RENAME TO manual_debts").run();
+      SELECT id, lender_name, debt_type, currency, amount, manual_rate, due_date, note, status, created_by, created_at, organization_id FROM manual_debts`),
+      database.prepare("DROP TABLE manual_debts"),
+      database.prepare("ALTER TABLE manual_debts_v2 RENAME TO manual_debts"),
+    ]);
   }
 }
 
@@ -654,15 +658,15 @@ export async function refreshOrganizationPeriodSummary(organizationId: string, p
     VALUES (?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM organization_period_summaries WHERE organization_id = ?))`)
     .bind(createId("summary"), organizationId, period, organizationId).run();
   await database.prepare(`UPDATE organization_period_summaries SET
-    total_limit = COALESCE((SELECT SUM(total_limit) FROM payment_records WHERE organization_id = ? AND period = ?), 0),
-    total_debt = COALESCE((SELECT SUM(MAX(total_debt - paid_amount, 0)) FROM payment_records WHERE organization_id = ? AND period = ?), 0),
-    restructuring = COALESCE((SELECT SUM(restructuring) FROM payment_records WHERE organization_id = ? AND period = ?), 0),
-    monthly_payment = COALESCE((SELECT SUM(monthly_payment) FROM payment_records WHERE organization_id = ? AND period = ?), 0),
-    next_installment = COALESCE((SELECT SUM(next_installment) FROM payment_records WHERE organization_id = ? AND period = ?), 0),
-    overdraft_debt = COALESCE((SELECT SUM(overdraft_debt) FROM payment_records WHERE organization_id = ? AND period = ?), 0),
-    overdraft_limit = COALESCE((SELECT SUM(overdraft_limit) FROM payment_records WHERE organization_id = ? AND period = ?), 0),
-    minimum_payment = COALESCE((SELECT SUM(minimum_payment) FROM payment_records WHERE organization_id = ? AND period = ?), 0),
-    expense_total = COALESCE((SELECT SUM(amount) FROM expenses WHERE organization_id = ? AND period = ?), 0)
+    total_limit = COALESCE((SELECT SUM(total_limit) FROM payment_records WHERE organization_id = ? AND period = ? AND workflow_status = 'approved'), 0),
+    total_debt = COALESCE((SELECT SUM(MAX(total_debt - paid_amount, 0)) FROM payment_records WHERE organization_id = ? AND period = ? AND workflow_status = 'approved'), 0),
+    restructuring = COALESCE((SELECT SUM(restructuring) FROM payment_records WHERE organization_id = ? AND period = ? AND workflow_status = 'approved'), 0),
+    monthly_payment = COALESCE((SELECT SUM(monthly_payment) FROM payment_records WHERE organization_id = ? AND period = ? AND workflow_status = 'approved'), 0),
+    next_installment = COALESCE((SELECT SUM(next_installment) FROM payment_records WHERE organization_id = ? AND period = ? AND workflow_status = 'approved'), 0),
+    overdraft_debt = COALESCE((SELECT SUM(overdraft_debt) FROM payment_records WHERE organization_id = ? AND period = ? AND workflow_status = 'approved'), 0),
+    overdraft_limit = COALESCE((SELECT SUM(overdraft_limit) FROM payment_records WHERE organization_id = ? AND period = ? AND workflow_status = 'approved'), 0),
+    minimum_payment = COALESCE((SELECT SUM(minimum_payment) FROM payment_records WHERE organization_id = ? AND period = ? AND workflow_status = 'approved'), 0),
+    expense_total = COALESCE((SELECT SUM(amount) FROM expenses WHERE organization_id = ? AND period = ? AND workflow_status = 'approved'), 0)
     WHERE organization_id = ? AND period = ?`)
     .bind(
       organizationId, period, organizationId, period, organizationId, period, organizationId, period,

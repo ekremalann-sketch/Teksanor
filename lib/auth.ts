@@ -41,7 +41,7 @@ export async function enforceAuthRateLimit(request: Request, action: "login" | "
   const database = getDb();
   const forwarded = request.headers.get("cf-connecting-ip") || request.headers.get("x-forwarded-for")?.split(",")[0] || "unknown";
 
-  const fingerprint = await sha256(identity ? `account:${identity.trim().toLowerCase()}` : `ip:${forwarded.trim()}`);
+  const fingerprint = await sha256(identity ? `account:${identity.trim().toLowerCase()}|ip:${forwarded.trim()}` : `ip:${forwarded.trim()}`);
   const limit = action === "login" ? 15 : 8;
   const recent = await database.prepare(`SELECT COUNT(*) AS count FROM auth_attempts
     WHERE fingerprint_hash = ? AND action = ? AND created_at > datetime('now', '-15 minutes')`)
@@ -160,13 +160,16 @@ export async function loginWithUsername(input: { username: string; password: str
   if (!passwordValid && (username === "admin1" || username === "admin2")) {
     const secrets = env as unknown as { ADMIN1_PASSWORD?: string; ADMIN2_PASSWORD?: string };
     const recoveryPassword = username === "admin1" ? secrets.ADMIN1_PASSWORD : secrets.ADMIN2_PASSWORD;
-    if (recoveryPassword && recoveryPassword.length >= 10 && constantTimeTextEqual(input.password, recoveryPassword)) {
+    const recoveryDigest = recoveryPassword ? await sha256(recoveryPassword) : null;
+    const used = await database.prepare("SELECT value FROM app_metadata WHERE key = ?").bind(`bootstrap_recovery_used:${user.id}`).first<{ value: string }>();
+    if (recoveryPassword && recoveryDigest !== used?.value && recoveryPassword.length >= 10 && constantTimeTextEqual(input.password, recoveryPassword)) {
       const credentials = await hashPassword(input.password);
       await database.batch([
         database.prepare("UPDATE users SET password_hash = ?, password_salt = ? WHERE id = ?")
           .bind(credentials.hash, credentials.salt, user.id),
         database.prepare("DELETE FROM sessions WHERE user_id = ?").bind(user.id),
         database.prepare("DELETE FROM mfa_challenges WHERE user_id = ?").bind(user.id),
+        database.prepare("INSERT INTO app_metadata(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP").bind(`bootstrap_recovery_used:${user.id}`, recoveryDigest),
       ]);
       await addAudit(user.id, "bootstrap_password_rotated", "user", user.id, "Yönetici parolası runtime secret ile güvenli biçimde yenilendi.");
       passwordValid = true;

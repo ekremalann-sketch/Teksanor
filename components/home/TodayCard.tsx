@@ -4,7 +4,7 @@ import {ArrowRight,CalendarClock,CheckCircle2,Circle,ClipboardList,X} from "luci
 import {bucketOf,BUCKET_LABEL,localDay,sortJobs} from "@/lib/service-ui";
 
 type Job={id:string;title:string;customer_name:string|null;stage:string;scheduled_date:string|null;updated_at?:string};
-type Jobs={jobs:Job[];members:{id:string}[];manage:boolean};
+type Jobs={jobs:Job[];members:{id:string;username?:string}[];manage:boolean};
 type Profile={legal_name?:string;tax_number?:string;address?:string}|null;
 
 // Panelin en üstündeki "Bugün" kartı: kişinin açık servis işleri önceliğe göre ve tek dokunuşla açılır.
@@ -24,7 +24,7 @@ export function TodayCard({organizationId,profile,canManage,onNavigate}:{organiz
  const n=(b:string)=>open.filter(j=>bucketOf(j,today)===b).length;
  const steps=[
   {done:Boolean(profile?.legal_name&&profile?.tax_number&&profile?.address),label:"Firma unvanı, vergi no ve adresini girin",hint:"Teklif, servis formu ve fatura taslağında kullanılır.",go:()=>onNavigate("company")},
-  {done:data.members.length>1,label:"Ekibinizi ekleyin",hint:"Her teknisyen kendi telefonundan yalnız kendi işlerini görür.",go:()=>onNavigate("users")},
+  {done:data.members.some(member=>!["admin1","admin2"].includes(String(member.username||""))),label:"Ekibinizi ekleyin",hint:"Her teknisyen kendi telefonundan yalnız kendi işlerini görür.",go:()=>onNavigate("users")},
   {done:(templates??0)>0,label:"Bir saha formu şablonu seçin",hint:"Hazır şablonlar: klima bakım, jeneratör testi, iş güvenliği.",href:"/servis/sablonlar"},
   {done:data.jobs.length>0,label:"İlk servis işini açın",hint:"Talep → teklif → onay → saha → tahsilat.",href:"/servis"},
  ];
