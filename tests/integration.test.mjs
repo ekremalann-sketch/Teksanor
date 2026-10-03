@@ -140,7 +140,7 @@ await test('finance importer snapshot is retained in the same transaction as upd
  const row=sql.prepare("SELECT details FROM audit_logs WHERE action='payment_snapshot' AND details LIKE '%Snapshot%'").get();assert.equal(JSON.parse(row.details).totalDebt,100);
 });
 await test('assigned technician can issue only a short-lived completion link',async()=>{
- sql.prepare("UPDATE sessions SET expires_at=datetime('now','+1 day') WHERE user_id IN ('employee','outsider')").run();
+ tokens.employee=await api.auth.createSession('employee'); tokens.outsider=await api.auth.createSession('outsider');
  const created=await json(await api.jobs.POST(req('boss','/api/service/jobs','POST',{action:'create',title:'Yerinde onay testi',assignedUserId:'employee'})));const id=created.id;
  sql.prepare("UPDATE service_jobs SET stage='quoted' WHERE id=?").run(id);
  assert.equal((await api.jobs.POST(req('employee','/api/service/jobs','POST',{action:'share',id,version:1,purpose:'quote'}))).status,403);
