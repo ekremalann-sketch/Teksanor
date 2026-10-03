@@ -45,10 +45,6 @@ export type MemberAccess = {
 };
 
 export async function getMemberAccess(user: AppUser, organization: Organization): Promise<MemberAccess> {
-  if (user.role === "admin") {
-    const rule = accessRules.owner;
-    return { profile: "owner", jobRole: "platform_admin", department: null, label: "Platform yetkilisi", viewModules: rule.view, editModules: rule.edit };
-  }
   const saved = await getDb().prepare(`SELECT job_role, department, access_profile
     FROM organization_member_access WHERE organization_id = ? AND user_id = ?`)
     .bind(organization.id, user.id).first<{ job_role: string; department: string | null; access_profile: string }>();

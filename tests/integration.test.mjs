@@ -99,3 +99,53 @@ await test('database roundtrip preserves service records and foreign keys in an 
  for(const t of tables){copy.exec(t.sql);const rows=sql.prepare(`SELECT * FROM ${t.name}`).all();for(const row of rows){const cols=Object.keys(row);copy.prepare(`INSERT INTO ${t.name}(${cols.join(',')}) VALUES(${cols.map(()=>'?').join(',')})`).run(...Object.values(row));}}
  assert.equal(copy.prepare('PRAGMA integrity_check').get().integrity_check,'ok');assert.deepEqual(copy.prepare('PRAGMA foreign_key_check').all(),[]);assert.equal(copy.prepare('SELECT COUNT(*) AS n FROM service_jobs').get().n,2);copy.close();
 });
+await test('platform admin cannot enumerate or manage unjoined tenants', async()=>{
+ sql.prepare("UPDATE users SET role='admin' WHERE id='outsider'").run();
+ const u={id:'outsider',role:'admin',username:'outsider',active:1};
+ const orgs=await api.tenancy.listOrganizations(u);
+ assert.deepEqual(orgs.map(o=>o.id),['b']);
+ await assert.rejects(()=>api.tenancy.requireOrganization(req('outsider','/api/dashboard'),u));
+ sql.prepare("UPDATE users SET role='user' WHERE id='outsider'").run();
+});
+await test('account login attempts from another IP cannot lock a legitimate IP', async()=>{
+ for(let i=0;i<15;i++) await api.auth.enforceAuthRateLimit(new Request('https://test.local',{headers:{'cf-connecting-ip':'192.0.2.1'}}),'login','victim');
+ await assert.rejects(()=>api.auth.enforceAuthRateLimit(new Request('https://test.local',{headers:{'cf-connecting-ip':'192.0.2.1'}}),'login','victim'));
+ await api.auth.enforceAuthRateLimit(new Request('https://test.local',{headers:{'cf-connecting-ip':'192.0.2.2'}}),'login','victim');
+});
+await test('approved payment cannot be overwritten by a finance importer', async()=>{
+ sql.prepare("UPDATE sessions SET expires_at=datetime('now','+1 day') WHERE user_id='finance'").run();
+ const body={period:'Audit period',ownerName:'Demo',bankName:'AuditBank',accountName:'Card',totalDebt:1000};
+ assert.equal((await api.payments.POST(req('boss','/api/payments','POST',body))).status,201);
+ const r=await api.payments.POST(req('finance','/api/payments','POST',{...body,totalDebt:1,upsert:true}));
+ assert.equal(r.status,403);
+ assert.equal(sql.prepare("SELECT total_debt FROM payment_records WHERE bank_name='AuditBank'").get().total_debt,1000);
+});
+await test('finance dates are calendar-validated and normalized before storage', async()=>{
+ const b={period:'Date test',ownerName:'Demo',bankName:'DateBank',accountName:'Card',totalDebt:100,dueDate:'30.09.2026'};
+ assert.equal((await api.payments.POST(req('boss','/api/payments','POST',b))).status,201);
+ assert.equal(sql.prepare("SELECT due_date FROM payment_records WHERE bank_name='DateBank'").get().due_date,'2026-09-30');
+ for(const value of ['31.02.2026','abc','x'.repeat(5000)]) assert.equal((await api.payments.POST(req('boss','/api/payments','POST',{...b,dueDate:value}))).status,400);
+});
+await test('consumed bootstrap secret does not remain an alternative password', async()=>{
+ const next=await api.auth.hashPassword('After-recovery-789!');
+ sql.prepare("UPDATE users SET password_hash=?,password_salt=? WHERE id='admin-reset'").run(next.hash,next.salt);
+ await assert.rejects(()=>api.auth.loginWithUsername({username:'admin1',password:'New-password-456!'}));
+ assert.equal((await api.auth.loginWithUsername({username:'admin1',password:'After-recovery-789!'})).id,'admin-reset');
+});
+
+await test('finance importer snapshot is retained in the same transaction as update',async()=>{
+ const b={period:'Snapshot',ownerName:'Demo',bankName:'HistoryBank',accountName:'Card',totalDebt:100};
+ await api.payments.POST(req('boss','/api/payments','POST',b));
+ const r=await api.payments.POST(req('boss','/api/payments','POST',{...b,totalDebt:200,upsert:true}));assert.equal(r.status,200);
+ const row=sql.prepare("SELECT details FROM audit_logs WHERE action='payment_snapshot' AND details LIKE '%Snapshot%'").get();assert.equal(JSON.parse(row.details).totalDebt,100);
+});
+await test('assigned technician can issue only a short-lived completion link',async()=>{
+ tokens.employee=await api.auth.createSession('employee'); tokens.outsider=await api.auth.createSession('outsider');
+ const created=await json(await api.jobs.POST(req('boss','/api/service/jobs','POST',{action:'create',title:'Yerinde onay testi',assignedUserId:'employee'})));const id=created.id;
+ sql.prepare("UPDATE service_jobs SET stage='quoted' WHERE id=?").run(id);
+ assert.equal((await api.jobs.POST(req('employee','/api/service/jobs','POST',{action:'share',id,version:1,purpose:'quote'}))).status,403);
+ sql.prepare("UPDATE service_jobs SET stage='completed',outcome='Kontrol yapıldı.' WHERE id=?").run(id);
+ assert.equal((await api.jobs.POST(req('employee','/api/service/jobs','POST',{action:'share',id,version:1,purpose:'completion'}))).status,200);
+ const minutes=sql.prepare("SELECT (julianday(expires_at)-julianday('now'))*1440 AS minutes FROM service_approvals WHERE job_id=?").get(id).minutes;assert.ok(minutes>58&&minutes<=60);
+ assert.equal((await api.jobs.POST(req('outsider','/api/service/jobs','POST',{action:'share',id,version:1,purpose:'completion'}))).status,403);
+});

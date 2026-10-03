@@ -28,7 +28,7 @@ export async function PUT(request: Request, routeContext: { params: Promise<{ id
     const status = STATUS.includes(text(body.status)) ? text(body.status) : String(existing.status);
     await getDb().prepare(`UPDATE risks SET title = ?, description = ?, department = ?, category = ?, likelihood = ?, impact = ?,
       status = ?, owner_name = ?, mitigation_plan = ?, review_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND organization_id = ?`)
-      .bind(text(body.title) || String(existing.title), text(body.description, 1200) ?? existing.description,
+      .bind(text(body.title) || String(existing.title), body.description !== undefined ? text(body.description, 1200) : existing.description,
         text(body.department) || String(existing.department), category, likelihood, impact, status,
         body.ownerName !== undefined ? text(body.ownerName) || null : existing.owner_name,
         body.mitigationPlan !== undefined ? text(body.mitigationPlan, 1200) || null : existing.mitigation_plan,
