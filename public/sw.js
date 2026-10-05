@@ -6,7 +6,7 @@ const CACHE = "teksanor-shell-v1";
 const PRECACHE = ["/offline", "/icon-192.png", "/icon-512.png", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(PRECACHE)).then(() => self.skipWaiting()));
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(PRECACHE)).then(() => {}));
 });
 
 self.addEventListener("activate", (event) => {
@@ -39,4 +39,9 @@ self.addEventListener("fetch", (event) => {
       })),
     );
   }
+});
+
+// Yeni sürüm kullanıcı onayından sonra etkinleşir.
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
 });
