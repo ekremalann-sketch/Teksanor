@@ -1,6 +1,8 @@
 "use client";
+import { filterList } from "@/lib/list-filter";
 
 import { useMemo, useState, type FormEvent } from "react";
+import { useModalKeys } from "../shared/useModalKeys";
 import { CalendarCheck2, Check, Factory, Gauge, MapPin, Plus, Trash2, Wrench, X } from "lucide-react";
 
 export type Asset = {
@@ -26,7 +28,8 @@ const statusLabel={active:"Aktif",maintenance:"Bakımda",inactive:"Pasif",retire
 const frequencyLabel={day:"gün",week:"hafta",month:"ay",year:"yıl",usage:"kullanım birimi"};
 
 function Modal({title,onClose,onSubmit,children,saving}:{title:string;onClose:()=>void;onSubmit:(event:FormEvent<HTMLFormElement>)=>void;children:React.ReactNode;saving:boolean}){
-  return <div className="modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><form className="entry-modal" onSubmit={onSubmit}>
+  useModalKeys(onClose);
+  return <div className="modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><form className="entry-modal" role="dialog" aria-modal="true" onSubmit={onSubmit}>
     <div className="modal-head"><div><span>VARLIK VE BAKIM</span><h2>{title}</h2></div><button type="button" onClick={onClose}><X size={19}/></button></div>
     {children}<div className="modal-actions"><button type="button" className="outline-button" onClick={onClose}>Vazgeç</button><button className="panel-primary" disabled={saving}>{saving?"Kaydediliyor...":"Kaydet"}</button></div>
   </form></div>
@@ -35,7 +38,7 @@ function Modal({title,onClose,onSubmit,children,saving}:{title:string;onClose:()
 export function AssetsView({items,organizationId,reload,notify,search=""}:Props<Asset>){
   const[open,setOpen]=useState(false),[saving,setSaving]=useState(false);
   const term=search.toLocaleLowerCase("tr-TR").trim();
-  const filtered=useMemo(()=>items.filter(x=>!term||`${x.asset_code} ${x.name} ${x.category} ${x.location||""}`.toLocaleLowerCase("tr-TR").includes(term)),[items,term]);
+  const filtered=useMemo(()=>filterList(items,"assets",search),[items,search]);
   async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();setSaving(true);try{await api("/api/assets",organizationId,"POST",Object.fromEntries(new FormData(e.currentTarget).entries()));setOpen(false);notify("Varlık kaydı oluşturuldu.");await reload();}catch(err){notify(err instanceof Error?err.message:"Kaydedilemedi.");}finally{setSaving(false)}}
   async function setStatus(asset:Asset,status:string){try{await api(`/api/assets/${asset.id}`,organizationId,"PUT",{name:asset.name,category:asset.category,status,brand:asset.brand,model:asset.model,serialNumber:asset.serial_number,location:asset.location,responsibleName:asset.responsible_name,purchaseDate:asset.purchase_date,warrantyEnd:asset.warranty_end,notes:asset.notes});notify("Varlık durumu güncellendi.");await reload();}catch(err){notify(err instanceof Error?err.message:"Güncellenemedi.")}}
   async function remove(id:string){if(!confirm("Bu varlık ve bağlı bakım planları silinsin mi?"))return;try{await api(`/api/assets/${id}`,organizationId,"DELETE");notify("Varlık silindi.");await reload();}catch(err){notify(err instanceof Error?err.message:"Silinemedi.")}}
@@ -50,7 +53,7 @@ export function AssetsView({items,organizationId,reload,notify,search=""}:Props<
 export function MaintenanceView({items,assets,organizationId,reload,notify,search=""}:Props<MaintenancePlan>&{assets:Asset[]}){
   const[open,setOpen]=useState(false),[saving,setSaving]=useState(false);
   const term=search.toLocaleLowerCase("tr-TR").trim(),today=new Date().toISOString().slice(0,10);
-  const filtered=items.filter(x=>!term||`${x.asset_code} ${x.asset_name} ${x.title} ${x.assigned_to||""}`.toLocaleLowerCase("tr-TR").includes(term));
+  const filtered=filterList(items,"maintenance",search);
   async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();setSaving(true);try{await api("/api/maintenance",organizationId,"POST",Object.fromEntries(new FormData(e.currentTarget).entries()));setOpen(false);notify("Bakım planı oluşturuldu.");await reload();}catch(err){notify(err instanceof Error?err.message:"Kaydedilemedi.");}finally{setSaving(false)}}
   async function complete(id:string){try{await api(`/api/maintenance/${id}`,organizationId,"PUT",{action:"complete"});notify("Bakım tamamlandı; sonraki tarih otomatik hesaplandı.");await reload();}catch(err){notify(err instanceof Error?err.message:"Tamamlanamadı.")}}
   async function remove(id:string){if(!confirm("Bu bakım planı silinsin mi?"))return;try{await api(`/api/maintenance/${id}`,organizationId,"DELETE");notify("Bakım planı silindi.");await reload();}catch(err){notify(err instanceof Error?err.message:"Silinemedi.")}}

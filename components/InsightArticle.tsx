@@ -84,7 +84,7 @@ export default function InsightArticle({ articleKey }: { articleKey: string }) {
   return (
     <main className="article-page">
       <header className="article-header">
-        <Link href="/"><img src="/assets/teksanor-logo.png" alt="Teksanor" /></Link>
+        <Link href="/"><img src="/assets/teksanor-logo-dark.webp" alt="Teksanor" width={400} height={160} /></Link>
         <nav><Link href="/cozumler">Çözümler</Link><Link href="/muhendislik">Mühendislik</Link><Link href="/yapay-zeka">Yapay Zekâ</Link><Link href="/hakkimizda">Hakkımızda</Link></nav>
         <Link className="article-portal-link" href="/giris">Portala gir <ArrowRight size={15} /></Link>
       </header>
@@ -116,7 +116,7 @@ export default function InsightArticle({ articleKey }: { articleKey: string }) {
           <div className="article-conclusion"><span>Bir sonraki adım</span><h2>İhtiyacı sadeleştirin, sonra teknolojiyi seçin.</h2><p>Teksanor Yönetim Portalı’nı inceleyebilir veya diğer çözüm alanlarından araştırmanıza devam edebilirsiniz.</p><div><Link href="/giris#kayit">Portal çalışma alanını aç <ArrowRight size={16} /></Link><Link href="/cozumler">Tüm çözümler</Link></div></div>
         </article>
       </div>
-      <footer className="article-footer"><img src="/assets/teksanor-logo.png" alt="Teksanor" /><span>Mühendislik aklı. Yapay zekâ gücü.</span><span>© 2026 Teksanor</span></footer>
+      <footer className="article-footer"><img src="/assets/teksanor-logo.webp" alt="Teksanor" /><span>Mühendislik aklı. Yapay zekâ gücü.</span><span>© 2026 Teksanor</span></footer>
     </main>
   );
 }

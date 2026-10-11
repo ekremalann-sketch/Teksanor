@@ -1,0 +1,1 @@
+ALTER TABLE `department_processes` ADD `mutation_token` text;

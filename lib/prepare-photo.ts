@@ -1,0 +1,5 @@
+export async function preparePhoto(file:File):Promise<File>{
+ if(!["image/jpeg","image/png","image/webp"].includes(file.type))return file;
+ if(file.size>20*1024*1024)throw new Error("Fotoğraf 20 MB sınırını aşıyor.");
+ const image=await createImageBitmap(file);try{if(image.width*image.height>40000000)throw new Error("Fotoğraf çözünürlüğü çok yüksek.");const scale=Math.min(1,1600/Math.max(image.width,image.height));const canvas=document.createElement("canvas");canvas.width=Math.max(1,Math.round(image.width*scale));canvas.height=Math.max(1,Math.round(image.height*scale));const ctx=canvas.getContext("2d");if(!ctx)throw new Error("Fotoğraf işlenemedi.");ctx.fillStyle="#fff";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(image,0,0,canvas.width,canvas.height);const blob=await new Promise<Blob>((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error("Fotoğraf hazırlanamadı.")),"image/jpeg",.85));return new File([blob],file.name.replace(/\.[^.]+$/,"")+".jpg",{type:"image/jpeg",lastModified:Date.now()});}finally{image.close();}
+}

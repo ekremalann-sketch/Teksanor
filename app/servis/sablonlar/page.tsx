@@ -1,4 +1,6 @@
 "use client";
+import {goToLogin,goToMfaSetup} from "@/lib/workspace-navigation";
+import {organizationFetch,rememberOrganization,storedOrganization} from "@/lib/org-client";
 import Link from "next/link";
 import {useCallback,useEffect,useState,type FormEvent} from "react";
 import "../service.css";
@@ -12,8 +14,8 @@ const blank=():Item=>({label:"",type:"check",required:true});
 // Form şablonu tasarımcısı: yönetici maddeleri ekler/sıralar; hazır sektör şablonlarından başlayabilir.
 export default function Templates(){
  const [data,setData]=useState<Data|null>(null),[name,setName]=useState(""),[items,setItems]=useState<Item[]>([blank()]),[msg,setMsg]=useState(""),[busy,setBusy]=useState(false);
- const org=()=>{try{return new URLSearchParams(location.search).get("organizationId")||localStorage.getItem("teksanor_organization")||"";}catch{return "";}};
- const fetchData=useCallback(async()=>{const r=await fetch("/api/service/checklists",{headers:{"X-Organization-Id":org()},cache:"no-store"});if(r.status===401){location.href="/giris";throw new Error("Giriş gerekli.");}const d=await r.json();if(!r.ok)throw new Error(d.error);return d as Data;},[]);
+ const org=()=>storedOrganization();
+ const fetchData=useCallback(async()=>{const r=await organizationFetch("/api/service/checklists",{},org());if(r.status===401){goToLogin();throw new Error("Giriş gerekli.");}if(r.status===428){goToMfaSetup();throw new Error("İki aşamalı doğrulama kurulumu gerekli.");}const d=await r.json();if(!r.ok)throw new Error(d.error);rememberOrganization((d as {organizationId?:string}).organizationId);return d as Data;},[]);
  useEffect(()=>{let alive=true;fetchData().then(d=>{if(alive)setData(d);}).catch(e=>{if(alive)setMsg(String(e.message||e));});return()=>{alive=false;};},[fetchData]);
  const update=(i:number,patch:Partial<Item>)=>setItems(list=>list.map((it,j)=>j===i?{...it,...patch}:it));
  const move=(i:number,d:number)=>setItems(list=>{const n=[...list];const t=i+d;if(t<0||t>=n.length)return n;[n[i],n[t]]=[n[t],n[i]];return n;});

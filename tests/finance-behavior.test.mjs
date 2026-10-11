@@ -18,6 +18,7 @@ await api.database.ensureSchema();
 for(const id of ['boss','finance','outsider']){const p=await api.auth.hashPassword('Test-password-123!');sql.prepare('INSERT INTO users(id,username,email,full_name,password_hash,password_salt,role) VALUES(?,?,?,?,?,?,?)').run(id,id,id+'@example.test',id,p.hash,p.salt,'user');}
 for(const id of ['a','b'])sql.prepare('INSERT INTO organizations(id,name,slug) VALUES(?,?,?)').run(id,id,id);
 for(const [id,org,role,profile] of [['boss','a','owner','owner'],['finance','a','member','finance'],['outsider','b','owner','owner']]){sql.prepare('INSERT INTO organization_members(organization_id,user_id,role) VALUES(?,?,?)').run(org,id,role);sql.prepare('INSERT INTO organization_member_access(organization_id,user_id,access_profile) VALUES(?,?,?)').run(org,id,profile);}
+sql.prepare("INSERT INTO user_security(user_id,mfa_enabled) VALUES('boss',1),('outsider',1)").run();
 const tokens={};for(const id of ['boss','finance','outsider'])tokens[id]=await api.auth.createSession(id);
 const req=(user,path,method='GET',body,org='a')=>new Request('https://test.local'+path,{method,headers:{Cookie:'teksanor_session='+tokens[user],'X-Organization-Id':org,'Content-Type':'application/json',Origin:'https://test.local'},body:body?JSON.stringify(body):undefined});
 const ctx=(id)=>({params:Promise.resolve({id})});

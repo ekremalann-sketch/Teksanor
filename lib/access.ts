@@ -2,13 +2,8 @@ import type { AppUser } from "./auth";
 import { getDb } from "./db";
 import type { Organization } from "./tenancy";
 
-export const moduleIds = [
-  "overview", "departments", "projects", "tasks", "work-orders", "assets", "maintenance",
-  "field-visits", "procurement", "crm", "hr", "risks", "automations", "agents", "readiness",
-  "financial", "payments", "expenses", "treasury", "reports", "files", "company", "users",
-] as const;
-
-export type ModuleId = typeof moduleIds[number];
+import { accessRules, moduleIds, type AccessProfile, type ModuleId } from "./access-rules";
+export { accessRules, moduleIds, homeFor, type AccessProfile, type ModuleId } from "./access-rules";
 
 /** Firma veya modül yetkisi reddi. Mesaj aynı kalır; rotalar bunu 403 olarak döndürür. */
 export class AccessDeniedError extends Error {
@@ -19,21 +14,6 @@ export class AccessDeniedError extends Error {
 export function errorStatus(error: unknown, fallback = 400) {
   return error instanceof AccessDeniedError ? 403 : fallback;
 }
-export type AccessProfile = "owner" | "company_admin" | "ceo" | "manager" | "finance" | "hr" | "it" | "employee";
-type Rule = { view: ModuleId[]; edit: ModuleId[]; label: string };
-const operational: ModuleId[] = ["overview", "departments", "projects", "tasks", "work-orders", "assets", "maintenance", "field-visits", "procurement", "crm", "risks", "automations", "agents", "readiness", "reports", "files", "company"];
-const finance: ModuleId[] = ["financial", "payments", "expenses", "treasury", "reports"];
-
-export const accessRules: Record<AccessProfile, Rule> = {
-  owner: { label: "Firma sahibi", view: [...moduleIds], edit: [...moduleIds] },
-  company_admin: { label: "Firma yöneticisi", view: [...moduleIds], edit: [...moduleIds] },
-  ceo: { label: "Üst yönetim", view: [...operational, ...finance, "hr"], edit: [...operational, ...finance] },
-  manager: { label: "Birim yöneticisi", view: operational, edit: ["projects", "tasks", "work-orders", "assets", "maintenance", "field-visits", "procurement", "crm", "risks", "files"] },
-  finance: { label: "Finans ekibi", view: ["overview", "financial", "payments", "expenses", "treasury", "reports", "files", "company"], edit: ["payments", "expenses", "treasury", "reports", "files"] },
-  hr: { label: "İnsan kaynakları", view: ["overview", "departments", "tasks", "hr", "reports", "files", "company"], edit: ["tasks", "hr", "files"] },
-  it: { label: "Bilgi işlem", view: operational, edit: ["projects", "tasks", "work-orders", "assets", "maintenance", "automations", "agents", "readiness", "files"] },
-  employee: { label: "Çalışan", view: ["overview", "departments", "projects", "tasks", "work-orders", "files", "company"], edit: ["tasks", "work-orders", "files"] },
-};
 
 export type MemberAccess = {
   profile: AccessProfile;
@@ -45,9 +25,9 @@ export type MemberAccess = {
 };
 
 export async function getMemberAccess(user: AppUser, organization: Organization): Promise<MemberAccess> {
-  if (user.role === "admin") {
-    const rule = accessRules.owner;
-    return { profile: "owner", jobRole: "platform_admin", department: null, label: "Platform yetkilisi", viewModules: rule.view, editModules: rule.edit };
+  // Platform yöneticisinin "firma gözünden" görünümü: her şeyi görür, hiçbir şeyi değiştiremez.
+  if (organization.view_as) {
+    return { profile: "company_admin", jobRole: "Platform görünümü", department: null, label: "Platform görünümü (salt okunur)", viewModules: [...moduleIds], editModules: [] };
   }
   const saved = await getDb().prepare(`SELECT job_role, department, access_profile
     FROM organization_member_access WHERE organization_id = ? AND user_id = ?`)

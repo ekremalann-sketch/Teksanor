@@ -1,131 +1,60 @@
-import { metaFor } from "@/lib/seo";
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, ShieldAlert, ShieldCheck, Workflow, Wrench } from "lucide-react";
-import { criticalBacklog, departmentReality, priorityLabel, readinessSnapshot, roadmapPhases, statusLabel, workingModules } from "@/lib/readiness";
+import { ArrowRight, CheckCircle2, CircleDashed, PlugZap, ShieldCheck } from "lucide-react";
+import { PublicPage } from "@/components/PublicShell";
+import { metaFor } from "@/lib/seo";
 
 export const metadata = metaFor("/kurumsal-durum");
 
-export default function CorporateReadinessPage() {
+// Müşteriye dönük ürün durumu: hazır olan, bağlantıyla açılan ve yol haritasındaki özellikler ayrı gösterilir.
+const ready = [
+  ["Servis yönetimi", "Talep, teklif, müşteri onayı ve imza, saha kontrol listesi, iş raporu ve tahsilat takibi."],
+  ["Bakım ve varlık", "Ekipman envanteri, periyodik bakım planı ve bir sonraki bakım tarihinin otomatik hesaplanması."],
+  ["Operasyon", "İş emri, görev, saha ziyareti, satın alma, müşteri ve risk kayıtları."],
+  ["Finans görünümü", "Ödeme, borç, gider, nakit ve dönem özetleri; Excel ile içe ve dışa aktarma."],
+  ["Birimler", "İK, bilgi işlem, satın alma ve diğer birimler için onaylı süreç akışları."],
+  ["Yetki ve kayıt", "Firma bazlı veri ayrımı, rol bazlı erişim ve her değişiklik için işlem geçmişi."],
+];
+
+const connected = [
+  ["Belge depolama", "Dosya yükleme, kurumunuzun depolama alanı ve virüs taraması bağlandığında açılır."],
+  ["Yapay zekâ asistanı", "Kurumunuz onayladığında etkinleşir; kişisel veriler gönderilmeden önce maskelenir."],
+  ["E-posta bildirimleri", "Hesap kurtarma ve hatırlatma e-postaları, e-posta hizmeti tanımlandığında gönderilir."],
+];
+
+const roadmap = ["e-Fatura (özel entegratör üzerinden)", "SMS bildirimi", "Rota ve harita planlama", "Mağaza uygulaması (bugün tarayıcıdan, ana ekrana eklenerek kullanılır)"];
+
+export default function ProductStatusPage() {
   return (
-    <main className="readiness-page">
-      <header className="site-header readiness-header">
-        <Link className="brand-link" href="/" aria-label="Teksanor ana sayfa">
-          <img src="/assets/teksanor-logo.png" alt="Teksanor" className="header-logo" />
-        </Link>
-        <nav className="desktop-nav" aria-label="Ana menü">
-          <Link href="/">Ana sayfa</Link>
-          <Link href="/cozumler">Çözümler</Link>
-          <Link href="/yapay-zeka-hizmeti">Yapay zekâ hizmeti</Link>
-          <Link href="/giris">Giriş</Link>
-        </nav>
-      </header>
-
-      <section className="readiness-hero">
-        <div>
-          <span className="section-kicker">Ürün durumu</span>
-          <h1>{readinessSnapshot.title}</h1>
-          <p>{readinessSnapshot.summary}</p>
-          <div className="readiness-actions">
-            <Link className="primary-action" href="/giris#kayit">Pilot çalışma alanı oluştur <ArrowRight size={18} /></Link>
-            <Link className="secondary-action" href="/panel"><ShieldCheck size={17} /> Panele git</Link>
-          </div>
-        </div>
-        <aside className="readiness-verdict">
-          <ShieldAlert size={34} />
-          <b>Net karar</b>
-          <p>Önce kontrollü pilot ve gerçek ortam doğrulaması; ardından geniş kullanım.</p>
-        </aside>
-      </section>
-
-      <section className="readiness-stats" aria-label="Teksanor hızlı durum özeti">
-        {readinessSnapshot.stats.map((item) => (
-          <article key={item.label}>
-            <span>{item.label}</span>
-            <b>{item.value}</b>
-            <p>{item.note}</p>
-          </article>
-        ))}
-      </section>
-
-      <section className="readiness-section two-column">
-        <div>
-          <span className="section-kicker">Kodda gerçekten çalışanlar</span>
-          <h2>Vaat ile gerçek modülü ayırıyoruz.</h2>
-          <p>Bu alan müşteriye güven vermek için parlatılmış pazarlama diliyle değil, teknik gerçeklikle gösterilir.</p>
-        </div>
-        <div className="readiness-list">
-          {workingModules.map((item) => (
-            <article key={item.name} className={`status-${item.status}`}>
-              <CheckCircle2 size={19} />
-              <span><b>{item.name}</b><em>{statusLabel(item.status)}</em><small>{item.note}</small></span>
-            </article>
-          ))}
+    <PublicPage>
+      <section className="enterprise-section status-hero">
+        <span className="enterprise-kicker">Ürün durumu</span>
+        <h1>Neyin hazır, neyin bağlantıyla açıldığını açıkça gösteriyoruz.</h1>
+        <p>Teksanor, teknik servis, bakım ve mühendislik ekipleri için kurulmuş bir operasyon platformudur. Kurumunuza özel kullanım, kısa bir pilot ve bağlantı kontrolleriyle başlar.</p>
+        <div className="enterprise-cta-row">
+          <Link className="enterprise-primary" href="/pilot">Pilot görüşmesi planlayın <ArrowRight size={17} /></Link>
+          <Link className="enterprise-secondary" href="/guven">Güven merkezi</Link>
         </div>
       </section>
 
-      <section className="readiness-section">
-        <div className="section-heading compact-heading">
-          <div>
-            <span className="section-kicker">Departman gerçekliği</span>
-            <h2>13 departman vizyonu var; ilk ürün çekirdeği finans ve proje üstünde duruyor.</h2>
-          </div>
-          <p>Saha hizmetleri, iş emri ve ziyaret kanıtı ilk genişleme fazının merkezinde olmalı.</p>
-        </div>
-        <div className="department-reality-grid">
-          {departmentReality.map((item) => (
-            <article key={item.name}>
-              <span>{item.state}</span>
-              <h3>{item.name}</h3>
-              <p>{item.detail}</p>
-            </article>
-          ))}
+      <section className="enterprise-section">
+        <div className="enterprise-heading"><span className="enterprise-kicker">Kullanıma hazır</span><h2>Bugün çalışan modüller</h2></div>
+        <div className="status-grid">
+          {ready.map(([title, text]) => <article key={title}><CheckCircle2 size={20} aria-hidden="true" /><h3>{title}</h3><p>{text}</p></article>)}
         </div>
       </section>
 
-      <section className="readiness-section two-column critical-block">
-        <div>
-          <span className="section-kicker">Canlı müşteri öncesi zorunlu işler</span>
-          <h2>Güvenlik ve operasyon kapısı kapanmadan açık satış yok.</h2>
-          <p>Bu liste ürünü yavaşlatmak için değil, ilk ciddi müşteri görüşmesinde güven kaybetmemek için var.</p>
-        </div>
-        <div className="backlog-list">
-          {criticalBacklog.map((item) => (
-            <article key={item.title} className={`priority-${item.priority}`}>
-              <div><Wrench size={18} /><span>{priorityLabel(item.priority)}</span></div>
-              <h3>{item.title}</h3>
-              <p>{item.impact}</p>
-              <small>Çıkış ölçütü: {item.exit}</small>
-            </article>
-          ))}
+      <section className="enterprise-section">
+        <div className="enterprise-heading"><span className="enterprise-kicker">Bağlantıyla açılır</span><h2>Kurumunuzun hizmetiyle etkinleşenler</h2></div>
+        <div className="status-grid">
+          {connected.map(([title, text]) => <article key={title}><PlugZap size={20} aria-hidden="true" /><h3>{title}</h3><p>{text}</p></article>)}
         </div>
       </section>
 
-      <section className="readiness-section roadmap-section">
-        <div className="section-heading compact-heading">
-          <div>
-            <span className="section-kicker">90 günlük uygulama yolu</span>
-            <h2>Önce güvenlik, sonra saha omurgası, sonra ücretli pilot.</h2>
-          </div>
-        </div>
-        <div className="roadmap-cards">
-          {roadmapPhases.map((phase) => (
-            <article key={phase.period}>
-              <span>{phase.period}</span>
-              <h3>{phase.title}</h3>
-              <ul>{phase.items.map((item) => <li key={item}><Workflow size={14} />{item}</li>)}</ul>
-            </article>
-          ))}
-        </div>
+      <section className="enterprise-section">
+        <div className="enterprise-heading"><span className="enterprise-kicker">Yol haritası</span><h2>Sıradaki geliştirmeler</h2></div>
+        <ul className="status-roadmap">{roadmap.map((item) => <li key={item}><CircleDashed size={18} aria-hidden="true" />{item}</li>)}</ul>
+        <p className="status-note"><ShieldCheck size={17} aria-hidden="true" /> Entegratör veya mesaj sağlayıcısı bağlanmadan resmî fatura ya da mesaj gönderilmez; ekranlar bu durumu her zaman açıkça belirtir.</p>
       </section>
-
-      <section className="readiness-final-cta">
-        <div>
-          <span className="section-kicker">Pilot stratejisi</span>
-          <h2>Şimdi doğru hamle: 3 firmada sınırlı, ölçülü ve ücretli pilot.</h2>
-          <p>Başarı ölçüsü “site güzel mi?” değil; rapor süresi, eksik kayıt, geciken iş, kullanıcı kabulü ve yöneticinin karar hızıdır.</p>
-        </div>
-        <Link className="primary-action" href="/giris#kayit">Pilot için başla <ArrowRight size={18} /></Link>
-      </section>
-    </main>
+    </PublicPage>
   );
 }

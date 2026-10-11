@@ -22,7 +22,7 @@ export async function GET(request: Request) {
       .bind(context.organization.id).all();
     return NextResponse.json({ risks: result.results });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Riskler alınamadı." }, { status: 403 });
+    return NextResponse.json({ error: "Riskler alınamadı." }, { status: 403 });
   }
 }
 
@@ -49,6 +49,6 @@ export async function POST(request: Request) {
     await addAudit(user.id, "create", "risk", id, `${title} riski kaydedildi.`, context.organization.id);
     return NextResponse.json({ ok: true, id });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Risk kaydedilemedi." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Risk kaydedilemedi." }, { status: errorStatus(error) });
   }
 }

@@ -40,7 +40,7 @@ export async function GET(request: Request) {
       .bind(context.organization.id).all();
     return NextResponse.json({ projects: result.results });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Projeler alınamadı." }, { status: 403 });
+    return NextResponse.json({ error: "Projeler alınamadı." }, { status: 403 });
   }
 }
 
@@ -71,6 +71,6 @@ export async function POST(request: Request) {
     await addAudit(user.id, "create", "project", id, `${name} projesi oluşturuldu.`, context.organization.id);
     return NextResponse.json({ ok: true, id });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Proje oluşturulamadı." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Proje oluşturulamadı." }, { status: errorStatus(error) });
   }
 }

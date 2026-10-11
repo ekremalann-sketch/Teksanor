@@ -1,3 +1,4 @@
+import { recordRead } from "@/lib/read-audit";
 import { NextResponse } from "next/server";
 import { errorStatus } from "@/lib/access";
 import { getCurrentUser } from "@/lib/auth";
@@ -17,9 +18,10 @@ export async function GET(request: Request) {
       `SELECT * FROM customers WHERE organization_id = ?
        ORDER BY CASE status WHEN 'active' THEN 1 WHEN 'prospect' THEN 2 WHEN 'lead' THEN 3 ELSE 4 END, created_at DESC`)
       .bind(context.organization.id).all();
+    await recordRead(user.id,context.organization.id,"customers:list");
     return NextResponse.json({ customers: result.results });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Müşteriler alınamadı." }, { status: 403 });
+    return NextResponse.json({ error: "Müşteriler alınamadı." }, { status: 403 });
   }
 }
 
@@ -43,6 +45,6 @@ export async function POST(request: Request) {
     await addAudit(user.id, "create", "customer", id, `${name} müşterisi eklendi.`, context.organization.id);
     return NextResponse.json({ ok: true, id });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Müşteri eklenemedi." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Müşteri eklenemedi." }, { status: errorStatus(error) });
   }
 }

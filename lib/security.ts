@@ -1,3 +1,4 @@
+import { FinanceValidationError } from "./finance";
 import { NextResponse } from "next/server";
 
 /**
@@ -22,3 +23,5 @@ export function rejectCrossSiteMutation(request: Request) {
   }
   return null;
 }
+
+export function publicErrorMessage(error:unknown,fallback:string){return error instanceof FinanceValidationError?error.message:fallback;}

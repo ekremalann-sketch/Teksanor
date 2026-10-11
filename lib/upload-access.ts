@@ -1,3 +1,4 @@
+import { canManageOrganization } from "./tenancy";
 import { getDb } from "./db";
 import { requireModuleAccess, getMemberAccess, type ModuleId } from "./access";
 import type { AppUser } from "./auth";
@@ -8,8 +9,11 @@ const records: Record<string, [string, ModuleId]> = {
   project: ["projects", "projects"], field_visit: ["field_visits", "field-visits"],
   employee: ["employees", "hr"],
 };
-export async function requireAttachmentRecord(user: AppUser, org: Organization, type: string | null, id: string | null) {
-  if (!type && !id) return;
+export async function requireAttachmentRecord(user: AppUser, org: Organization, type: string | null, id: string | null, uploadedBy?: string) {
+  if (!type && !id) {
+    if (uploadedBy && uploadedBy !== user.id && !canManageOrganization(user, org)) throw new Error("Bu belge yalnız yükleyen ve firma yöneticisine açıktır.");
+    return;
+  }
   const rule = type ? records[type] : undefined;
   if (!rule || !id) throw new Error("Geçerli bir belge kaydı seçin.");
   await requireModuleAccess(user, org, rule[1]);

@@ -35,7 +35,7 @@ export async function PUT(request: Request, routeContext: { params: Promise<{ id
     await addAudit(user.id, "update", "employee", id, `${existing.full_name} çalışanı güncellendi.`, context.organization.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Çalışan güncellenemedi." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Çalışan güncellenemedi." }, { status: errorStatus(error) });
   }
 }
 
@@ -52,6 +52,6 @@ export async function DELETE(request: Request, routeContext: { params: Promise<{
     await addAudit(user.id, "delete", "employee", id, undefined, context.organization.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Çalışan silinemedi." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Çalışan silinemedi." }, { status: errorStatus(error) });
   }
 }

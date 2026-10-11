@@ -1,3 +1,4 @@
+import {recordRead} from "@/lib/read-audit";
 import { NextResponse } from "next/server";
 import { errorStatus } from "@/lib/access";
 import { getCurrentUser } from "@/lib/auth";
@@ -20,9 +21,10 @@ export async function GET(request: Request, routeContext: { params: Promise<{ id
     const interactions = await getDb().prepare(
       "SELECT * FROM customer_interactions WHERE customer_id = ? AND organization_id = ? ORDER BY interaction_date DESC, created_at DESC")
       .bind(id, context.organization.id).all();
+    await recordRead(user.id,context.organization.id,`customers:${id}`);
     return NextResponse.json({ customer, interactions: interactions.results });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Müşteri alınamadı." }, { status: 403 });
+    return NextResponse.json({ error: "Müşteri alınamadı." }, { status: 403 });
   }
 }
 
@@ -51,7 +53,7 @@ export async function PUT(request: Request, routeContext: { params: Promise<{ id
     await addAudit(user.id, "update", "customer", id, `${existing.name} müşterisi güncellendi.`, context.organization.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Müşteri güncellenemedi." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Müşteri güncellenemedi." }, { status: errorStatus(error) });
   }
 }
 
@@ -68,6 +70,6 @@ export async function DELETE(request: Request, routeContext: { params: Promise<{
     await addAudit(user.id, "delete", "customer", id, undefined, context.organization.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Müşteri silinemedi." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Müşteri silinemedi." }, { status: errorStatus(error) });
   }
 }

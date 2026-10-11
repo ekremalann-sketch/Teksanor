@@ -34,7 +34,7 @@ export async function PUT(request: Request, routeContext: { params: Promise<{ id
     await addAudit(user.id, "update", "automation_rule", id, `${existing.name} kuralı güncellendi.`, context.organization.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Otomasyon güncellenemedi." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Otomasyon güncellenemedi." }, { status: errorStatus(error) });
   }
 }
 
@@ -51,7 +51,7 @@ export async function DELETE(request: Request, routeContext: { params: Promise<{
     await addAudit(user.id, "delete", "automation_rule", id, undefined, context.organization.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Otomasyon silinemedi." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Otomasyon silinemedi." }, { status: errorStatus(error) });
   }
 }
 
@@ -76,7 +76,7 @@ export async function POST(request: Request, routeContext: { params: Promise<{ i
       : `${result.scanned} kayıt incelendi, ${result.matched} eşleşme. ${result.matched ? "Bildirim oluşturuldu." : "Bildirim gerekmedi."}`;
     return NextResponse.json({ ok: result.status !== "skipped", ...result, message }, { status: result.status === "skipped" ? 403 : 200 });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Otomasyon çalıştırılamadı." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Otomasyon çalıştırılamadı." }, { status: errorStatus(error) });
   }
 }
 
@@ -100,6 +100,6 @@ export async function GET(request: Request, routeContext: { params: Promise<{ id
       .bind(context.organization.id, id).all();
     return NextResponse.json({ runs: runs.results });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Çalışma geçmişi alınamadı." }, { status: errorStatus(error, 403) });
+    return NextResponse.json({ error: "Çalışma geçmişi alınamadı." }, { status: errorStatus(error, 403) });
   }
 }

@@ -69,7 +69,7 @@ await test('e-fatura taslağı: tutarlar kuruş hassasiyetinde; XML geçerli ve 
   assert.match(xml,/<cbc:PayableAmount currencyID="TRY">3000.90<\/cbc:PayableAmount>/);
   assert.match(xml,/Eksik bilgi: satıcı vergi numarası/);
   const dir=mkdtempSync(join(tmpdir(),'ubl-'));writeFileSync(join(dir,'i.xml'),xml);
-  execFileSync('python3',['-c','import sys, xml.etree.ElementTree as ET; ET.parse(sys.argv[1])',join(dir,'i.xml')]);
+  execFileSync(process.env.PYTHON_EXECUTABLE || (process.platform === 'win32' ? 'python' : 'python3'),['-c','import sys, xml.etree.ElementTree as ET; ET.parse(sys.argv[1])',join(dir,'i.xml')]);
   const get=(u,id,vat='')=>api.invoice.GET(req(u,`/api/service/invoice?id=${id}${vat}`,'GET',undefined,'a'));
   assert.equal((await get('boss',jobId)).status,409,'onaysız iş faturalanmaz');
   sql.prepare("UPDATE service_jobs SET stage='accepted',paid_cents=20000 WHERE id=?").run(jobId);

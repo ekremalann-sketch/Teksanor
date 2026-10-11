@@ -1,4 +1,5 @@
 import { build } from "esbuild";
+import { builtinModules } from "node:module";
 import { cp, mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -43,7 +44,7 @@ await build({
   platform: "neutral",
   target: "es2022",
   minify: true,
-  external: ["node:*", "cloudflare:*"],
+  external: ["node:*", "cloudflare:*", ...builtinModules],
 });
 
 console.log("Cloudflare Pages output prepared in dist/pages");

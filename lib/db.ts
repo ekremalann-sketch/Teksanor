@@ -488,6 +488,9 @@ const schemaStatements = [
 "CREATE INDEX IF NOT EXISTS idx_agent_chats_org ON agent_chats(organization_id, agent_name)",
 "CREATE INDEX IF NOT EXISTS idx_payment_period ON payment_records(period)",
 "CREATE INDEX IF NOT EXISTS idx_payment_status ON payment_records(workflow_status)",
+`CREATE TABLE IF NOT EXISTS session_activity (token_hash TEXT PRIMARY KEY REFERENCES sessions(token_hash) ON DELETE CASCADE, last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
+`CREATE TABLE IF NOT EXISTS privacy_notice_receipts (user_id TEXT NOT NULL REFERENCES users(id), notice_version TEXT NOT NULL, acknowledged_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY(user_id,notice_version))`,
+`CREATE TABLE IF NOT EXISTS read_audits (audit_key TEXT PRIMARY KEY, user_id TEXT NOT NULL, organization_id TEXT NOT NULL, resource TEXT NOT NULL, hour TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
 "CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)",
 "CREATE INDEX IF NOT EXISTS idx_auth_attempts_window ON auth_attempts(fingerprint_hash, action, created_at)",
 "CREATE INDEX IF NOT EXISTS idx_manual_debt_status ON manual_debts(status)",
@@ -495,9 +498,10 @@ const schemaStatements = [
 "CREATE INDEX IF NOT EXISTS idx_member_access_profile ON organization_member_access(organization_id, access_profile)",
 ] as const;
 
+// Kimlik mevcut kurulumlarla uyumluluk için değişmez; yeni kurulumda görünen ad "Teksanor Yönetim" olur.
 export const DEFAULT_ORGANIZATION_ID = "org_alan_group";
 
-const CURRENT_SCHEMA_VERSION = "2026-09-06-pilot-v3";
+const CURRENT_SCHEMA_VERSION = "2026-10-11-mfa-recovery-v5";
 let schemaPromise: Promise<void> | null = null;
 
 export async function ensureSchema() {
@@ -545,6 +549,9 @@ async function initializeSchema() {
     ["mfa_challenges", "attempts", "INTEGER NOT NULL DEFAULT 0"],
     ["user_security", "last_totp_counter", "INTEGER NOT NULL DEFAULT -1"],
     ["user_security", "mfa_setup_expires_at", "TEXT"],
+    // MFA: tek seferlik 14 günlük erteleme ve tek kullanımlık kurtarma kodları (SHA-256 özetleri, JSON dizi).
+    ["user_security", "mfa_deferred_until", "TEXT"],
+    ["user_security", "recovery_codes", "TEXT"],
     // Müşteri imzası (isteğe bağlı, doğrulanmış SVG yolu). Mevcut satırlar NULL kalır.
     ["service_approvals", "signature_path", "TEXT"],
   ]) {
@@ -579,10 +586,10 @@ async function initializeSchema() {
   await database.prepare("CREATE INDEX IF NOT EXISTS idx_manual_debt_status ON manual_debts(status)").run();
   await database.prepare(`INSERT OR IGNORE INTO organizations
     (id, name, slug, kind, plan, subscription_status, trial_ends_at)
-    VALUES (?, 'Alan Group', 'alan-group', 'business', 'founder', 'active', NULL)`).bind(DEFAULT_ORGANIZATION_ID).run();
+    VALUES (?, 'Teksanor Yönetim', 'teksanor-yonetim', 'business', 'founder', 'active', NULL)`).bind(DEFAULT_ORGANIZATION_ID).run();
   await database.prepare(`INSERT OR IGNORE INTO organization_profiles
     (organization_id, legal_name, sector, about)
-    VALUES (?, 'Alan Group', 'Mühendislik, teknoloji ve yönetim', 'Şirket içi finans ve operasyon verilerinin güvenli şekilde izlendiği çalışma alanı.')`)
+    VALUES (?, 'Teksanor Yönetim', 'Platform yönetimi', 'Platform yöneticilerinin varsayılan çalışma alanı.')`)
     .bind(DEFAULT_ORGANIZATION_ID).run();
   await database.prepare(`INSERT OR IGNORE INTO organization_member_access
     (organization_id, user_id, job_role, department, access_profile)
@@ -614,15 +621,17 @@ async function initializeSchema() {
 async function migrateTreasuryCurrencyTables(database: Database) {
   const cashSchema = await database.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'cash_balances'").first<{ sql: string }>();
   if (cashSchema?.sql?.includes("CHECK (currency")) {
-    await database.prepare(`CREATE TABLE IF NOT EXISTS cash_balances_v2 (
+    await database.batch([
+      database.prepare(`CREATE TABLE IF NOT EXISTS cash_balances_v2 (
       id TEXT PRIMARY KEY, account_name TEXT NOT NULL, currency TEXT NOT NULL, amount REAL NOT NULL DEFAULT 0,
       manual_rate REAL, note TEXT, created_by TEXT REFERENCES users(id), created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      organization_id TEXT REFERENCES organizations(id))`).run();
-    await database.prepare(`INSERT OR IGNORE INTO cash_balances_v2
+      organization_id TEXT REFERENCES organizations(id))`),
+      database.prepare(`INSERT OR IGNORE INTO cash_balances_v2
       (id, account_name, currency, amount, manual_rate, note, created_by, created_at, organization_id)
-      SELECT id, account_name, currency, amount, NULL, note, created_by, created_at, organization_id FROM cash_balances`).run();
-    await database.prepare("DROP TABLE cash_balances").run();
-    await database.prepare("ALTER TABLE cash_balances_v2 RENAME TO cash_balances").run();
+      SELECT id, account_name, currency, amount, NULL, note, created_by, created_at, organization_id FROM cash_balances`),
+      database.prepare("DROP TABLE cash_balances"),
+      database.prepare("ALTER TABLE cash_balances_v2 RENAME TO cash_balances"),
+    ]);
   } else {
     const columns = await database.prepare("PRAGMA table_info(cash_balances)").all<{ name: string }>();
     if (!columns.results.some((column) => column.name === "manual_rate")) await database.prepare("ALTER TABLE cash_balances ADD COLUMN manual_rate REAL").run();
@@ -630,16 +639,18 @@ async function migrateTreasuryCurrencyTables(database: Database) {
 
   const debtSchema = await database.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'manual_debts'").first<{ sql: string }>();
   if (debtSchema?.sql?.includes("CHECK (currency")) {
-    await database.prepare(`CREATE TABLE IF NOT EXISTS manual_debts_v2 (
+    await database.batch([
+      database.prepare(`CREATE TABLE IF NOT EXISTS manual_debts_v2 (
       id TEXT PRIMARY KEY, lender_name TEXT NOT NULL, debt_type TEXT NOT NULL DEFAULT 'cash', currency TEXT NOT NULL,
       amount REAL NOT NULL DEFAULT 0, manual_rate REAL, due_date TEXT, note TEXT,
       status TEXT NOT NULL CHECK (status IN ('open', 'paid')) DEFAULT 'open', created_by TEXT REFERENCES users(id),
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, organization_id TEXT REFERENCES organizations(id))`).run();
-    await database.prepare(`INSERT OR IGNORE INTO manual_debts_v2
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, organization_id TEXT REFERENCES organizations(id))`),
+      database.prepare(`INSERT OR IGNORE INTO manual_debts_v2
       (id, lender_name, debt_type, currency, amount, manual_rate, due_date, note, status, created_by, created_at, organization_id)
-      SELECT id, lender_name, debt_type, currency, amount, manual_rate, due_date, note, status, created_by, created_at, organization_id FROM manual_debts`).run();
-    await database.prepare("DROP TABLE manual_debts").run();
-    await database.prepare("ALTER TABLE manual_debts_v2 RENAME TO manual_debts").run();
+      SELECT id, lender_name, debt_type, currency, amount, manual_rate, due_date, note, status, created_by, created_at, organization_id FROM manual_debts`),
+      database.prepare("DROP TABLE manual_debts"),
+      database.prepare("ALTER TABLE manual_debts_v2 RENAME TO manual_debts"),
+    ]);
   }
 }
 
@@ -654,15 +665,15 @@ export async function refreshOrganizationPeriodSummary(organizationId: string, p
     VALUES (?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM organization_period_summaries WHERE organization_id = ?))`)
     .bind(createId("summary"), organizationId, period, organizationId).run();
   await database.prepare(`UPDATE organization_period_summaries SET
-    total_limit = COALESCE((SELECT SUM(total_limit) FROM payment_records WHERE organization_id = ? AND period = ?), 0),
-    total_debt = COALESCE((SELECT SUM(MAX(total_debt - paid_amount, 0)) FROM payment_records WHERE organization_id = ? AND period = ?), 0),
-    restructuring = COALESCE((SELECT SUM(restructuring) FROM payment_records WHERE organization_id = ? AND period = ?), 0),
-    monthly_payment = COALESCE((SELECT SUM(monthly_payment) FROM payment_records WHERE organization_id = ? AND period = ?), 0),
-    next_installment = COALESCE((SELECT SUM(next_installment) FROM payment_records WHERE organization_id = ? AND period = ?), 0),
-    overdraft_debt = COALESCE((SELECT SUM(overdraft_debt) FROM payment_records WHERE organization_id = ? AND period = ?), 0),
-    overdraft_limit = COALESCE((SELECT SUM(overdraft_limit) FROM payment_records WHERE organization_id = ? AND period = ?), 0),
-    minimum_payment = COALESCE((SELECT SUM(minimum_payment) FROM payment_records WHERE organization_id = ? AND period = ?), 0),
-    expense_total = COALESCE((SELECT SUM(amount) FROM expenses WHERE organization_id = ? AND period = ?), 0)
+    total_limit = COALESCE((SELECT SUM(total_limit) FROM payment_records WHERE organization_id = ? AND period = ? AND workflow_status = 'approved'), 0),
+    total_debt = COALESCE((SELECT SUM(MAX(total_debt - paid_amount, 0)) FROM payment_records WHERE organization_id = ? AND period = ? AND workflow_status = 'approved'), 0),
+    restructuring = COALESCE((SELECT SUM(restructuring) FROM payment_records WHERE organization_id = ? AND period = ? AND workflow_status = 'approved'), 0),
+    monthly_payment = COALESCE((SELECT SUM(monthly_payment) FROM payment_records WHERE organization_id = ? AND period = ? AND workflow_status = 'approved'), 0),
+    next_installment = COALESCE((SELECT SUM(next_installment) FROM payment_records WHERE organization_id = ? AND period = ? AND workflow_status = 'approved'), 0),
+    overdraft_debt = COALESCE((SELECT SUM(overdraft_debt) FROM payment_records WHERE organization_id = ? AND period = ? AND workflow_status = 'approved'), 0),
+    overdraft_limit = COALESCE((SELECT SUM(overdraft_limit) FROM payment_records WHERE organization_id = ? AND period = ? AND workflow_status = 'approved'), 0),
+    minimum_payment = COALESCE((SELECT SUM(minimum_payment) FROM payment_records WHERE organization_id = ? AND period = ? AND workflow_status = 'approved'), 0),
+    expense_total = COALESCE((SELECT SUM(amount) FROM expenses WHERE organization_id = ? AND period = ? AND workflow_status = 'approved'), 0)
     WHERE organization_id = ? AND period = ?`)
     .bind(
       organizationId, period, organizationId, period, organizationId, period, organizationId, period,

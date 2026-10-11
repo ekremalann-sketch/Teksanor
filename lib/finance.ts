@@ -1,3 +1,4 @@
+export class FinanceValidationError extends Error {}
 export type PaymentAmounts = { totalDebt: number; paidAmount: number };
 
 function parseStrictLocalizedNumber(value: unknown): number | null {
@@ -25,8 +26,8 @@ export function parseLocalizedNumber(value: unknown) {
 export function parseOptionalLocalizedNumber(value: unknown, label = "Tutar") {
   if (value === null || value === undefined || value === "") return null;
   const parsed = parseStrictLocalizedNumber(value);
-  if (parsed === null) throw new Error(`${label} geçerli bir sayı olmalıdır.`);
-  if (parsed < 0) throw new Error(`${label} sıfırdan küçük olamaz.`);
+  if (parsed === null) throw new FinanceValidationError(`${label} geçerli bir sayı olmalıdır.`);
+  if (parsed < 0) throw new FinanceValidationError(`${label} sıfırdan küçük olamaz.`);
   return parsed;
 }
 
@@ -48,9 +49,9 @@ export function inferredPaymentStatus({ totalDebt, paidAmount }: PaymentAmounts)
 
 export function assertPaymentAmounts({ totalDebt, paidAmount }: PaymentAmounts) {
   if (!Number.isFinite(totalDebt) || !Number.isFinite(paidAmount) || totalDebt < 0 || paidAmount < 0) {
-    throw new Error("Borç ve ödeme tutarları sıfırdan küçük olamaz.");
+    throw new FinanceValidationError("Borç ve ödeme tutarları sıfırdan küçük olamaz.");
   }
-  if (paidAmount > totalDebt && totalDebt > 0) throw new Error("Ödenen tutar toplam borçtan büyük olamaz.");
+  if (paidAmount > totalDebt && totalDebt > 0) throw new FinanceValidationError("Ödenen tutar toplam borçtan büyük olamaz.");
 }
 
 export type PaymentStatus = "planned" | "partial" | "paid" | "overdue";
@@ -76,14 +77,14 @@ export function normalizePaymentStatus(value: unknown): PaymentStatus | null {
 export function resolvePaymentStatus(input: { totalDebt: number | null; paidAmount: number | null; status?: unknown }): PaymentStatus {
   const { totalDebt, paidAmount } = input;
   const paid = paidAmount ?? 0;
-  if (totalDebt === null && paid > 0) throw new Error("Ödeme kaydetmeden önce toplam borcu girin.");
-  if (totalDebt !== null && totalDebt === 0 && paid > 0) throw new Error("Borcu 0 olan kayda ödeme girilemez; önce toplam borcu düzeltin.");
+  if (totalDebt === null && paid > 0) throw new FinanceValidationError("Ödeme kaydetmeden önce toplam borcu girin.");
+  if (totalDebt !== null && totalDebt === 0 && paid > 0) throw new FinanceValidationError("Borcu 0 olan kayda ödeme girilemez; önce toplam borcu düzeltin.");
   assertPaymentAmounts({ totalDebt: totalDebt ?? 0, paidAmount: paid });
   const hasStatus = input.status !== undefined && input.status !== null && String(input.status).trim() !== "";
   const status = hasStatus ? normalizePaymentStatus(input.status) : inferredPaymentStatus({ totalDebt: totalDebt ?? 0, paidAmount: paid });
-  if (!status) throw new Error("Ödeme durumu geçersiz.");
+  if (!status) throw new FinanceValidationError("Ödeme durumu geçersiz.");
   if (totalDebt === null && (status === "paid" || status === "partial")) {
-    throw new Error("Borç bilinmeden ödeme tamamlandı veya kısmi ödendi olarak işaretlenemez.");
+    throw new FinanceValidationError("Borç bilinmeden ödeme tamamlandı veya kısmi ödendi olarak işaretlenemez.");
   }
   const debt = totalDebt ?? 0;
   const mismatch =
@@ -91,7 +92,7 @@ export function resolvePaymentStatus(input: { totalDebt: number | null; paidAmou
     (status === "partial" && (paid <= 0 || paid >= debt)) ||
     (status === "planned" && paid > 0) ||
     (status === "overdue" && debt > 0 && paid >= debt);
-  if (mismatch) throw new Error("Ödeme durumu ile ödenen tutar birbiriyle uyuşmuyor.");
+  if (mismatch) throw new FinanceValidationError("Ödeme durumu ile ödenen tutar birbiriyle uyuşmuyor.");
   return status;
 }
 
@@ -158,7 +159,7 @@ export const paymentFieldLabels: Record<string, string> = {
 /** Required, strictly parsed, strictly positive amount (expenses). */
 export function parseRequiredPositiveAmount(value: unknown, label = "Tutar") {
   const parsed = parseOptionalLocalizedNumber(value, label);
-  if (parsed === null) throw new Error(`${label} gereklidir.`);
-  if (parsed === 0) throw new Error(`${label} sıfırdan büyük olmalıdır.`);
+  if (parsed === null) throw new FinanceValidationError(`${label} gereklidir.`);
+  if (parsed === 0) throw new FinanceValidationError(`${label} sıfırdan büyük olmalıdır.`);
   return parsed;
 }

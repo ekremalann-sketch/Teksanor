@@ -37,7 +37,7 @@ export async function GET(request: Request) {
       .bind(context.organization.id).all();
     return NextResponse.json({ automations: result.results });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Otomasyonlar alınamadı." }, { status: 403 });
+    return NextResponse.json({ error: "Otomasyonlar alınamadı." }, { status: 403 });
   }
 }
 
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
     await addAudit(user.id, "create", "automation_rule", id, `${name} otomasyon kuralı oluşturuldu.`, context.organization.id);
     return NextResponse.json({ ok: true, id });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Otomasyon oluşturulamadı." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Otomasyon oluşturulamadı." }, { status: errorStatus(error) });
   }
 }
 
@@ -85,6 +85,6 @@ export async function PATCH(request: Request) {
     await addAudit(user.id, "update", "automation_rule", id, `Otomasyon durumu ${next ? "aktif" : "pasif"} yapıldı.`, context.organization.id);
     return NextResponse.json({ ok: true, isActive: next });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Otomasyon güncellenemedi." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Otomasyon güncellenemedi." }, { status: errorStatus(error) });
   }
 }

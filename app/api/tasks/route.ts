@@ -15,13 +15,13 @@ export async function GET(request: Request) {
   try {
     const context = await requireOrganization(request, user);
     const result = await getDb().prepare(
-      `SELECT * FROM tasks WHERE organization_id = ?
+      `SELECT * FROM tasks WHERE organization_id = ? AND (description IS NULL OR description NOT LIKE 'UNIT-WORKFLOW:%')
        ORDER BY CASE status WHEN 'in_progress' THEN 1 WHEN 'open' THEN 2 WHEN 'done' THEN 3 ELSE 4 END,
        CASE priority WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END, created_at DESC`)
       .bind(context.organization.id).all();
     return NextResponse.json({ tasks: result.results });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Görevler alınamadı." }, { status: 403 });
+    return NextResponse.json({ error: "Görevler alınamadı." }, { status: 403 });
   }
 }
 
@@ -34,6 +34,7 @@ export async function POST(request: Request) {
     const body = await request.json() as Record<string, unknown>;
     const title = text(body.title);
     const department = text(body.department);
+    if (String(body.description || "").startsWith("UNIT-WORKFLOW:")) return NextResponse.json({error:"Birim çalışma alanını kullanın."},{status:400});
     if (!title || !department) return NextResponse.json({ error: "Görev başlığı ve departman gereklidir." }, { status: 400 });
     const status = STATUS.includes(text(body.status)) ? text(body.status) : "open";
     const priority = PRIORITY.includes(text(body.priority)) ? text(body.priority) : "normal";
@@ -46,6 +47,6 @@ export async function POST(request: Request) {
     await addAudit(user.id, "create", "task", id, `${title} görevi oluşturuldu.`, context.organization.id);
     return NextResponse.json({ ok: true, id });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Görev oluşturulamadı." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Görev oluşturulamadı." }, { status: errorStatus(error) });
   }
 }

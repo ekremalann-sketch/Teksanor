@@ -11,7 +11,7 @@ import {buildUblInvoice} from "@/lib/einvoice";
 export async function GET(request:Request){
  const user=await getCurrentUser(request);if(!user)return NextResponse.json({error:"Oturum gerekli."},{status:401});
  let organization;
- try{({organization}=await requireOrganization(request,user));}catch(e){return NextResponse.json({error:e instanceof Error?e.message:"Erişim reddedildi."},{status:403});}
+ try{({organization}=await requireOrganization(request,user));}catch(e){return NextResponse.json({error:"Erişim reddedildi."},{status:403});}
  await ensureServiceColumns();
  const access=await getMemberAccess(user,organization);
  if(!["owner","company_admin","ceo","manager"].includes(access.profile))return NextResponse.json({error:"Fatura taslağını yönetici indirir."},{status:403});
@@ -31,5 +31,5 @@ export async function GET(request:Request){
   });
   await addAudit(user.id,"export","einvoice_draft",String(job.id),`E-fatura taslağı indirildi (KDV %${vat}).`,organization.id);
   return new Response(xml,{headers:{"Content-Type":"application/xml; charset=utf-8","Content-Disposition":`attachment; filename="${String(job.order_number).replace(/[^A-Za-z0-9_-]/g,"")}-efatura-taslak.xml"`,"Cache-Control":"private, no-store"}});
- }catch(e){return NextResponse.json({error:e instanceof Error?e.message:"Taslak hazırlanamadı."},{status:400});}
+ }catch(e){return NextResponse.json({error:"Taslak hazırlanamadı."},{status:400});}
 }

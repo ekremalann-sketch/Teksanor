@@ -1,11 +1,22 @@
 "use client";
+import {goToLogin,goToMfaSetup} from "@/lib/workspace-navigation";
+import { forgetOrganization, rememberOrganization, signOut } from "@/lib/org-client";
+import Field from "@/components/shared/Field";
+import ExportMenu from "@/components/shared/ExportMenu";
+import { runLimited } from "@/lib/request-pool";
+import { filterList, listScope } from "@/lib/list-filter";
+import AttentionStrip from "./shared/AttentionStrip";
+import DepartmentWorkspace from "./DepartmentWorkspace";
 
-import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { accessRules, homeFor, type AccessProfile } from "@/lib/access-rules";
+import { useModalKeys } from "./shared/useModalKeys";
+import { ScreenHelpBox } from "./shared/ScreenHelpBox";
 import {
   AlertOctagon, AlertTriangle, ArrowDownRight, ArrowLeft, ArrowRight, ArrowUpRight, Banknote, BarChart3, Bell, Bot, BriefcaseBusiness, Building2, Check,
   CheckSquare, CircleDollarSign, Coins, CreditCard, Database, Download, FileSpreadsheet, Files,
   CalendarCheck2, Factory, Gauge, HandCoins, Landmark, LayoutDashboard, LogOut, MapPin, Menu, MoreHorizontal, Plus, Search,
-  KeyRound, Pencil, Settings, ShieldCheck, ShoppingCart, Trash2, Upload, UserPlus, Users, Users2, WalletCards, Workflow, Wrench, X, Zap,
+  Inbox, KeyRound, Pencil, Settings, ShieldCheck, Shield, ShoppingCart, Trash2, Upload, UserPlus, Users, Users2, WalletCards, Workflow, Wrench, X, Zap,
 } from "lucide-react";
 import {
   TasksView, WorkOrdersView, FieldVisitsView, ProcurementView, CrmView, HrView, RisksView, AutomationsView,
@@ -14,8 +25,9 @@ import {
 } from "./modules/OperationsModules";
 import { AssetsView, MaintenanceView, type Asset, type MaintenancePlan } from "./modules/AssetMaintenanceModules";
 import { paymentImportPayload } from "@/lib/finance";
+import FlowsCard from "./home/FlowsCard";
 import { TodayCard } from "./home/TodayCard";
-import { criticalBacklog, departmentReality, priorityLabel, readinessSnapshot, roadmapPhases, statusLabel as readinessStatusLabel, workingModules } from "@/lib/readiness";
+import { DEPARTMENTS } from "@/lib/department-catalog";
 
 type User = { id: string; username: string; fullName: string; role: "admin" | "user" };
 type Summary = {
@@ -37,9 +49,15 @@ type Payment = {
   workflow_status: "draft" | "submitted" | "approved";
 };
 type Expense = { id: string; period: string; owner_name: string; category: string; description: string; amount: number; workflow_status: string; created_at: string };
+// Son faaliyet satırına tıklanınca ilgili ekran açılır ("/" ile başlayan tam sayfa, diğerleri panel sekmesi).
+const ACTIVITY_TARGET: Record<string, string> = {
+  department_process: "/birimler", work_order: "/servis", field_visit: "field-visits", task: "tasks", project: "projects", risk: "risks",
+  procurement_request: "procurement", employee: "hr", customer: "crm", customer_interaction: "crm", asset: "assets", maintenance_plan: "maintenance",
+  payment_record: "payments", expense: "expenses", automation_rule: "automations", user: "users", attachment: "files", organization_profile: "company",
+};
 type Activity = { id: string; full_name?: string; action: string; entity_type: string; details?: string; created_at: string };
 type FileItem = { id: string; file_name: string; content_type: string; size_bytes: number; full_name: string; created_at: string };
-type Organization = { id: string; name: string; slug: string; kind: "business" | "personal"; plan: string; subscription_status: string; trial_ends_at: string | null; membership_role: "owner" | "admin" | "member" };
+type Organization = { id: string; name: string; slug: string; kind: "business" | "personal"; plan: string; subscription_status: string; trial_ends_at: string | null; membership_role: "owner" | "admin" | "member"; view_as?: boolean };
 type MemberAccess = { profile: string; jobRole: string; department: string | null; label: string; viewModules: string[]; editModules: string[] };
 type CompanyProfile = { legal_name?: string; tax_office?: string; tax_number?: string; mersis_number?: string; trade_registry_number?: string; sector?: string; phone?: string; email?: string; website?: string; address?: string; about?: string } | null;
 type DashboardData = { user: User; organization: Organization; organizations: Organization[]; profile: CompanyProfile; summaries: Summary[]; payments: Payment[]; expenses: Expense[]; attentionCount: number; activity: Activity[]; access: MemberAccess };
@@ -61,6 +79,7 @@ type ServiceHealth = { ok: boolean; dependency?: "database" | "schema" | "storag
 const navItems = [
   { id: "overview", label: "Şirket merkezi", icon: LayoutDashboard },
   { id: "departments", label: "Departmanlar", icon: Building2 },
+  { id: "rd", label: "Ar-Ge çalışma alanı", icon: Bot },
   { id: "projects", label: "Projeler", icon: BriefcaseBusiness },
   { id: "tasks", label: "Görevler", icon: CheckSquare },
   { id: "work-orders", label: "İş emirleri", icon: Wrench },
@@ -69,11 +88,10 @@ const navItems = [
   { id: "field-visits", label: "Saha ziyaretleri", icon: MapPin },
   { id: "procurement", label: "Satın alma", icon: ShoppingCart },
   { id: "crm", label: "Müşteri yönetimi", icon: UserPlus },
-  { id: "hr", label: "İnsan kaynakları", icon: Users2 },
+  { id: "hr", label: "Çalışanlar", icon: Users2 },
   { id: "risks", label: "Risk ve kalite", icon: AlertOctagon },
   { id: "automations", label: "Otomasyon merkezi", icon: Zap },
   { id: "agents", label: "Yapay zekâ ekibi", icon: Bot },
-  { id: "readiness", label: "Ürün durumu", icon: ShieldCheck },
   { id: "financial", label: "Finansal durum", icon: Landmark },
   { id: "payments", label: "Ödemeler ve borçlar", icon: CreditCard },
   { id: "expenses", label: "Gelir ve giderler", icon: WalletCards },
@@ -87,10 +105,11 @@ const navItems = [
 // Menü grupları: önce günlük iş, sonra yönetim, finans ve şirket ayarları.
 const NAV_GROUPS: { label: string; ids: string[] }[] = [
   { label: "GÜNLÜK İŞ", ids: ["overview", "tasks", "work-orders", "field-visits", "maintenance", "assets"] },
-  { label: "YÖNETİM", ids: ["departments", "projects", "procurement", "crm", "hr", "risks"] },
+  // "Departmanlar" ve "Ar-Ge" artık /birimler'de (tek giriş: "Birimler ve süreçler"); "Ürün durumu" müşteri menüsünden çıkarıldı.
+  { label: "YÖNETİM", ids: ["projects", "procurement", "crm", "hr", "risks"] },
   { label: "FİNANS", ids: ["financial", "payments", "expenses", "treasury", "reports"] },
-  { label: "ARAÇLAR", ids: ["automations", "agents", "readiness"] },
-  { label: "ŞİRKET", ids: ["files", "company", "users"] },
+  { label: "ARAÇLAR", ids: ["automations", "agents"] },
+  { label: "ŞİRKET", ids: ["files", "company"] },
 ];
 
 const money = new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 });
@@ -118,12 +137,22 @@ export default function Dashboard() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [risks, setRisks] = useState<Risk[]>([]);
   const [automations, setAutomations] = useState<AutomationRule[]>([]);
+  const [departmentUnit,setDepartmentUnit] = useState("management");
   const [active, setActive] = useState("overview");
   const [mobileNav, setMobileNav] = useState(false);
-  const [topbarPanel, setTopbarPanel] = useState<"notifications" | "settings" | null>(null);
-  const [dueNotifications,setDueNotifications]=useState<{id:string;title:string;body:string}[]>([]);
+  const [topbarPanel, setTopbarPanel] = useState<"notifications" | "settings" | "work" | null>(null);
+  const [myWork, setMyWork] = useState<{ items: { kind: "service" | "unit" | "request"; title: string; detail: string; href: string; overdue: boolean }[]; overdue: number } | null>(null);
+  const [dueNotifications,setDueNotifications]=useState<{id:string;title:string;body:string;entity_type?:string|null;entity_id?:string|null}[]>([]);
   const [notificationUnread, setNotificationUnread] = useState(false);
   const [search, setSearch] = useState("");
+  // Arama her tuşta tüm paneli yeniden çizmesin: listeler ertelenmiş değeri kullanır (kasma önlemi).
+  const deferredSearch = useDeferredValue(search);
+  const initialHashGiven = useRef(false);
+  const [previewProfile, setPreviewProfile] = useState<AccessProfile | null>(null);
+  const [viewAsReason, setViewAsReason] = useState("");
+  const [platformOrgs, setPlatformOrgs] = useState<{ id: string; name: string; kind: string; members: number }[] | null>(null);
+  const [taskFilter, setTaskFilter] = useState("all");
+  useEffect(() => {const sync=()=>setTaskFilter(new URLSearchParams(location.hash.replace(/^#/,"")).get("filter")||"all");sync();window.addEventListener("hashchange",sync);window.addEventListener("popstate",sync);return()=>{window.removeEventListener("hashchange",sync);window.removeEventListener("popstate",sync);};}, [active]);
   const [paymentPeriod, setPaymentPeriod] = useState("all");
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
   const [modal, setModal] = useState<"payment" | "expense" | "user" | "balance" | "manualDebt" | "rates" | "password" | "company" | "project" | null>(null);
@@ -135,65 +164,86 @@ export default function Dashboard() {
   const uploadRef = useRef<HTMLInputElement>(null);
   const topbarActionsRef = useRef<HTMLDivElement>(null);
 
-  async function load(targetOrganizationId?: string) {
-    setLoading(true);
+  const loadEpoch = useRef(0);
+  const loadAbort = useRef<AbortController | null>(null);
+  useEffect(() => () => loadAbort.current?.abort(), []);
+
+  // Veri yükleme. Aynı firmada bir kayıt değişince yalnız o modülün listesi yeniden alınır ve mevcut liste ekranda kalır;
+  // önceden her kayıtta 15 uç birden çağrılıyor, bütün listeler bir an boşalıyordu (sayfa zıplıyor ve kasıyordu).
+  async function load(targetOrganizationId?: string, only?: string) {
+    const epoch = ++loadEpoch.current;
+    loadAbort.current?.abort();
+    const controller = new AbortController();
+    loadAbort.current = controller;
+    const signal = controller.signal;
+    const requested = targetOrganizationId || organizationId || new URLSearchParams(location.search).get("organizationId") || localStorage.getItem("teksanor_organization") || "";
+    const switching = !data || (requested !== "" && requested !== organizationId);
+    if (switching) setLoading(true);
     try {
-      const requested = targetOrganizationId || organizationId || localStorage.getItem("teksanor_organization") || "";
       const headers = requested ? { "X-Organization-Id": requested } : undefined;
-      const response = await fetch("/api/dashboard", { cache: "no-store", headers });
-      if (response.status === 401) { window.location.href = "/giris"; return; }
-      if (response.status === 428) { window.location.href = "/hesap-guvenligi"; return; }
+      let response = await fetch("/api/dashboard", { cache: "no-store", headers, signal });
+      if (epoch !== loadEpoch.current) return;
+      // Saklı firma artık erişilebilir değilse (üyelik kapandı, ortak cihaz vb.) seçimi temizle ve bir kez başlıksız dene.
+      if (response.status === 403 && requested) {
+        forgetOrganization();
+        response = await fetch("/api/dashboard", { cache: "no-store", signal });
+        if (epoch !== loadEpoch.current) return;
+      }
+      if (response.status === 401) { goToLogin(); return; }
+      if (response.status === 428) { goToMfaSetup(); return; }
       if (!response.ok) throw new Error("Veriler alınamadı.");
       const nextData = await response.json() as DashboardData;
-      setTreasury(null); setFiles([]); setProjects([]); setTasks([]); setWorkOrders([]);
-      setAssets([]); setMaintenancePlans([]); setFieldVisits([]); setProcurement([]);
-      setCustomers([]); setEmployees([]); setRisks([]); setAutomations([]);
+      if (epoch !== loadEpoch.current) return;
+      const orgChanged = nextData.organization.id !== organizationId;
+      if (orgChanged) {
+        setTreasury(null); setFiles([]); setProjects([]); setTasks([]); setWorkOrders([]);
+        setAssets([]); setMaintenancePlans([]); setFieldVisits([]); setProcurement([]);
+        setCustomers([]); setEmployees([]); setRisks([]); setAutomations([]);
+      }
       setData(nextData);
-      const notices=await fetch("/api/notifications",{headers:{"X-Organization-Id":nextData.organization.id},cache:"no-store"});
-      if(notices.ok)setDueNotifications((await notices.json()).notifications||[]);else setDueNotifications([]);
       setOrganizationId(nextData.organization.id);
-      localStorage.setItem("teksanor_organization", nextData.organization.id);
+      // Firma gözünden görünüm kalıcı seçim değildir: bir sonraki girişte kendi firmanız açılır.
+      if (!nextData.organization.view_as) rememberOrganization(nextData.organization.id);
       const organizationHeaders = { "X-Organization-Id": nextData.organization.id };
       const mayView = (module: string) => nextData.access?.viewModules?.includes(module) ?? false;
-      const skipped = () => Promise.resolve(new Response(null, { status: 403 }));
-      const treasuryResponse = mayView("treasury") ? await fetch("/api/treasury", { cache: "no-store", headers: organizationHeaders }) : await skipped();
-      if (treasuryResponse.ok) setTreasury(await treasuryResponse.json() as TreasuryData);
-      const fileResponse = mayView("files") ? await fetch("/api/uploads", { cache: "no-store", headers: organizationHeaders }) : await skipped();
-      if (fileResponse.ok) setFiles(((await fileResponse.json()) as { files: FileItem[] }).files);
-      const projectResponse = mayView("projects") ? await fetch("/api/projects", { cache: "no-store", headers: organizationHeaders }) : await skipped();
-      if (projectResponse.ok) setProjects(((await projectResponse.json()) as { projects: Project[] }).projects);
-      const [taskRes, workOrderRes, assetRes, maintenanceRes, fieldVisitRes, procurementRes, customerRes, employeeRes, riskRes, automationRes] = await Promise.all([
-        mayView("tasks") ? fetch("/api/tasks", { cache: "no-store", headers: organizationHeaders }) : skipped(),
-        mayView("work-orders") ? fetch("/api/work-orders", { cache: "no-store", headers: organizationHeaders }) : skipped(),
-        mayView("assets") ? fetch("/api/assets", { cache: "no-store", headers: organizationHeaders }) : skipped(),
-        mayView("maintenance") ? fetch("/api/maintenance", { cache: "no-store", headers: organizationHeaders }) : skipped(),
-        mayView("field-visits") ? fetch("/api/field-visits", { cache: "no-store", headers: organizationHeaders }) : skipped(),
-        mayView("procurement") ? fetch("/api/procurement", { cache: "no-store", headers: organizationHeaders }) : skipped(),
-        mayView("crm") ? fetch("/api/customers", { cache: "no-store", headers: organizationHeaders }) : skipped(),
-        mayView("hr") ? fetch("/api/employees", { cache: "no-store", headers: organizationHeaders }) : skipped(),
-        mayView("risks") ? fetch("/api/risks", { cache: "no-store", headers: organizationHeaders }) : skipped(),
-        mayView("automations") ? fetch("/api/automations", { cache: "no-store", headers: organizationHeaders }) : skipped(),
+      const sources: [string, string, (body: Record<string, unknown>) => void][] = [
+        ["treasury", "/api/treasury", (b) => setTreasury(b as unknown as TreasuryData)],
+        ["files", "/api/uploads", (b) => setFiles(b.files as FileItem[])],
+        ["projects", "/api/projects", (b) => setProjects(b.projects as Project[])],
+        ["tasks", "/api/tasks", (b) => setTasks(b.tasks as Task[])],
+        ["work-orders", "/api/work-orders", (b) => setWorkOrders(b.workOrders as WorkOrder[])],
+        ["assets", "/api/assets", (b) => setAssets(b.assets as Asset[])],
+        ["maintenance", "/api/maintenance", (b) => setMaintenancePlans(b.maintenancePlans as MaintenancePlan[])],
+        ["field-visits", "/api/field-visits", (b) => setFieldVisits(b.fieldVisits as FieldVisit[])],
+        ["procurement", "/api/procurement", (b) => setProcurement(b.procurement as ProcurementRequest[])],
+        ["crm", "/api/customers", (b) => setCustomers(b.customers as Customer[])],
+        ["hr", "/api/employees", (b) => setEmployees(b.employees as Employee[])],
+        ["risks", "/api/risks", (b) => setRisks(b.risks as Risk[])],
+        ["automations", "/api/automations", (b) => setAutomations(b.automations as AutomationRule[])],
+      ];
+      // Bakım planı ekranı varlık listesini de kullanır.
+      const panel=only || new URLSearchParams(window.location.hash.replace(/^#/,"")).get("panel") || active;
+      const wanted=new Set(panel==="overview"?["projects","tasks","work-orders","field-visits","procurement","risks"]:panel==="maintenance"?["maintenance","assets"]:[panel]);
+      await Promise.all([
+        fetch("/api/notifications", { headers: organizationHeaders, cache: "no-store", signal })
+          .then(async (r) => { const body = r.ok ? await r.json() : { notifications: [] }; if (epoch === loadEpoch.current) setDueNotifications(body.notifications || []); }).catch(() => { if (epoch === loadEpoch.current && !signal.aborted) setDueNotifications([]); }),
+        runLimited(sources.filter(([module]) => mayView(module) && (!wanted || wanted.has(module))), async ([, url, apply]) => {
+          const r = await fetch(url, { cache: "no-store", headers: organizationHeaders, signal });
+          if (r.ok) { const body = await r.json() as Record<string, unknown>; if (epoch === loadEpoch.current) apply(body); }
+        }, 4, signal),
       ]);
-      if (taskRes.ok) setTasks(((await taskRes.json()) as { tasks: Task[] }).tasks);
-      if (workOrderRes.ok) setWorkOrders(((await workOrderRes.json()) as { workOrders: WorkOrder[] }).workOrders);
-      if (assetRes.ok) setAssets(((await assetRes.json()) as { assets: Asset[] }).assets);
-      if (maintenanceRes.ok) setMaintenancePlans(((await maintenanceRes.json()) as { maintenancePlans: MaintenancePlan[] }).maintenancePlans);
-      if (fieldVisitRes.ok) setFieldVisits(((await fieldVisitRes.json()) as { fieldVisits: FieldVisit[] }).fieldVisits);
-      if (procurementRes.ok) setProcurement(((await procurementRes.json()) as { procurement: ProcurementRequest[] }).procurement);
-      if (customerRes.ok) setCustomers(((await customerRes.json()) as { customers: Customer[] }).customers);
-      if (employeeRes.ok) setEmployees(((await employeeRes.json()) as { employees: Employee[] }).employees);
-      if (riskRes.ok) setRisks(((await riskRes.json()) as { risks: Risk[] }).risks);
-      if (automationRes.ok) setAutomations(((await automationRes.json()) as { automations: AutomationRule[] }).automations);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Bir hata oluştu.");
+      if (epoch === loadEpoch.current && !signal.aborted) setError(reason instanceof Error ? reason.message : "Bir hata oluştu.");
     } finally {
-      setLoading(false);
+      if (epoch === loadEpoch.current) setLoading(false);
     }
   }
 
-  async function refreshTreasury(targetOrganizationId = organizationId) {
+  useEffect(()=>{if(data && organizationId)void load(organizationId,active);},[active]);
+
+  async function refreshTreasury(targetOrganizationId = organizationId, background = false) {
     if (!targetOrganizationId) return;
-    const response = await fetch("/api/treasury", { cache: "no-store", headers: { "X-Organization-Id": targetOrganizationId } });
+    const response = await fetch("/api/treasury", { cache: "no-store", headers: { "X-Organization-Id": targetOrganizationId, ...(background ? { "X-Teksanor-Background": "1" } : {}) } });
     if (response.ok) setTreasury(await response.json() as TreasuryData);
   }
 
@@ -214,15 +264,16 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    const validPanels = new Set(navItems.map((item) => item.id));
+    const validPanels = new Set<string>([...navItems.map((item) => item.id), "admin"]);
     const readPanel = () => {
       const fromState = window.history.state?.teksanorPanel;
       const fromHash = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("panel");
       const next = String(fromState || fromHash || "overview");
-      setActive(validPanels.has(next as typeof navItems[number]["id"]) ? next : "overview");
+      setActive(validPanels.has(next) ? next : "overview");
     };
     const initialHash = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("panel");
-    const initial = initialHash && validPanels.has(initialHash as typeof navItems[number]["id"]) ? initialHash : "overview";
+    initialHashGiven.current = Boolean(initialHash);
+    const initial = initialHash && validPanels.has(initialHash) ? initialHash : "overview";
     window.history.replaceState({ teksanorPanel: initial, teksanorPrevious: null }, "", `#panel=${initial}`);
     setActive(initial);
     window.addEventListener("popstate", readPanel);
@@ -237,8 +288,8 @@ export default function Dashboard() {
   }, [data, notificationKey, dueNotifications]);
 
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    document.querySelector(".dashboard-main")?.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({ top: 0, behavior: "auto" });
+    document.querySelector(".dashboard-main")?.scrollTo({ top: 0, behavior: "auto" });
     setTopbarPanel(null);
   }, [active]);
 
@@ -258,16 +309,17 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!topbarPanel) return;
-    const closePanel = (event: globalThis.MouseEvent) => {
+    // pointerdown: fare, dokunmatik ve kalemde aynı çalışır (mousedown, telefonda boş alana dokununca gelmiyordu).
+    const closePanel = (event: PointerEvent) => {
       if (!topbarActionsRef.current?.contains(event.target as Node)) setTopbarPanel(null);
     };
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") setTopbarPanel(null);
     };
-    document.addEventListener("mousedown", closePanel);
+    document.addEventListener("pointerdown", closePanel, true);
     window.addEventListener("keydown", closeOnEscape);
     return () => {
-      document.removeEventListener("mousedown", closePanel);
+      document.removeEventListener("pointerdown", closePanel, true);
       window.removeEventListener("keydown", closeOnEscape);
     };
   }, [topbarPanel]);
@@ -276,9 +328,9 @@ export default function Dashboard() {
     if (active !== "treasury" || !organizationId) return;
     void refreshTreasury(organizationId);
     const refreshWhenVisible = () => {
-      if (document.visibilityState === "visible") void refreshTreasury(organizationId);
+      if (document.visibilityState === "visible") void refreshTreasury(organizationId, true);
     };
-    const timer = window.setInterval(() => void refreshTreasury(organizationId), 60 * 1000);
+    const timer = window.setInterval(() => { if (document.visibilityState === "visible") void refreshTreasury(organizationId, true); }, 60 * 1000);
     document.addEventListener("visibilitychange", refreshWhenVisible);
     return () => {
       window.clearInterval(timer);
@@ -292,14 +344,14 @@ export default function Dashboard() {
   const previous = data?.summaries.at(-2);
   const debtChange = latest && previous ? ((latest.total_debt - previous.total_debt) / previous.total_debt) * 100 : 0;
   const filteredPayments = useMemo(() => {
-    const term = search.toLocaleLowerCase("tr-TR").trim();
+    const term = deferredSearch.toLocaleLowerCase("tr-TR").trim();
     if (!data) return [];
     return data.payments.filter((item) => {
       const matchesPeriod = paymentPeriod === "all" || item.period === paymentPeriod;
       const matchesSearch = !term || `${item.owner_name} ${item.bank_name} ${item.account_name} ${item.important_note ?? ""}`.toLocaleLowerCase("tr-TR").includes(term);
       return matchesPeriod && matchesSearch;
     });
-  }, [data, search, paymentPeriod]);
+  }, [data, deferredSearch, paymentPeriod]);
 
   function notify(text: string) {
     setMessage(text);
@@ -307,6 +359,8 @@ export default function Dashboard() {
   }
 
   function navigate(next: string) {
+    if (["departments","rd"].includes(next)) { window.location.href = `/birimler?organizationId=${encodeURIComponent(organizationId)}${next==="rd"?"&birim=arge":""}`; return; }
+    if (next === "rd") setDepartmentUnit("rd");
     if (next === active) return;
     window.history.pushState({ teksanorPanel: next, teksanorPrevious: active }, "", `#panel=${next}`);
     setActive(next);
@@ -317,12 +371,69 @@ export default function Dashboard() {
     else navigate("overview");
   }
 
-  async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    localStorage.removeItem("teksanor_organization");
-    window.location.href = "/";
+
+  // Rol bazlı ana ekran: adres çubuğunda ekran belirtilmemişse, oturum başına bir kez kişinin rolüne göre açılır
+  // (teknisyen → Servis masası, finans → Ödemeler, İK → İK birimi, BT → BT birimi …).
+  useEffect(() => {
+    const profile = data?.access?.profile as AccessProfile | undefined;
+    if (!profile || initialHashGiven.current || data?.organization.view_as) return;
+    let applied = false;
+    try { applied = sessionStorage.getItem("teksanor_home_applied") === "1"; sessionStorage.setItem("teksanor_home_applied", "1"); } catch { applied = true; }
+    if (applied) return;
+    const home = homeFor(profile, data?.access?.department);
+    if (home === "#panel=overview") return;
+    if (home.startsWith("#panel=")) { const target = home.slice(7); window.history.replaceState({ teksanorPanel: target, teksanorPrevious: null }, "", home); window.setTimeout(() => setActive(target), 0); }
+    else window.location.replace(home);
+  }, [data?.access?.profile, data?.access?.department, data?.organization.view_as]);
+
+  // Platform yöneticisi: firmaları listele ve seçileni salt okunur aç.
+  async function openPlatform() {
+    setTopbarPanel(null);
+    const response = await fetch("/api/organizations", { cache: "no-store" });
+    const body = await response.json().catch(() => ({})) as { organizations?: { id: string; name: string; kind: string; members: number }[]; error?: string };
+    if (!response.ok) { setError(body.error || "Firma listesi alınamadı."); return; }
+    setPlatformOrgs(body.organizations ?? []);
+  }
+  async function startViewAs(id: string) {
+    const reason = viewAsReason.trim();
+    if (reason.length < 5) { setError("Firma gözünden görmek için kısa bir gerekçe yazın (ör. destek talebi numarası)."); return; }
+    const response = await fetch("/api/organizations/view-as", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ organizationId: id, reason }) });
+    const body = await response.json().catch(() => ({})) as { error?: string };
+    if (!response.ok) { setError(body.error || "Firma görünümü açılamadı."); return; }
+    setPlatformOrgs(null); setViewAsReason("");
+    await load(id);
+    navigate("overview");
+  }
+  async function exitViewAs() {
+    await fetch("/api/organizations/view-as", { method: "DELETE" }).catch(() => undefined);
+    const own = data?.organizations[0]?.id;
+    setPlatformOrgs(null);
+    await load(own);
+    navigate("overview");
   }
 
+  async function logout() {
+    await signOut();
+  }
+
+  // İşlerim sayacı: firma değişince bir kez, sonra 2 dakikada bir (sekme görünürken) güncellenir.
+  useEffect(() => {
+    if (!organizationId) return;
+    void loadMyWork(organizationId);
+    const timer = window.setInterval(() => { if (document.visibilityState === "visible") void loadMyWork(organizationId); }, 120000);
+    return () => window.clearInterval(timer);
+  }, [organizationId]); // eslint-disable-line react-hooks/exhaustive-deps
+  async function loadMyWork(orgId = organizationId) {
+    if (!orgId) return;
+    try {
+      const response = await fetch("/api/my-work", { headers: { "X-Organization-Id": orgId, "X-Teksanor-Background": "1" }, cache: "no-store" });
+      if (response.ok) setMyWork(await response.json());
+    } catch { /* liste bir sonraki açılışta yeniden denenir */ }
+  }
+  function toggleWork() {
+    setTopbarPanel((value) => value === "work" ? null : "work");
+    void loadMyWork();
+  }
   function toggleNotifications() {
     setTopbarPanel((value) => value === "notifications" ? null : "notifications");
     if (notificationKey) localStorage.setItem("teksanor_notifications_read", notificationKey);
@@ -332,7 +443,7 @@ export default function Dashboard() {
   async function remove(id: string) {
     if (!window.confirm("Bu kaydı kalıcı olarak silmek istediğinizden emin misiniz?")) return;
     const response = await fetch(`/api/payments/${id}`, { method: "DELETE", headers: { "X-Organization-Id": organizationId } });
-    if (response.ok) { notify("Kayıt silindi."); await load(organizationId); }
+    if (response.ok) { notify("Kayıt silindi."); await load(organizationId, "payments"); }
   }
 
   async function importExcel(file: File) {
@@ -385,12 +496,44 @@ export default function Dashboard() {
       }
       if (rejected.length) setError(`${rejected.length} satır aktarılmadı. ${rejected.slice(0, 3).join(" · ")}${rejected.length > 3 ? " …" : ""}`);
       notify(`${created} satır sisteme eklendi veya güncellendi.`);
-      await load(organizationId);
+      await load(organizationId, "payments");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Excel/CSV aktarımı başarısız oldu.");
     } finally {
       if (importRef.current) importRef.current.value = "";
     }
+  }
+
+  // Ekrandaki listeyi Excel'e indirir (her liste ekranında başlıktaki "Excel'e indir" düğmesi).
+  function exportRows() {
+    const sets = {
+      projects, tasks, "work-orders": workOrders, assets, maintenance: maintenancePlans, "field-visits": fieldVisits,
+      procurement, crm: customers, hr: employees, risks, payments: filteredPayments, expenses: data?.expenses ?? [],
+    } as unknown as Record<string, Record<string, unknown>[]>;
+    return filterList(sets[active] ?? [], active, deferredSearch, taskFilter);
+  }
+  async function exportList() {
+    const rows = exportRows();
+    if (!rows.length) { setError("Bu ekranda indirilecek kayıt yok."); return; }
+    try {
+      // @ts-expect-error ExcelJS does not publish declarations for this browser bundle.
+      const ExcelJS = await import("exceljs/dist/exceljs.min.js");
+      const workbook = new ExcelJS.Workbook();
+      const sheet = workbook.addWorksheet(PANEL_TITLES[active]?.[0]?.slice(0, 30) || "Liste");
+      const hidden = new Set(["id", "organization_id", "created_by", "password_hash", "password_salt", "data"]);
+      const keys = Object.keys(rows[0]).filter((k) => !hidden.has(k) && !k.endsWith("_id"));
+      sheet.columns = keys.map((k) => ({ header: COLUMN_LABELS[k] ?? k.replace(/_/g, " "), key: k, width: Math.min(40, Math.max(12, (COLUMN_LABELS[k] ?? k).length + 4)) }));
+      rows.forEach((row) => sheet.addRow(Object.fromEntries(keys.map((k) => [k, (["status", "priority", "order_type", "employment_type", "payment_status"].includes(k) ? STATUS_LABELS[String(row[k])] : undefined) ?? row[k] ?? ""]))));
+      sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
+      sheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF12355B" } };
+      sheet.views = [{ state: "frozen", ySplit: 1 }];
+      const scope = listScope(active, search, taskFilter, paymentPeriod, STATUS_LABELS);
+      const info = workbook.addWorksheet("Kapsam");
+      info.columns = [{ header: "Bilgi", key: "k", width: 22 }, { header: "Değer", key: "v", width: 60 }];
+      info.addRows([{ k: "Ekran", v: PANEL_TITLES[active]?.[0] ?? active }, { k: "İndirme zamanı", v: new Date().toLocaleString("tr-TR") }, { k: "Kayıt sayısı", v: rows.length }, { k: "Uygulanan filtre", v: scope || "Yok (ekrandaki tüm kayıtlar)" }]);
+      downloadBlob(new Blob([await workbook.xlsx.writeBuffer()], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `teksanor-${active}-${new Date().toISOString().slice(0, 10)}.xlsx`);
+      notify(`${rows.length} kayıt Excel dosyası olarak indirildi.`);
+    } catch { setError("Excel dosyası hazırlanamadı. Sayfayı yenileyip tekrar deneyin."); }
   }
 
   async function exportExcel() {
@@ -415,11 +558,7 @@ export default function Dashboard() {
     sheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF12355B" } };
     sheet.autoFilter = { from: "A1", to: "N1" };
     const buffer = await workbook.xlsx.writeBuffer();
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
-    link.download = `teksanor-odemeler-${paymentPeriod === "all" ? "tum-donemler" : paymentPeriod}.xlsx`;
-    link.click();
-    URL.revokeObjectURL(link.href);
+    downloadBlob(new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `teksanor-odemeler-${paymentPeriod === "all" ? "tum-donemler" : paymentPeriod}.xlsx`);
   }
 
   async function uploadFile(file: File) {
@@ -429,22 +568,26 @@ export default function Dashboard() {
     const result = await response.json() as { error?: string };
     if (!response.ok) { setError(result.error ?? "Dosya yüklenemedi."); return; }
     notify("Dosya güvenli alana yüklendi.");
-    await load(organizationId);
+    await load(organizationId, "files");
   }
 
   if (loading && !data) return <LoadingScreen />;
   if (!data) return <div className="fatal-state"><AlertTriangle /><h1>Panel açılamadı</h1><p>{error || "Lütfen daha sonra tekrar deneyin."}</p><button onClick={() => void load()}>Tekrar dene</button></div>;
 
-  const canManage = data.user.role === "admin" || ["owner", "admin"].includes(data.organization.membership_role);
+  const canManage = !data.organization.view_as && (data.user.role === "admin" || ["owner", "admin"].includes(data.organization.membership_role));
   const roleLabel = data.access?.label || "Kullanıcı";
-  const visibleNavigation = navItems.filter((item) => data.access?.viewModules?.includes(item.id) ?? !("admin" in item && item.admin));
+  // Rol önizlemesi: yönetici "teknisyen / finans … bu paneli nasıl görüyor?" diye bakabilir (yalnız menü ve ana ekran değişir).
+  const viewModules: readonly string[] = previewProfile ? accessRules[previewProfile].view : (data.access?.viewModules ?? []);
+  const effectiveProfile = previewProfile ?? data.access?.profile ?? "employee";
+  const visibleNavigation = navItems.filter((item) => !["departments","rd"].includes(item.id)).filter((item) => viewModules.includes(item.id === "rd" ? "projects" : item.id));
+  const viewAs = Boolean(data.organization.view_as);
 
   return (
     <div className="dashboard-shell">
       <aside className={`dashboard-sidebar ${mobileNav ? "open" : ""}`}>
         <div className="sidebar-brand">
           {active !== "overview" && <button type="button" className="sidebar-panel-back" onClick={goBack} title="Önceki bölüme dön" aria-label="Önceki bölüme dön"><ArrowLeft size={20} /></button>}
-          <a className="sidebar-home" href="/" aria-label="Teksanor ana sayfasına git"><img src="/assets/teksanor-logo.png" alt="Teksanor" /></a>
+          <a className="sidebar-home" href="/panel" aria-label="Panel ana ekranı"><img src="/assets/teksanor-logo.webp" alt="Teksanor" decoding="async" /></a>
           <button type="button" className="mobile-close" onClick={() => setMobileNav(false)} aria-label="Menüyü kapat"><X size={19} /></button>
         </div>
         <div className="sidebar-context">
@@ -455,10 +598,12 @@ export default function Dashboard() {
           <small>{data.organization.kind === "business" ? "Firma hesabı" : "Bireysel hesap"} · {data.organization.subscription_status === "trialing" ? "Deneme planı" : data.organization.plan}</small>
         </div>
         <nav className="sidebar-nav">
-          {data.access?.viewModules?.includes("work-orders") && <>
+          <span className="nav-heading">BİRİMLER</span>
+          <a className="nav-link" href="/birimler"><Building2 size={18} /><span>Birimler ve süreçler</span></a>
+          {viewModules.includes("work-orders") && <>
             <span className="nav-heading">SAHA SERVİSİ</span>
             <a className="nav-link" href="/servis"><Wrench size={18} /><span>Servis masası</span></a>
-            {["owner", "company_admin", "ceo", "manager"].includes(data.access?.profile || "") && <>
+            {["owner", "company_admin", "ceo", "manager"].includes(effectiveProfile) && <>
               <a className="nav-link" href="/servis/plan"><CalendarCheck2 size={18} /><span>Planlama panosu</span></a>
               <a className="nav-link" href="/servis/sablonlar"><CheckSquare size={18} /><span>Form şablonları</span></a>
             </>}
@@ -473,6 +618,10 @@ export default function Dashboard() {
               ))}
             </Fragment>;
           })}
+          {(canManage || data.user.role === "admin") && !viewAs && <>
+            <span className="nav-heading">YÖNETİM</span>
+            <button className={active === "admin" ? "active" : ""} onClick={() => { navigate("admin"); setMobileNav(false); }}><Shield size={18} /><span>Yönetim merkezi</span></button>
+          </>}
         </nav>
         <div className="sidebar-security"><ShieldCheck size={19} /><span><b>Güvenli çalışma alanı</b>Finansal veriler şifreli oturumla korunur.</span></div>
         <div className="sidebar-user"><div>{data.user.fullName.split(" ").map((item) => item[0]).join("").slice(0, 2)}</div><span><b>{data.user.fullName}</b><small>{data.user.username} · {roleLabel}</small></span><button type="button" onClick={logout} title="Çıkış yap" aria-label="Çıkış yap"><LogOut size={17} /></button></div>
@@ -483,79 +632,117 @@ export default function Dashboard() {
         <header className="dashboard-topbar">
           <button type="button" className="mobile-menu" onClick={() => setMobileNav(true)} aria-label="Menüyü aç"><Menu size={21} /></button>
           {active !== "overview" && <button type="button" className="mobile-panel-back" onClick={goBack} aria-label="Önceki bölüme dön"><ArrowLeft size={21} /></button>}
-          <div className="topbar-search"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Kayıt ara..." /></div>
+          <div className="topbar-search"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Kayıt ara..." aria-label="Kayıt ara" /></div>
+          {(["owner", "company_admin"].includes(data.access?.profile || "") || data.user.role === "admin") && !viewAs && <label className="preview-select"><span className="sr-only">Rol gözünden önizle</span><select aria-label="Rol gözünden önizle" value={previewProfile ?? ""} onChange={(event) => { const next = (event.target.value || null) as AccessProfile | null; setPreviewProfile(next); const home = homeFor(next ?? ((data.access?.profile ?? "owner") as AccessProfile), data.access?.department); if (home.startsWith("#panel=")) navigate(home.slice(7)); }}><option value="">Kendi görünümüm</option>{(Object.keys(accessRules) as AccessProfile[]).filter((key) => key !== "owner" && key !== "company_admin").map((key) => <option key={key} value={key}>{accessRules[key].label} gözünden</option>)}</select></label>}
           <div className={`live-service-state ${serviceHealth?.ok ? "healthy" : serviceHealth ? "attention" : "checking"}`} title={serviceHealth?.ok ? (serviceHealth.capabilities?.storage === "disabled" ? "Veritabanı ve şema hazır. Dosya yükleme bu demoda kapalı." : "Veritabanı, şema ve dosya alanı hazır") : "Bir servis bağımlılığı kontrol bekliyor"}><i /><span>{serviceHealth?.ok ? "Sistem hazır" : serviceHealth ? "Servis kontrolü" : "Kontrol ediliyor"}</span></div>
           <div className="topbar-actions" ref={topbarActionsRef}>
+            <button type="button" className={`work-button ${topbarPanel === "work" ? "active" : ""}`} title="Bana ve birimime yönlendirilen işler" aria-label="İşlerimi aç" aria-expanded={topbarPanel === "work"} onClick={toggleWork}><Inbox size={19} /><span className="work-label">İşlerim</span>{myWork && myWork.items.length > 0 && <em className={myWork.overdue ? "late" : ""}>{myWork.items.length}</em>}</button>
             <button type="button" className={topbarPanel === "notifications" ? "active" : ""} title="Bildirimler" aria-label="Bildirimleri aç" aria-expanded={topbarPanel === "notifications"} onClick={toggleNotifications}><Bell size={19} />{notificationUnread && <i />}</button>
             <button type="button" className={topbarPanel === "settings" ? "active" : ""} title="Ayarlar" aria-label="Ayarları aç" aria-expanded={topbarPanel === "settings"} onClick={() => setTopbarPanel((value) => value === "settings" ? null : "settings")}><Settings size={19} /></button>
+            {topbarPanel === "work" && <div className="topbar-popover work-popover">
+              <div className="popover-head"><div><span>Size yönlendirilenler</span><b>İşlerim</b></div><button type="button" onClick={() => setTopbarPanel(null)} aria-label="İşlerimi kapat"><X size={17} /></button></div>
+              {!myWork ? <p className="work-empty">Yükleniyor…</p> : myWork.items.length === 0 ? <p className="work-empty">Size veya biriminize bekleyen iş yok.</p> : <ul className="work-list">{myWork.items.map((item) => <li key={item.href}><a href={item.href} className={item.overdue ? "late" : ""}><i className={`work-kind ${item.kind}`} aria-hidden="true" /><span><b>{item.title}</b><small>{item.kind === "service" ? "Servis · " : item.kind === "unit" ? "Birim kuyruğu · " : "Talebim · "}{item.detail}{item.overdue ? " · Gecikti" : ""}</small></span></a></li>)}</ul>}
+              <div className="work-foot"><a href="/servis">Servis masası</a><a href="/birimler">Birimler</a></div>
+            </div>}
             {topbarPanel === "notifications" && <div className="topbar-popover notification-popover">
               <div className="popover-head"><div><span>Bildirim merkezi</span><b>Güncel durum</b></div><button type="button" onClick={() => setTopbarPanel(null)} aria-label="Bildirimleri kapat"><X size={17} /></button></div>
               <div className="notification-summary"><ShieldCheck size={19} /><span><b>Güvenli oturum açık</b><small>Buradaki durum sistem sağlığı değil, yalnızca mevcut oturum bilgisidir.</small></span></div>
-              {dueNotifications.map(n=><a href="/servis" className="notification-row" key={n.id}><span className="notification-mark warning"/><span><b>{n.title}</b><small>{n.body}</small></span></a>)}
+              {dueNotifications.map(n=><a href={n.entity_type === "maintenance_plan" ? "/panel#panel=maintenance" : n.entity_id ? `/servis?job=${encodeURIComponent(n.entity_id)}` : "/servis"} className="notification-row" key={n.id}><span className="notification-mark warning"/><span><b>{n.title}</b><small>{n.body}</small></span></a>)}
               {data.attentionCount > 0 ? <button type="button" className="notification-row" onClick={() => { navigate("payments"); setTopbarPanel(null); }}><span className="notification-mark warning" /><span><b>{data.attentionCount} finansal kayıt takip bekliyor</b><small>Ödemeler ve borçlar bölümünü açın.</small></span><ArrowRight size={16} /></button> : <div className="notification-empty"><Check size={20} /><span><b>Bekleyen önemli bildirim yok</b><small>Yeni gelişmeler burada gösterilecek.</small></span></div>}
               {data.activity.slice(0, 2).map((item) => <div className="notification-row static" key={item.id}><span className="notification-mark" /><span><b>{item.details || "Çalışma alanında işlem yapıldı"}</b><small>{new Date(item.created_at).toLocaleString("tr-TR")}</small></span></div>)}
-              <button type="button" className="popover-footer-action" onClick={() => { navigate("overview"); setTopbarPanel(null); }}><span>Yönetim özetine git</span><ArrowRight size={16} /></button>
             </div>}
             {topbarPanel === "settings" && <div className="topbar-popover settings-popover">
               <div className="popover-head"><div><span>Hesap ve çalışma alanı</span><b>Ayarlar</b></div><button type="button" onClick={() => setTopbarPanel(null)} aria-label="Ayarları kapat"><X size={17} /></button></div>
               <div className="settings-profile"><div>{data.user.fullName.split(" ").map((item) => item[0]).join("").slice(0, 2)}</div><span><b>{data.user.fullName}</b><small>{data.organization.name} · {roleLabel}</small></span></div>
-              <a className="settings-row" href="/servis"><Wrench size={18}/><span><b>Servis masası</b><small>Teklif, müşteri onayı ve saha raporu</small></span></a>
-              <button type="button" className="settings-row" onClick={() => { navigate("company"); setTopbarPanel(null); }}><Building2 size={18} /><span><b>Firma bilgileri</b><small>Kurumsal profil ve iletişim bilgileri</small></span><ArrowRight size={16} /></button>
-              <button type="button" className="settings-row" onClick={() => { navigate("overview"); setTopbarPanel(null); }}><LayoutDashboard size={18} /><span><b>Çalışma alanı özeti</b><small>Plan, dönem ve finansal görünüm</small></span><ArrowRight size={16} /></button>
-              {canManage && <button type="button" className="settings-row" onClick={() => { navigate("users"); setTopbarPanel(null); }}><Users size={18} /><span><b>Kullanıcı ve yetkiler</b><small>Ekip erişimlerini güvenle yönetin</small></span><ArrowRight size={16} /></button>}
-              <button type="button" className="settings-row" onClick={() => { window.location.href = "/hesap-guvenligi"; }}><ShieldCheck size={18} /><span><b>İki aşamalı doğrulama</b><small>İsterseniz doğrulama uygulamasıyla ek koruma açın</small></span><ArrowRight size={16} /></button>
+              {canManage && <button type="button" className="settings-row" onClick={() => { navigate("admin"); setTopbarPanel(null); }}><Users size={18} /><span><b>Yönetim merkezi</b><small>Ekip erişimlerini güvenle yönetin</small></span><ArrowRight size={16} /></button>}
+              <button type="button" className="settings-row" onClick={() => { window.location.href = "/hesap-guvenligi"; }}><ShieldCheck size={18} /><span><b>Hesap güvenliği</b><small>İsteğe bağlı iki aşamalı doğrulama ve kurtarma kodları</small></span><ArrowRight size={16} /></button>
               <button type="button" className="settings-row" onClick={() => { setModal("password"); setTopbarPanel(null); }}><KeyRound size={18} /><span><b>Parolayı değiştir</b><small>Hesabınızın giriş parolasını yenileyin</small></span><ArrowRight size={16} /></button>
               <button type="button" className="settings-row danger" onClick={logout}><LogOut size={18} /><span><b>Güvenli çıkış</b><small>Yalnızca bu seçenek oturumu kapatır</small></span></button>
             </div>}
           </div>
         </header>
+        <AttentionStrip organizationId={organizationId} revision={data}/>
 
         <div className="dashboard-content">
           {error && <div className="panel-alert error"><AlertTriangle size={17} />{error}<button type="button" onClick={() => setError("")} aria-label="Uyarıyı kapat"><X size={16} /></button></div>}
           {message && <div className="panel-alert success"><Check size={17} />{message}</div>}
-          <PageHeader active={active} period={latest.period} organization={data.organization} onBack={goBack} onNew={() => { setEditingPayment(null); setModal(active === "projects" ? "project" : active === "expenses" ? "expense" : "payment"); }} onImport={() => importRef.current?.click()} canAdd={["financial", "payments", "expenses", "projects"].includes(active)} />
+          {viewAs && <div className="view-as-banner" role="status"><span><b>Firma gözünden görünüm</b> · {data.organization.name} · salt okunur. Değişiklik yapılamaz; bu görüntüleme denetim kaydına yazıldı.</span><button type="button" onClick={() => void exitViewAs()}>Kendi panelime dön</button></div>}
+          {previewProfile && !viewAs && <div className="view-as-banner preview" role="status"><span><b>Önizleme:</b> {accessRules[previewProfile].label} gözünden menü ve ana ekran. Veriler sizin yetkinizle gösteriliyor.</span><button type="button" onClick={() => setPreviewProfile(null)}>Önizlemeyi kapat</button></div>}
+          <PageHeader active={active} period={latest.period} organization={data.organization} onBack={goBack} onNew={() => { setEditingPayment(null); setModal(active === "projects" ? "project" : active === "expenses" ? "expense" : "payment"); }} onImport={() => importRef.current?.click()} onExport={() => void exportList()} exportCount={exportRows().length} canAdd={["financial", "payments", "expenses", "projects"].includes(active)} />
+          <ScreenHelpBox key={active} screen={active} />
           <input ref={importRef} hidden type="file" accept=".xlsx,.csv" onChange={(event) => event.target.files?.[0] && void importExcel(event.target.files[0])} />
 
           {active === "overview" && <CompanyHome data={data} organizationId={organizationId} canManage={canManage} projects={projects} tasks={tasks} workOrders={workOrders} fieldVisits={fieldVisits} procurement={procurement} risks={risks} onNavigate={navigate} />}
-          {active === "departments" && <DepartmentsView onNavigate={navigate} />}
+          {(active === "departments" || active === "rd") && <DepartmentWorkspace key={`${organizationId}:${departmentUnit}`} organizationId={organizationId} initialUnit={active === "rd" ? "rd" : departmentUnit} viewModules={data.access?.viewModules||[]} editModules={data.access?.editModules||[]} userId={data.user.id} />}
           {active === "projects" && <ProjectsView projects={projects} onAdd={() => setModal("project")} />}
-          {active === "tasks" && <TasksView items={tasks} organizationId={organizationId} onReload={() => load(organizationId)} notify={notify} search={search} />}
-          {active === "work-orders" && <WorkOrdersView items={workOrders} organizationId={organizationId} onReload={() => load(organizationId)} notify={notify} search={search} />}
-          {active === "assets" && <AssetsView items={assets} organizationId={organizationId} reload={() => load(organizationId)} notify={notify} search={search} />}
-          {active === "maintenance" && <MaintenanceView items={maintenancePlans} assets={assets} organizationId={organizationId} reload={() => load(organizationId)} notify={notify} search={search} />}
-          {active === "field-visits" && <FieldVisitsView items={fieldVisits} organizationId={organizationId} onReload={() => load(organizationId)} notify={notify} search={search} />}
-          {active === "procurement" && <ProcurementView items={procurement} organizationId={organizationId} onReload={() => load(organizationId)} notify={notify} search={search} />}
-          {active === "crm" && <CrmView items={customers} organizationId={organizationId} onReload={() => load(organizationId)} notify={notify} search={search} />}
-          {active === "hr" && <HrView items={employees} organizationId={organizationId} onReload={() => load(organizationId)} notify={notify} search={search} />}
-          {active === "risks" && <RisksView items={risks} organizationId={organizationId} onReload={() => load(organizationId)} notify={notify} search={search} />}
-          {active === "automations" && <AutomationsView items={automations} organizationId={organizationId} onReload={() => load(organizationId)} notify={notify} />}
+
+          {active === "tasks" && <TasksView onFilterChange={setTaskFilter} items={tasks} organizationId={organizationId} onReload={() => load(organizationId, "tasks")} notify={notify} search={deferredSearch} />}
+          {active === "work-orders" && <WorkOrdersView items={workOrders} organizationId={organizationId} onReload={() => load(organizationId, "work-orders")} notify={notify} search={deferredSearch} />}
+          {active === "assets" && <AssetsView items={assets} organizationId={organizationId} reload={() => load(organizationId, "assets")} notify={notify} search={deferredSearch} />}
+          {active === "maintenance" && <MaintenanceView items={maintenancePlans} assets={assets} organizationId={organizationId} reload={() => load(organizationId, "maintenance")} notify={notify} search={deferredSearch} />}
+          {active === "field-visits" && <FieldVisitsView items={fieldVisits} organizationId={organizationId} onReload={() => load(organizationId, "field-visits")} notify={notify} search={deferredSearch} />}
+          {active === "procurement" && <ProcurementView items={procurement} organizationId={organizationId} onReload={() => load(organizationId, "procurement")} notify={notify} search={deferredSearch} />}
+          {active === "crm" && <CrmView items={customers} organizationId={organizationId} onReload={() => load(organizationId, "crm")} notify={notify} search={deferredSearch} />}
+          {active === "hr" && <HrView items={employees} organizationId={organizationId} onReload={() => load(organizationId, "hr")} notify={notify} search={deferredSearch} />}
+          {active === "risks" && <RisksView items={risks} organizationId={organizationId} onReload={() => load(organizationId, "risks")} notify={notify} search={deferredSearch} />}
+          {active === "automations" && <AutomationsView items={automations} organizationId={organizationId} onReload={() => load(organizationId, "automations")} notify={notify} />}
           {active === "agents" && <AgentWorkforceView agents={agentCatalog} organizationId={organizationId} notify={notify} />}
-          {active === "readiness" && <PanelReadinessView />}
+
           {active === "financial" && <FinancialOverview data={data} latest={latest} previous={previous} debtChange={debtChange} payments={filteredPayments} canManage={canManage} onDelete={remove} onNavigate={navigate} />}
-          {active === "payments" && <PaymentsView payments={filteredPayments} periods={[...new Set(data.payments.map((item) => item.period))]} selectedPeriod={paymentPeriod} onPeriodChange={setPaymentPeriod} organizationId={organizationId} isAdmin={canManage} onNew={() => { setEditingPayment(null); setModal("payment"); }} onExport={() => void exportExcel()} onSaved={async () => { notify("Satır kaydedildi; aylık özet ve raporlar yenilendi."); await load(organizationId); }} onNavigate={navigate} onDelete={remove} />}
+          {active === "payments" && <PaymentsView payments={filteredPayments} periods={[...new Set(data.payments.map((item) => item.period))]} selectedPeriod={paymentPeriod} onPeriodChange={setPaymentPeriod} organizationId={organizationId} isAdmin={canManage} onNew={() => { setEditingPayment(null); setModal("payment"); }} onExport={() => void exportExcel()} onSaved={async () => { notify("Satır kaydedildi; aylık özet ve raporlar yenilendi."); await load(organizationId, "payments"); }} onNavigate={navigate} onDelete={remove} />}
           {active === "expenses" && <ExpensesView expenses={data.expenses} latest={latest} />}
           {active === "treasury" && treasury && <TreasuryView data={treasury} onBalance={() => setModal("balance")} onDebt={() => setModal("manualDebt")} />}
           {active === "reports" && <ReportsView summaries={data.summaries} />}
           {active === "files" && <><p className="muted">{serviceHealth?.capabilities?.storage === "disabled" ? "Dosya yükleme bu demoda kapalı. R2 etkinleştirilmedi; diğer modüller kullanılabilir." : "Dosya depolama bağlantısı sağlık kontrolünden doğrulanır."}</p><FilesView files={files} organizationId={organizationId} onUpload={() => serviceHealth?.capabilities?.storage === "available" ? uploadRef.current?.click() : notify("Dosya yükleme şu anda kullanılamıyor; depolama bağlantısı hazır değil.")} /></>}
           {active === "company" && <CompanyView organization={data.organization} profile={data.profile} canManage={canManage} onEdit={() => setModal("company")} />}
           {active === "users" && canManage && <UsersView onAdd={() => setModal("user")} />}
+          {active === "admin" && (canManage || data.user.role === "admin") && !viewAs && <AdminCenter
+            canManage={canManage} platformAdmin={data.user.role === "admin"} organizationName={data.organization.name}
+            onAddUser={() => setModal("user")} onOpenPlatform={() => void openPlatform()}
+            platform={platformOrgs && <section className="platform-orgs" aria-label="Firmalar">
+            <div className="platform-orgs-head"><b>Firmalar</b><span>Seçtiğiniz firmanın panelini 60 dakika salt okunur açarsınız; gerekçe denetim kaydına yazılır.</span></div>
+            <label className="platform-orgs-reason"><span>Gerekçe <b className="field-star" aria-hidden="true">*</b></span><input required aria-required="true" value={viewAsReason} onChange={(event) => setViewAsReason(event.target.value)} maxLength={200} placeholder="Örn. Destek talebi #123" /></label>
+            <ul>{platformOrgs.map((org) => <li key={org.id}><span><b>{org.name}</b><small>{org.kind === "business" ? "Firma" : "Bireysel"} · {org.members} kullanıcı</small></span><button type="button" className="outline-button" onClick={() => void startViewAs(org.id)}>Gözünden gör</button></li>)}</ul>
+          </section>} />}
           <input ref={uploadRef} hidden type="file" accept="image/png,image/jpeg,image/webp,application/pdf,.xlsx,.csv" onChange={(event) => event.target.files?.[0] && void uploadFile(event.target.files[0])} />
         </div>
       </main>
 
-      {modal && <EntryModal type={modal} latestPeriod={latest.period} payment={editingPayment} treasury={treasury} profile={data.profile} organizationId={organizationId} close={() => { setModal(null); setEditingPayment(null); }} complete={async (text) => { setModal(null); setEditingPayment(null); notify(text); await load(organizationId); }} setError={setError} />}
+      {modal && <EntryModal type={modal} latestPeriod={latest.period} payment={editingPayment} treasury={treasury} profile={data.profile} organizationId={organizationId} close={() => { setModal(null); setEditingPayment(null); }} complete={async (text) => { const kind = modal; setModal(null); setEditingPayment(null); notify(text); await load(organizationId, kind === "project" ? "projects" : ["balance", "manualDebt", "rates"].includes(kind) ? "treasury" : "payments"); }} setError={setError} />}
     </div>
   );
 }
 
-function LoadingScreen() {
-  return <div className="loading-screen"><img src="/assets/teksanor-logo.png" alt="Teksanor" /><div className="loading-line"><span /></div><p>Güvenli çalışma alanı hazırlanıyor...</p></div>;
+const EXPORTABLE = new Set(["projects", "tasks", "work-orders", "assets", "maintenance", "field-visits", "procurement", "crm", "hr", "risks", "payments", "expenses"]);
+const PANEL_TITLES: Record<string, [string]> = { projects: ["Projeler"], tasks: ["Görevler"], "work-orders": ["İş emirleri"], assets: ["Varlıklar"], maintenance: ["Bakım planları"], "field-visits": ["Saha ziyaretleri"], procurement: ["Satın alma"], crm: ["Müşteriler"], hr: ["Çalışanlar"], risks: ["Riskler"], payments: ["Ödemeler"], expenses: ["Giderler"] };
+const COLUMN_LABELS: Record<string, string> = {
+  title: "Başlık", name: "Ad", full_name: "Ad soyad", status: "Durum", priority: "Öncelik", department: "Birim", due_date: "Son tarih", start_date: "Başlangıç", target_date: "Hedef tarih",
+  assignee_name: "Sorumlu", owner_name: "Sorumlu", customer_name: "Müşteri", company_name: "Firma", email: "E-posta", phone: "Telefon", address: "Adres", location: "Konum", description: "Açıklama",
+  created_at: "Oluşturma", updated_at: "Güncelleme", order_number: "İş no", order_type: "Tür", scheduled_date: "Plan tarihi", asset_code: "Kod", category: "Kategori", budget: "Bütçe", progress: "İlerleme (%)",
+  quantity: "Miktar", unit_price: "Birim fiyat", total_price: "Toplam", supplier_name: "Tedarikçi", request_number: "Talep no", title_text: "Başlık", sector: "Sektör", total_value: "Toplam değer",
+  likelihood: "Olasılık", impact: "Etki", mitigation_plan: "Önlem planı", review_date: "Gözden geçirme", employment_type: "Çalışma şekli", amount: "Tutar", period: "Dönem", bank_name: "Banka",
+  account_name: "Hesap", total_debt: "Toplam borç", paid_amount: "Ödenen", monthly_payment: "Aylık ödeme", payment_status: "Ödeme durumu", next_due_date: "Sonraki tarih", frequency_type: "Sıklık",
+};
+const STATUS_LABELS: Record<string, string> = { repair: "Onarım", installation: "Kurulum", maintenance: "Bakım", inspection: "Keşif", full_time: "Tam zamanlı", part_time: "Yarı zamanlı", intern: "Stajyer", contractor: "Sözleşmeli", lead: "Aday", prospect: "Potansiyel", identified: "Belirlendi", mitigating: "Önlem alınıyor", medium: "Orta", open: "Açık", in_progress: "Sürüyor", done: "Tamamlandı", completed: "Tamamlandı", cancelled: "İptal", active: "Aktif", planning: "Planlama", on_hold: "Beklemede", pending: "Bekliyor", approved: "Onaylandı", ordered: "Sipariş verildi", high: "Yüksek", normal: "Normal", low: "Düşük", critical: "Kritik", paid: "Ödendi", partial: "Kısmi", planned: "Planlandı" };
+// İndirme: bağlantı sayfaya eklenir ve adres hemen iptal edilmez (hemen iptal, bazı tarayıcılarda indirmenin hiç başlamamasına yol açıyordu).
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url; link.download = filename; link.rel = "noopener"; link.style.display = "none";
+  document.body.appendChild(link); link.click();
+  window.setTimeout(() => { URL.revokeObjectURL(url); link.remove(); }, 60_000);
 }
 
-function PageHeader({ active, period, organization, onBack, onNew, onImport, canAdd }: { active: string; period: string; organization: Organization; onBack: () => void; onNew: () => void; onImport: () => void; canAdd: boolean }) {
+function LoadingScreen() {
+  return <div className="loading-screen"><img src="/assets/teksanor-logo.webp" alt="Teksanor" /><div className="loading-line"><span /></div><p>Güvenli çalışma alanı hazırlanıyor...</p></div>;
+}
+
+function PageHeader({ active, period, organization, onBack, onNew, onImport, onExport, exportCount, canAdd }: { active: string; period: string; organization: Organization; onBack: () => void; onNew: () => void; onImport: () => void; onExport: () => void; exportCount: number; canAdd: boolean }) {
   const titles: Record<string, [string, string]> = {
+    admin: ["Yönetim merkezi", "Kullanıcı erişimleri, veri yönetimi ve platform araçları tek yerde."],
     overview: ["Şirket merkezi", "Kurumunuzun profili, departmanları, projeleri ve son faaliyetleri tek bakışta görün."],
     departments: ["Departmanlar", "Sorumluluk alanlarını ve günlük çalışma akışlarını düzenli bir kurum yapısında inceleyin."],
+    rd: ["Ar-Ge çalışma alanı", "Fikir, bütçe, deney ve sonuç onaylarını izleyin."],
     projects: ["Proje portföyü", "Planlanan ve devam eden çalışmaları sorumlu, bütçe, tarih ve ilerleme bilgisiyle yönetin."],
     tasks: ["Görevler", "Departman görevlerini sorumlu, öncelik ve son tarihle takip edin."],
     "work-orders": ["İş emirleri", "Saha ve bakım iş emirlerini durum akışıyla yönetin."],
@@ -579,27 +766,10 @@ function PageHeader({ active, period, organization, onBack, onNew, onImport, can
     users: ["Kullanıcı yönetimi", "Veri girecek kişileri oluşturun ve yetkilerini yönetin."],
   };
   const current = titles[active] ?? titles.overview;
-  return <><div className="organization-strip"><div><Building2 size={16} /><span><b>{organization.name}</b>{organization.kind === "business" ? "Firma çalışma alanı" : "Kişisel çalışma alanı"}</span></div><em className={`subscription-badge ${organization.subscription_status}`}>{organization.subscription_status === "trialing" ? "14 günlük deneme" : organization.subscription_status === "active" ? "Aktif" : "Ödeme bekleniyor"}</em></div><div className="panel-heading"><div><span className="breadcrumb">TEKSANOR / {organization.name.toLocaleUpperCase("tr-TR")} / {period.toLocaleUpperCase("tr-TR")}</span><h1>{current[0]}</h1><p>{current[1]}</p></div><div className="heading-actions">{["financial", "payments"].includes(active) && <button className="outline-button" onClick={onImport}><FileSpreadsheet size={17} /> Excel aktar</button>}{canAdd && <button className="panel-primary" onClick={onNew}><Plus size={17} /> {active === "projects" ? "Yeni proje" : "Yeni kayıt"}</button>}</div></div></>;
-}
-
-function PanelReadinessView() {
-  return <section className="panel-readiness-workspace">
-    <div className="panel-readiness-hero">
-      <div><span>ÜRÜN DURUMU</span><h2>{readinessSnapshot.title}</h2><p>{readinessSnapshot.summary}</p></div>
-      <a href="/kurumsal-durum" target="_blank" rel="noreferrer">Site sayfasını aç <ArrowRight size={16} /></a>
-    </div>
-    <div className="panel-readiness-stats">{readinessSnapshot.stats.map((item) => <article key={item.label}><span>{item.label}</span><b>{item.value}</b><small>{item.note}</small></article>)}</div>
-    <div className="panel-readiness-grid">
-      <article><span>ÇALIŞAN MODÜLLER</span><div>{workingModules.map((item) => <p key={item.name}><b>{item.name}</b><em>{readinessStatusLabel(item.status)}</em><small>{item.note}</small></p>)}</div></article>
-      <article><span>CANLI ÖNCESİ KRİTİKLER</span><div>{criticalBacklog.map((item) => <p key={item.title}><b>{item.title}</b><em>{priorityLabel(item.priority)}</em><small>{item.exit}</small></p>)}</div></article>
-    </div>
-    <div className="panel-readiness-roadmap">{roadmapPhases.map((phase) => <article key={phase.period}><span>{phase.period}</span><h3>{phase.title}</h3><ul>{phase.items.map((item) => <li key={item}>{item}</li>)}</ul></article>)}</div>
-    <div className="panel-department-reality">{departmentReality.map((item) => <article key={item.name}><span>{item.state}</span><h3>{item.name}</h3><p>{item.detail}</p></article>)}</div>
-  </section>;
+  return <><div className="organization-strip"><div><Building2 size={16} /><span><b>{organization.name}</b>{organization.kind === "business" ? "Firma çalışma alanı" : "Kişisel çalışma alanı"}</span></div><em className={`subscription-badge ${organization.subscription_status}`}>{organization.subscription_status === "trialing" ? "14 günlük deneme" : organization.subscription_status === "active" ? "Aktif" : "Ödeme bekleniyor"}</em></div><div className="panel-heading"><div><span className="breadcrumb">TEKSANOR / {organization.name.toLocaleUpperCase("tr-TR")} / {period.toLocaleUpperCase("tr-TR")}</span><h1>{current[0]}</h1></div><div className="heading-actions">{(EXPORTABLE.has(active)||["financial","payments"].includes(active)) && <ExportMenu>{EXPORTABLE.has(active) && <button type="button" className="outline-button" onClick={onExport} disabled={!exportCount} title={exportCount ? `${exportCount} kaydı Excel dosyası olarak indir` : "Bu ekranda henüz indirilecek kayıt yok"}><Download size={17} /> Excel'e indir{exportCount ? ` (${exportCount})` : ""}</button>}{["financial", "payments"].includes(active) && <button type="button" className="outline-button" onClick={onImport} title="Excel veya CSV dosyasındaki ödeme kayıtlarını içeri alır"><FileSpreadsheet size={17} /> Excel'den içe al</button>}</ExportMenu>}{canAdd && <button className="panel-primary" onClick={onNew}><Plus size={17} /> {active === "projects" ? "Yeni proje" : active === "payments" ? "Yeni satır" : "Yeni kayıt"}</button>}</div></div></>;
 }
 
 function CompanyHome({ data, organizationId, canManage, projects, tasks, workOrders, fieldVisits, procurement, risks, onNavigate }: { data: DashboardData; organizationId: string; canManage: boolean; projects: Project[]; tasks: Task[]; workOrders: WorkOrder[]; fieldVisits: FieldVisit[]; procurement: ProcurementRequest[]; risks: Risk[]; onNavigate: (page: string) => void }) {
-  const activeProjects = projects.filter((item) => item.status === "active").length;
   const today = new Date().toISOString().slice(0, 10);
   const overdueTasks = tasks.filter((item) => item.due_date && item.due_date < today && !["done", "cancelled"].includes(item.status)).length;
   const openCriticalRisks = risks.filter((item) => item.impact === "critical" && !["resolved", "accepted"].includes(item.status)).length;
@@ -612,23 +782,18 @@ function CompanyHome({ data, organizationId, canManage, projects, tasks, workOrd
     pendingPurchases ? { label: `${pendingPurchases} satın alma talebi`, text: "Yönetici kararı bekliyor.", page: "procurement", level: "warning" } : null,
     openWorkOrders ? { label: `${openWorkOrders} açık iş emri`, text: "Operasyon akışını kontrol edin.", page: "work-orders", level: "info" } : null,
   ].filter((item) => item && (data.access?.viewModules?.includes(item.page) ?? true)) as { label: string; text: string; page: string; level: string }[];
-  const can = (module: string) => data.access?.viewModules?.includes(module) ?? true;
   return <>
+    {data.access.viewModules.includes("work-orders")&&<FlowsCard organizationId={organizationId}/>}
     <TodayCard key={organizationId} organizationId={organizationId} profile={data.profile} canManage={canManage} onNavigate={onNavigate} />
-    <section className="company-command-hero"><div><span>KURUMSAL ÇALIŞMA ALANI</span><h2>{data.profile?.legal_name || data.organization.name}</h2><p>{data.profile?.about || "Firmanızın temel bilgilerini, projelerini ve günlük çalışmalarını burada bir arada tutun."}</p><button type="button" onClick={() => onNavigate("company")}>Firma bilgilerini aç <ArrowRight size={16} /></button></div><div className="command-hero-mark"><Building2 size={42} /><span>Faaliyet alanı</span><b>{data.profile?.sector || "Henüz eklenmedi"}</b></div></section>
-    <OverviewModuleWidgets tasks={tasks} workOrders={workOrders} fieldVisits={fieldVisits} procurement={procurement} risks={risks} onNavigate={onNavigate} />
     <section className="proactive-action-center">
       <div className="proactive-action-head"><span><Zap size={18} /><b>Bugünün aksiyonları</b></span><small>Kayıtlardaki tarih, önem ve bekleyen durumlara göre otomatik hazırlanır.</small></div>
       {actions.length ? <div className="proactive-action-grid">{actions.slice(0, 5).map((action) => <button type="button" key={`${action.page}-${action.label}`} onClick={() => onNavigate(action.page)} className={action.level}><i /><span><b>{action.label}</b><small>{action.text}</small></span><ArrowRight size={17} /></button>)}</div> : <div className="proactive-action-empty"><Check size={18} /><span><b>Öncelikli aksiyon görünmüyor</b><small>Yeni gecikme veya kritik kayıt oluşursa burada gösterilir.</small></span></div>}
     </section>
-    <section className="company-command-grid">
-      {can("departments") && <button onClick={() => onNavigate("departments")}><Building2 size={22} /><span><b>Departmanlar</b><small>Şirket birimleri ve görev alanları</small></span><ArrowRight size={17} /></button>}
-      {can("projects") && <button onClick={() => onNavigate("projects")}><BriefcaseBusiness size={22} /><span><b>Proje portföyü</b><small>{projects.length} proje · {activeProjects} aktif çalışma</small></span><ArrowRight size={17} /></button>}
-      {can("financial") && <button onClick={() => onNavigate("financial")}><Landmark size={22} /><span><b>Finansal durum</b><small>Borç, ödeme ve nakit özeti</small></span><ArrowRight size={17} /></button>}
-      {can("files") && <button onClick={() => onNavigate("files")}><Files size={22} /><span><b>Kurumsal belgeler</b><small>Sözleşme, dekont, tablo ve proje dosyaları</small></span><ArrowRight size={17} /></button>}
-      {can("agents") && <button onClick={() => onNavigate("agents")}><Bot size={22} /><span><b>Akıllı asistanlar</b><small>Onayınızla çalışan görev yardımcıları</small></span><ArrowRight size={17} /></button>}
-    </section>
-    <section className="company-activity-board"><div><span>SON FAALİYETLER</span><h3>Çalışma alanındaki güncel hareketler</h3></div><div>{data.activity.length ? data.activity.slice(0, 5).map((item) => <article key={item.id}><i /><span><b>{item.details || "Çalışma alanında işlem yapıldı"}</b><small>{new Date(item.created_at).toLocaleString("tr-TR")}</small></span></article>) : <p>Henüz faaliyet kaydı bulunmuyor.</p>}</div></section>
+    <section className="company-command-hero"><div><span>KURUMSAL ÇALIŞMA ALANI</span><h2>{data.profile?.legal_name || data.organization.name}</h2><p>{data.profile?.about || "Firmanızın temel bilgilerini, projelerini ve günlük çalışmalarını burada bir arada tutun."}</p><button type="button" onClick={() => onNavigate("company")}>Firma bilgilerini aç <ArrowRight size={16} /></button></div><div className="command-hero-mark"><Building2 size={42} /><span>Faaliyet alanı</span><b>{data.profile?.sector || "Henüz eklenmedi"}</b></div></section>
+    <OverviewModuleWidgets tasks={tasks} workOrders={workOrders} fieldVisits={fieldVisits} procurement={procurement} risks={risks} onNavigate={onNavigate} />
+    {/* Sol menüyü tekrar eden "hızlı geçiş" kutuları kaldırıldı (aynı sayfada iki aynı hedef olmasın). */}
+    <section className="company-activity-board"><div><span>SON FAALİYETLER</span><h3>Çalışma alanındaki güncel hareketler</h3></div><div>{data.activity.length ? data.activity.slice(0, 5).map((item) => { const target = ACTIVITY_TARGET[item.entity_type]; const body = <><i /><span><b>{item.details || "Çalışma alanında işlem yapıldı"}</b><small>{new Date(item.created_at).toLocaleString("tr-TR")}</small></span></>;
+      return target ? <article key={item.id}>{target.startsWith("/") ? <a className="activity-link" href={target}>{body}</a> : <button type="button" className="activity-link" onClick={() => onNavigate(target)}>{body}</button>}</article> : <article key={item.id}>{body}</article>; }) : <p>Henüz faaliyet kaydı bulunmuyor.</p>}</div></section>
   </>;
 }
 
@@ -648,6 +813,8 @@ const departmentCatalog = [
   { name: "Ar-Ge ve inovasyon", icon: Bot, description: "Fikirleri, deneyleri, prototipleri ve doğrulanmış teknik öğrenimleri portföy olarak yönetir.", roles: ["Fikir ve hipotez", "Prototip/deney", "Teknik kazanım"], workflow: ["Problemi ve başarı ölçütünü yazın.", "Sınırlı deney planlayıp sonucu kaydedin.", "Devam, durdurma veya projeye dönüş kararını kayıt altına alın."], records: ["Fikir kartı", "Deney planı/sonucu", "Teknik karar kaydı"], legal: "Fikrî hak, lisans, gizlilik ve üçüncü taraf veri kaynakları deney kaydında açıkça belirtilir.", sheet: "Deney listesi tabloyla hazırlanabilir; teknik kanıt ve karar proje belgelerinde tutulur." },
 ];
 
+const deptSlug = (name: string) => DEPARTMENTS.find((d) => d.name === name)?.slug;
+
 const departmentLinks: Record<string, [string, string]> = {
   "Yönetim ve strateji": ["overview", "Yönetim özetini aç"],
   "Finans ve hazine": ["financial", "Finans çalışma alanını aç"],
@@ -665,7 +832,7 @@ const departmentLinks: Record<string, [string, string]> = {
 };
 
 function DepartmentsView({ onNavigate }: { onNavigate: (page: string) => void }) {
-  return <><section className="department-intro"><span>13 TEMEL İŞ BİRİMİ</span><h2>Her departmanın görevi, kaydı ve onay sınırı açık olsun.</h2><p>Bu çalışma planı farklı ölçeklerdeki şirketlerin günlük operasyonlarını tek düzende toplar. Küçük ekiplerde bir kişi birden fazla alanı yürütebilir; kayıt, sorumluluk ve onay adımları yine ayrı kalır.</p></section><section className="department-grid">{departmentCatalog.map(({ name, icon: Icon, description, roles, workflow, records, legal, sheet }) => { const link = departmentLinks[name]; return <article key={name}><div className="department-card-head"><Icon size={23} /><span>İŞ BİRİMİ</span></div><h3>{name}</h3><p>{description}</p><ul>{roles.map((role) => <li key={role}><Check size={14} />{role}</li>)}</ul><details><summary>Çalışma sistemini gör <ArrowRight size={15} /></summary><div className="department-playbook"><section><b>İş akışı</b><ol>{workflow.map((step) => <li key={step}>{step}</li>)}</ol></section><section><b>Toplanacak kayıtlar</b><ul>{records.map((record) => <li key={record}><Files size={13} />{record}</li>)}</ul></section><section><b>Tablo ve Excel kullanımı</b><p>{sheet}</p></section><section className="department-legal"><b>Kayıt düzeni</b><p>{legal}</p></section></div></details>{link && <button type="button" className="department-open-button" onClick={() => onNavigate(link[0])}>{link[1]} <ArrowRight size={15} /></button>}</article>; })}</section><aside className="department-compliance-note"><ShieldCheck size={22} /><span><b>Ortak veri ilkesi</b><p>Yalnızca iş için gerekli bilgi toplanır; erişim görevle sınırlandırılır; kaydın sahibi, amacı ve onay durumu görünür tutulur.</p></span></aside></>;
+  return <><section className="department-intro"><span>13 TEMEL İŞ BİRİMİ</span><h2>Her departmanın görevi, kaydı ve onay sınırı açık olsun.</h2><a className="panel-primary department-control-link" href="/birimler">Birimler kontrol merkezini aç <ArrowRight size={16} /></a><p>Bu çalışma planı farklı ölçeklerdeki şirketlerin günlük operasyonlarını tek düzende toplar. Küçük ekiplerde bir kişi birden fazla alanı yürütebilir; kayıt, sorumluluk ve onay adımları yine ayrı kalır.</p></section><section className="department-grid">{departmentCatalog.map(({ name, icon: Icon, description, roles, workflow, records, legal, sheet }) => { const link = departmentLinks[name]; return <article key={name}><div className="department-card-head"><Icon size={23} /><span>İŞ BİRİMİ</span></div><h3>{name}</h3><p>{description}</p><ul>{roles.map((role) => <li key={role}><Check size={14} />{role}</li>)}</ul><details><summary>Çalışma sistemini gör <ArrowRight size={15} /></summary><div className="department-playbook"><section><b>İş akışı</b><ol>{workflow.map((step) => <li key={step}>{step}</li>)}</ol></section><section><b>Toplanacak kayıtlar</b><ul>{records.map((record) => <li key={record}><Files size={13} />{record}</li>)}</ul></section><section><b>Tablo ve Excel kullanımı</b><p>{sheet}</p></section><section className="department-legal"><b>Kayıt düzeni</b><p>{legal}</p></section></div></details>{deptSlug(name) && <a className="department-open-button" href={`/birimler?birim=${deptSlug(name)}`}>Birim sayfasını aç <ArrowRight size={15} /></a>}{link && <button type="button" className="department-open-button" onClick={() => onNavigate(link[0])}>{link[1]} <ArrowRight size={15} /></button>}</article>; })}</section><aside className="department-compliance-note"><ShieldCheck size={22} /><span><b>Ortak veri ilkesi</b><p>Yalnızca iş için gerekli bilgi toplanır; erişim görevle sınırlandırılır; kaydın sahibi, amacı ve onay durumu görünür tutulur.</p></span></aside></>;
 }
 
 function ProjectsView({ projects, onAdd }: { projects: Project[]; onAdd: () => void }) {
@@ -714,7 +881,7 @@ function PaymentsView({ payments, periods, selectedPeriod, onPeriodChange, organ
   return <>
     <section className="finance-workbook-head">
       <div><span>FİNANS ÇALIŞMA DEFTERİ</span><h2>Kart ve borç kayıtlarını Excel rahatlığında yönetin.</h2><p>Bir hücreyi değiştirip satırın sonundaki “Kaydet” düğmesine basın. Aylık özetler ve raporlar kendiliğinden yenilenir.</p></div>
-      <div className="workbook-actions"><button type="button" className="outline-button" onClick={onExport}><Download size={17} /> Excel indir</button><button type="button" className="outline-button" onClick={() => onNavigate("reports")}><BarChart3 size={17} /> Raporları aç</button><button type="button" className="panel-primary" onClick={onNew}><Plus size={17} /> Yeni satır</button></div>
+      <div className="workbook-actions"><button type="button" className="outline-button" onClick={() => onNavigate("reports")}><BarChart3 size={17} /> Raporları aç</button></div>
     </section>
     <section className="payment-period-bar"><div><span>AYLIK TAKİP</span><b>Çalışılacak dönemi seçin</b><small>Ağustos kaydı Ağustos altında kalır; seçtiğiniz ayın toplamı ayrı hesaplanır.</small></div><label><span>Gösterilen ay</span><select value={selectedPeriod} onChange={(event) => onPeriodChange(event.target.value)}><option value="all">Tüm dönemler</option>{periods.map((period) => <option key={period} value={period}>{period}</option>)}</select></label></section>
     <div className="workbook-summary"><article><span>Toplam borç</span><b>{formatMoney(totalDebt)}</b></article><article><span>Ödenen</span><b>{formatMoney(paidAmount)}</b></article><article><span>Kalan borç</span><b>{formatMoney(remainingDebt)}</b></article><article><span>Aylık ödeme</span><b>{formatMoney(monthlyPayment)}</b></article><article><span>Asgari ödeme</span><b>{formatMoney(minimumPayment)}</b></article><article><span>Kayıt sayısı</span><b>{payments.length}</b></article></div>
@@ -804,7 +971,7 @@ function ReportsView({ summaries }: { summaries: Summary[] }) {
 }
 
 function FilesView({ files, organizationId, onUpload }: { files: FileItem[]; organizationId: string; onUpload: () => void }) {
-  return <section className="files-panel"><div className="upload-zone" onClick={onUpload}><div><Upload size={25} /></div><h3>Dosya veya görsel yükleyin</h3><p>PDF, Excel, CSV, PNG, JPG veya WebP</p><small>Dosya türü ve gerçek içeriği yükleme öncesinde kontrol edilir.</small><button className="panel-primary">Dosya seç</button></div><div className="file-list"><h3>Son belgeler</h3>{files.length ? files.map((file) => <div className="file-list-row" key={file.id}><div className="file-icon"><FileSpreadsheet size={19} /></div><span><b>{file.file_name}</b><small>{file.full_name}</small></span><div className="file-actions"><a href={`/api/uploads/${file.id}?organizationId=${encodeURIComponent(organizationId)}`} target="_blank" rel="noreferrer">{file.content_type === "application/pdf" ? "PDF aç" : "Önizle"}</a><a href={`/api/uploads/${file.id}?organizationId=${encodeURIComponent(organizationId)}&download=1`}><Download size={15} /> İndir</a></div></div>) : <EmptyState icon={Files} title="Henüz belge yüklenmedi" text="Dekont, tablo, şirket görseli ve destekleyici belgeleri burada saklayabilirsiniz." />}</div></section>;
+  return <section className="files-panel"><div className="upload-zone" onClick={onUpload}><div><Upload size={25} /></div><h3>Dosya veya görsel yükleyin</h3><p>PDF, Excel, CSV, PNG, JPG veya WebP</p><small>Dosya türü ve gerçek içeriği yükleme öncesinde kontrol edilir.</small><button className="panel-primary">Dosya seç</button></div><div className="file-list"><h3>Son belgeler</h3>{files.length ? files.map((file) => <div className="file-list-row" key={file.id}><div className="file-icon"><FileSpreadsheet size={19} /></div><span><b>{file.file_name}</b><small>{file.full_name}</small></span><div className="file-actions"><a href={`/api/uploads/${file.id}?organizationId=${encodeURIComponent(organizationId)}`} target="_blank" rel="noreferrer">{file.content_type === "application/pdf" ? "PDF indir" : "Önizle"}</a><a href={`/api/uploads/${file.id}?organizationId=${encodeURIComponent(organizationId)}&download=1`}><Download size={15} /> İndir</a></div></div>) : <EmptyState icon={Files} title="Henüz belge yüklenmedi" text="Dekont, tablo, şirket görseli ve destekleyici belgeleri burada saklayabilirsiniz." />}</div></section>;
 }
 
 function CompanyView({ organization, profile, canManage, onEdit }: { organization: Organization; profile: CompanyProfile; canManage: boolean; onEdit: () => void }) {
@@ -848,7 +1015,8 @@ function EntryModal({ type, latestPeriod, payment, treasury, profile, organizati
     company: ["KURUMSAL PROFİL", "Firma bilgilerini düzenleyin"],
     project: ["PROJE PORTFÖYÜ", "Yeni proje oluşturun"],
   };
-  return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && close()}><form className="entry-modal" onSubmit={submit}><div className="modal-head"><div><span>{headings[type][0]}</span><h2>{headings[type][1]}</h2></div><button type="button" onClick={close} aria-label="Pencereyi kapat"><X size={19} /></button></div>{type === "payment" && <PaymentFields period={latestPeriod} payment={payment} />}{type === "expense" && <ExpenseFields period={latestPeriod} />}{type === "user" && <UserFields />}{type === "balance" && <BalanceFields />}{type === "manualDebt" && <ManualDebtFields />}{type === "rates" && <RateFields references={treasury?.references ?? {}} />}{type === "password" && <PasswordFields />}{type === "company" && <CompanyFields profile={profile} />}{type === "project" && <ProjectFields />}<div className="modal-actions"><button className="outline-button" type="button" onClick={close}>Vazgeç</button><button className="panel-primary" disabled={saving}>{saving ? "Kaydediliyor..." : type === "password" ? "Parolayı değiştir" : "Kaydı tamamla"}</button></div></form></div>;
+  useModalKeys(close);
+  return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && close()}><form className="entry-modal" role="dialog" aria-modal="true" onSubmit={submit}><div className="modal-head"><div><span>{headings[type][0]}</span><h2>{headings[type][1]}</h2></div><button type="button" onClick={close} aria-label="Pencereyi kapat"><X size={19} /></button></div>{type === "payment" && <PaymentFields period={latestPeriod} payment={payment} />}{type === "expense" && <ExpenseFields period={latestPeriod} />}{type === "user" && <UserFields />}{type === "balance" && <BalanceFields />}{type === "manualDebt" && <ManualDebtFields />}{type === "rates" && <RateFields references={treasury?.references ?? {}} />}{type === "password" && <PasswordFields />}{type === "company" && <CompanyFields profile={profile} />}{type === "project" && <ProjectFields />}<div className="modal-actions"><button className="outline-button" type="button" onClick={close}>Vazgeç</button><button className="panel-primary" disabled={saving}>{saving ? "Kaydediliyor..." : type === "password" ? "Parolayı değiştir" : "Kaydı tamamla"}</button></div></form></div>;
 }
 
 function ProjectFields() { return <div className="form-grid"><label className="full"><span>Proje adı</span><input name="name" placeholder="Örn. Üretim hattı veri izleme sistemi" required /></label><label><span>Proje kodu</span><input name="code" placeholder="Örn. PRJ-2026-01" /></label><label><span>İş birimi</span><select name="department" required>{departmentCatalog.map((department) => <option key={department.name}>{department.name}</option>)}</select></label><label><span>Proje sorumlusu</span><input name="ownerName" placeholder="Ad soyad veya ekip" /></label><label><span>Durum</span><select name="status"><option value="planning">Planlama</option><option value="active">Devam ediyor</option><option value="on_hold">Beklemede</option><option value="completed">Tamamlandı</option></select></label><label><span>Öncelik</span><select name="priority"><option value="normal">Normal</option><option value="high">Yüksek</option><option value="critical">Kritik</option><option value="low">Düşük</option></select></label><label><span>Başlangıç tarihi</span><input name="startDate" type="date" /></label><label><span>Hedef tarih</span><input name="targetDate" type="date" /></label><label><span>Planlanan bütçe</span><div className="money-input"><input name="budget" type="number" min="0" step="0.01" /><em>₺</em></div></label><label><span>İlerleme (%)</span><input name="progress" type="number" min="0" max="100" defaultValue="0" /></label><label className="full"><span>Kapsam ve beklenen sonuç</span><textarea name="description" rows={4} placeholder="Projenin amacı, teslim edilecek işler ve başarı ölçütleri..." /></label></div>; }
@@ -856,10 +1024,45 @@ function ProjectFields() { return <div className="form-grid"><label className="f
 function PaymentFields({ period, payment }: { period: string; payment: Payment | null }) { return <div className="form-grid"><label><span>Dönem / ay</span><input name="period" defaultValue={payment?.period ?? period} placeholder="Örn. Ağustos 2026" required /></label><label><span>Kişi / sorumlu</span><input name="ownerName" defaultValue={payment?.owner_name ?? ""} placeholder="Örn. Finans sorumlusu" required /></label><label><span>Banka</span><input name="bankName" defaultValue={payment?.bank_name ?? ""} placeholder="Örn. Garanti" required /></label><label><span>Hesap veya kart adı</span><input name="accountName" defaultValue={payment?.account_name ?? ""} placeholder="Örn. Kredi kartı" required /></label><MoneyInput name="totalLimit" label="Toplam limit" value={payment?.total_limit} /><MoneyInput name="totalDebt" label="Toplam borç" value={payment?.total_debt} /><MoneyInput name="paidAmount" label="Ödenen tutar" value={payment?.paid_amount} /><label><span>Ödeme durumu</span><select name="paymentStatus" defaultValue={payment?.payment_status ?? "planned"}><option value="planned">Planlandı</option><option value="partial">Kısmi ödendi</option><option value="paid">Ödendi</option><option value="overdue">Gecikti</option></select></label><label><span>Ödendiği tarih</span><input type="date" name="paidAt" defaultValue={payment?.paid_at ?? ""} /></label><MoneyInput name="restructuring" label="Yapılandırma" value={payment?.restructuring} /><MoneyInput name="monthlyPayment" label="Aylık ödeme" value={payment?.monthly_payment} /><MoneyInput name="nextInstallment" label="Gelecek dönem taksit" value={payment?.next_installment} /><MoneyInput name="overdraftDebt" label="KMH borcu" value={payment?.overdraft_debt} /><MoneyInput name="overdraftLimit" label="KMH limiti" value={payment?.overdraft_limit} /><MoneyInput name="minimumPayment" label="Asgari ödeme" value={payment?.minimum_payment} /><label><span>Son ödeme tarihi</span><input type="date" name="dueDate" defaultValue={payment?.due_date ?? ""} /></label><label className="full"><span>Önemli not</span><textarea name="importantNote" rows={3} defaultValue={payment?.important_note ?? ""} placeholder="Gecikme, ödeme planı veya takip notu..." /></label><div className="full form-help">Ödenen tutar toplam borçtan düşülür; kalan borç, dönem özeti ve Excel çıktısı otomatik güncellenir.</div></div>; }
 function MoneyInput({ name, label, value }: { name: string; label: string; value?: number }) { return <label><span>{label}</span><div className="money-input"><input name={name} type="number" min="0" step="0.01" defaultValue={value ?? ""} placeholder="0" /><em>₺</em></div></label>; }
 function ExpenseFields({ period }: { period: string }) { return <div className="form-grid"><label><span>Dönem</span><input name="period" defaultValue={period} required /></label><label><span>Kişi / sorumlu</span><input name="ownerName" required /></label><label><span>Kategori</span><select name="category" required><option>Kira</option><option>Fatura</option><option>Mutfak</option><option>Yakıt</option><option>Şirket harcaması</option><option>Diğer</option></select></label><label><span>Tutar</span><div className="money-input"><input name="amount" type="number" min="0" step="0.01" required /><em>₺</em></div></label><label className="full"><span>Açıklama</span><input name="description" placeholder="Giderin kısa açıklaması" required /></label><label><span>Ödeme tarihi</span><input name="dueDate" type="date" /></label></div>; }
-function UserFields() { return <div className="form-grid"><label><span>Kullanıcı adı</span><input name="username" pattern="[a-zA-Z0-9._-]{3,32}" placeholder="Örn. bilgi.islem" required /></label><label><span>Görünen ad</span><input name="fullName" placeholder="Örn. Bilgi İşlem Uzmanı" required /></label><label><span>Geçici parola (en az 10 karakter)</span><input name="password" type="password" minLength={10} maxLength={128} required /></label><label><span>Erişim profili</span><select name="accessProfile" defaultValue="employee"><option value="employee">Çalışan</option><option value="manager">Birim yöneticisi</option><option value="finance">Finans ekibi</option><option value="hr">İnsan kaynakları</option><option value="it">Bilgi işlem</option><option value="ceo">Üst yönetim / CEO</option><option value="company_admin">Firma yöneticisi</option></select></label><label><span>Departman</span><select name="department"><option value="">Departman belirtilmedi</option>{departmentCatalog.map((department) => <option key={department.name}>{department.name}</option>)}</select></label><label><span>Görev unvanı</span><input name="jobRole" placeholder="Örn. Bilgi İşlem Uzmanı" /></label><input type="hidden" name="role" value="user" /><div className="full form-help">Bilgi işlem profili şirketin operasyon, proje, sistem, belge ve otomasyon alanlarını görür; finans, ücret ve platform yöneticiliği yetkisi almaz. Geçici parolayı güvenli kanaldan paylaşın ve ilk kullanımda değiştirin.</div></div>; }
+function UserFields() { return <div className="form-grid"><Field label="Kullanıcı adı" required><input name="username" pattern="[a-zA-Z0-9._-]{3,32}" placeholder="Örn. bilgi.islem" required /></Field><Field label="Görünen ad" required><input name="fullName" placeholder="Örn. Bilgi İşlem Uzmanı" required /></Field><Field label="Geçici parola (en az 10 karakter)" required><input name="password" type="password" minLength={10} maxLength={128} required /></Field><label><span>Erişim profili</span><select name="accessProfile" defaultValue="employee"><option value="employee">Çalışan</option><option value="manager">Birim yöneticisi</option><option value="finance">Finans ekibi</option><option value="hr">İnsan kaynakları</option><option value="it">Bilgi işlem</option><option value="ceo">Üst yönetim / CEO</option><option value="company_admin">Firma yöneticisi</option></select></label><label><span>Departman</span><select name="department"><option value="">Departman belirtilmedi</option>{departmentCatalog.map((department) => <option key={department.name}>{department.name}</option>)}</select></label><label><span>Görev unvanı</span><input name="jobRole" placeholder="Örn. Bilgi İşlem Uzmanı" /></label><input type="hidden" name="role" value="user" /><div className="full form-help">Bilgi işlem profili şirketin operasyon, proje, sistem, belge ve otomasyon alanlarını görür; finans, ücret ve platform yöneticiliği yetkisi almaz. Geçici parolayı güvenli kanaldan paylaşın ve ilk kullanımda değiştirin.</div></div>; }
 function PasswordFields() { return <div className="form-grid"><label className="full"><span>Mevcut parola</span><input name="currentPassword" type="password" autoComplete="current-password" required /></label><label><span>Yeni parola</span><input name="newPassword" type="password" minLength={10} maxLength={128} autoComplete="new-password" required /></label><label><span>Yeni parola tekrar</span><input name="confirmPassword" type="password" minLength={10} maxLength={128} autoComplete="new-password" required /></label><div className="full form-help">Yeni parolanız en az 10 karakter olmalı. Değişiklikten sonra diğer cihazlardaki oturumlar kapatılır.</div></div>; }
 function CurrencyOptions() { return <>{fiatCodes.map((code) => <option key={code} value={code}>{currencyLabels[code]} ({code})</option>)}<optgroup label="Altın ve ziynet">{goldCodes.map((code) => <option key={code} value={code}>{currencyLabels[code]}</option>)}</optgroup></>; }
 function BalanceFields() { return <div className="form-grid"><label><span>Hesap / kasa adı</span><input name="accountName" placeholder="Örn. Merkez kasa" required /></label><label><span>Para veya altın birimi</span><select name="currency"><CurrencyOptions /></select></label><label><span>Tutar / adet</span><input name="amount" type="number" min="0.01" step="0.01" required /></label><label><span>İsteğe bağlı özel TL kuru / fiyatı</span><input name="manualRate" type="number" min="0" step="0.0001" placeholder="Boşsa TCMB veya altın referansı" /></label><label className="full"><span>Not</span><input name="note" placeholder="İsteğe bağlı açıklama" /></label><div className="full form-help">Dövizlerde TCMB satış kuru otomatik kullanılır. Altın için firma yetkilisinin kaydettiği fiyat veya bu alandaki özel fiyat kullanılır.</div></div>; }
 function ManualDebtFields() { return <div className="form-grid"><label><span>Borç alınan kişi / kurum</span><input name="lenderName" required /></label><label><span>Borç türü</span><select name="debtType"><option value="cash">Nakit / döviz</option><option value="gold">Altın / ziynet</option><option value="other">Diğer</option></select></label><label><span>Para veya altın birimi</span><select name="currency"><CurrencyOptions /></select></label><label><span>Miktar / adet</span><input name="amount" type="number" min="0.01" step="0.01" required /></label><label><span>Bu kayda özel TL birim fiyatı</span><input name="manualRate" type="number" min="0" step="0.0001" placeholder="Boşsa otomatik kur/referans" /></label><label><span>Vade</span><input name="dueDate" type="date" /></label><label className="full"><span>Not</span><textarea name="note" rows={3} placeholder="Borç açıklaması veya ödeme planı" /></label></div>; }
 function RateFields({ references }: { references: Record<string, number> }) { return <div className="form-grid">{[["gramGold", "GRAM_GOLD"], ["quarterGold", "QUARTER_GOLD"], ["halfGold", "HALF_GOLD"], ["fullGold", "FULL_GOLD"], ["republicGold", "REPUBLIC_GOLD"], ["ataGold", "ATA_GOLD"], ["bracelet22kGram", "BRACELET_22K_GRAM"]].map(([name, code]) => <label key={code}><span>{currencyLabels[code]} TL birim fiyatı</span><input name={name} type="number" min="0" step="0.01" defaultValue={references[code] || ""} placeholder="Güncel satış fiyatı" /></label>)}<div className="full form-help">Altın için tek ve resmî bir muhasebe kuru bulunmadığından, kullandığınız kuyumcu veya banka satış fiyatını referans olarak girin.</div></div>; }
 function CompanyFields({ profile }: { profile: CompanyProfile }) { return <div className="form-grid"><label className="full"><span>Ticari unvan</span><input name="legalName" defaultValue={profile?.legal_name ?? ""} /></label><label><span>Faaliyet alanı</span><input name="sector" defaultValue={profile?.sector ?? ""} placeholder="Örn. Mühendislik ve teknoloji" /></label><label><span>Vergi dairesi</span><input name="taxOffice" defaultValue={profile?.tax_office ?? ""} /></label><label><span>Vergi numarası</span><input name="taxNumber" defaultValue={profile?.tax_number ?? ""} inputMode="numeric" /></label><label><span>MERSİS numarası</span><input name="mersisNumber" defaultValue={profile?.mersis_number ?? ""} inputMode="numeric" /></label><label><span>Ticaret sicil numarası</span><input name="tradeRegistryNumber" defaultValue={profile?.trade_registry_number ?? ""} /></label><label><span>Telefon</span><input name="phone" defaultValue={profile?.phone ?? ""} type="tel" /></label><label><span>E-posta</span><input name="email" defaultValue={profile?.email ?? ""} type="email" /></label><label className="full"><span>İnternet sitesi</span><input name="website" defaultValue={profile?.website ?? ""} placeholder="https://..." /></label><label className="full"><span>Adres</span><textarea name="address" defaultValue={profile?.address ?? ""} rows={3} /></label><label className="full"><span>Kısa şirket tanıtımı</span><textarea name="about" defaultValue={profile?.about ?? ""} rows={4} placeholder="Şirketinizi sade ve gerçek bilgilerle tanıtın." /></label><div className="full form-help">Resmî kayıt yoksa vergi, MERSİS ve sicil alanlarını boş bırakabilirsiniz. Doğrulanmamış bilgi eklemeyin.</div></div>; }
+
+
+// Yönetim merkezi: kullanıcı erişimleri, veri yönetimi ve (platform yöneticisi için) firma araçları ayrı sekmelerde.
+// Önceden kenar çubuğunda sarı bağlantılar olarak duruyordu ve menü bütünlüğünü bozuyordu.
+function AdminCenter({ canManage, platformAdmin, organizationName, onAddUser, onOpenPlatform, platform }: {
+  canManage: boolean; platformAdmin: boolean; organizationName: string; onAddUser: () => void; onOpenPlatform: () => void; platform: ReactNode;
+}) {
+  const tabs = [
+    ...(canManage ? [{ id: "access", label: "Kullanıcılar ve erişim" }, { id: "data", label: "Veri yönetimi" }] : []),
+    ...(platformAdmin ? [{ id: "platform", label: "Platform" }] : []),
+  ];
+  const [tab, setTab] = useState(tabs[0]?.id ?? "access");
+  useEffect(() => { if (tab === "platform") onOpenPlatform(); }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
+  return <section className="admin-center">
+    <div className="admin-tabs" role="tablist" aria-label="Yönetim bölümleri">
+      {tabs.map((item) => <button key={item.id} type="button" role="tab" aria-selected={tab === item.id} className={tab === item.id ? "active" : ""} onClick={() => setTab(item.id)}>{item.label}</button>)}
+    </div>
+    {tab === "access" && <div className="admin-grid">
+      <article><Users size={22} /><h3>Kullanıcı erişimleri</h3><p>{organizationName} ekibinin hesapları, rolleri ve birimleri. Hesap açma/kapama, parola sıfırlama ve oturum kapatma.</p><a className="panel-primary" href="/kullanicilar">Erişim listesini aç <ArrowRight size={16} /></a></article>
+      <article><UserPlus size={22} /><h3>Yeni kullanıcı</h3><p>Rol ve birim seçerek ekip üyesi ekleyin. Çalışan yalnız kendisine ve birimine yönlendirilen işleri görür.</p><button type="button" className="outline-button" onClick={onAddUser}><Plus size={16} /> Kullanıcı ekle</button></article>
+      <article><ShieldCheck size={22} /><h3>Yetki kuralları</h3><p>İş açma yetkisi birime göredir: birim sorumlusu süreç başlatır, çalışan yalnız açık talep türlerini kullanır. Talep eden kendi talebini onaylayamaz.</p><a className="outline-button" href="/birimler">Birimleri incele</a></article>
+    </div>}
+    {tab === "data" && <div className="admin-grid">
+      <article><Database size={22} /><h3>Veri yönetimi</h3><p>Saklama politikaları, ilgili kişi başvuruları ve dışa aktarma kayıtları.</p><a className="panel-primary" href="/veri-yonetimi">Veri yönetimini aç <ArrowRight size={16} /></a></article>
+      <article><Files size={22} /><h3>İşlem geçmişi</h3><p>Kim, ne zaman, hangi kaydı değiştirdi; şirket merkezindeki son faaliyetler ve kayıt detaylarında görünür.</p></article>
+    </div>}
+    {tab === "platform" && <div className="admin-platform">
+      <div className="admin-grid">
+        <article><Building2 size={22} /><h3>Firma gözünden gör</h3><p>Destek için bir firmanın panelini salt okunur açın. Değişiklik yapılamaz; her açılış gerekçesiyle kayda geçer.</p></article>
+        <article><Factory size={22} /><h3>Örnek işletme</h3><p>Kurgusal verilerle dolu bir tanıtım firması oluşturun; gerçek müşteri verisi içermez.</p><a className="outline-button" href="/ornek-isletme"><Plus size={16} /> Örnek işletme oluştur</a></article>
+      </div>
+      {platform}
+    </div>}
+  </section>;
+}

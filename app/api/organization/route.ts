@@ -19,7 +19,7 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: "Oturum gerekli." }, { status: 401 });
   let context;
   try { context = await requireOrganization(request, user); }
-  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Çalışma alanına erişim reddedildi." }, { status: 403 }); }
+  catch (error) { return NextResponse.json({ error: "Çalışma alanına erişim reddedildi." }, { status: 403 }); }
   if (!canManageOrganization(user, context.organization)) return NextResponse.json({ error: "Firma bilgilerini yalnızca firma yetkilisi değiştirebilir." }, { status: 403 });
 
   const body = (await request.json()) as Record<string, unknown>;

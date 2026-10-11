@@ -1,3 +1,4 @@
+import { recordRead } from "@/lib/read-audit";
 import { NextResponse } from "next/server";
 import { errorStatus } from "@/lib/access";
 import { getCurrentUser } from "@/lib/auth";
@@ -17,9 +18,10 @@ export async function GET(request: Request) {
     const result = await getDb().prepare(
       "SELECT * FROM employees WHERE organization_id = ? ORDER BY department, full_name")
       .bind(context.organization.id).all();
+    await recordRead(user.id,context.organization.id,"employees:list");
     return NextResponse.json({ employees: result.results });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Çalışanlar alınamadı." }, { status: 403 });
+    return NextResponse.json({ error: "Çalışanlar alınamadı." }, { status: 403 });
   }
 }
 
@@ -44,6 +46,6 @@ export async function POST(request: Request) {
     await addAudit(user.id, "create", "employee", id, `${fullName} çalışan kaydı eklendi.`, context.organization.id);
     return NextResponse.json({ ok: true, id });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Çalışan eklenemedi." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Çalışan eklenemedi." }, { status: errorStatus(error) });
   }
 }

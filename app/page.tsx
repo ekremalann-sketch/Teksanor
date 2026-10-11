@@ -9,7 +9,6 @@ import {
   BrainCircuit,
   CheckCircle2,
   CalendarCheck2,
-  Database,
   Factory,
   Gauge,
   Layers3,
@@ -69,7 +68,7 @@ export default function Home() {
     <main className="site-shell">
       <header className="site-header">
         <Link className="brand-link" href="/" aria-label="Teksanor ana sayfa">
-          <img src="/assets/teksanor-logo.png" alt="Teksanor" className="header-logo" />
+          <img src="/assets/teksanor-logo.webp" alt="Teksanor" className="header-logo" />
         </Link>
         <nav className="desktop-nav" aria-label="Ana menü">
           <Link href="/platform">Platform</Link>
@@ -79,7 +78,7 @@ export default function Home() {
           <Link href="/hakkimizda">Hakkımızda</Link>
           <Link href="/en" hrefLang="en">English</Link>
         </nav>
-        <details className="public-mobile-menu"><summary>Menü</summary><nav aria-label="Mobil menü"><Link href="/platform">Platform</Link><Link href="/sektorler">Sektörler</Link><Link href="/guven">Güven</Link><Link href="/pilot">Pilot</Link><Link href="/en" hrefLang="en">English</Link><a href="https://github.com/ekremalann-sketch">Ekrem Alan · GitHub</a></nav></details>
+        <details className="public-mobile-menu"><summary>Menü</summary><nav aria-label="Mobil menü"><Link href="/platform">Platform</Link><Link href="/sektorler">Sektörler</Link><Link href="/entegrasyonlar">Entegrasyonlar</Link><Link href="/guven">Güven</Link><Link href="/pilot">Pilot</Link><Link href="/hakkimizda">Hakkımızda</Link><Link href="/en" hrefLang="en">English</Link></nav></details>
         <Link className="login-link" href={authenticated ? "/panel" : "/giris"}>
           <span className="login-link-icon"><UserRound size={17} /></span>
           <span className="login-link-label">{authenticated ? "Panel" : "Giriş"}</span>
@@ -139,14 +138,14 @@ export default function Home() {
           <article><b>İş başına brüt fark</b><p>Teklif, işçilik, parça ve ulaşım maliyeti yan yana; kalan tahsilat her işte görünür.</p></article>
           <article><b>Firma ve rol ayrımı</b><p>Her firmanın verisi ayrıdır; çalışan yalnızca kendisine atanan servisi görür. Kurallar otomatik testlerle denetlenir.</p></article>
         </div>
-        <p className="why-honest"><b>Henüz yok:</b> e-fatura, SMS bildirimi, harita/rota ve mağaza uygulaması. Telefonda tarayıcıdan ana ekrana eklenerek kullanılır. Güncel durum için <Link href="/kurumsal-durum">kurumsal durum</Link> sayfasına bakın.</p>
+        <p className="why-honest"><b>Yol haritası:</b> e-Fatura (özel entegratör üzerinden), SMS bildirimi, rota planlama ve mağaza uygulaması. Mobilde bugün tarayıcıdan, ana ekrana eklenerek uygulama gibi kullanılır. <Link href="/kurumsal-durum">Ürün durumunu inceleyin</Link>.</p>
       </section>
 
       <section className="operations-command-section" aria-label="Teksanor operasyon omurgası">
         <div className="operations-command-copy">
           <span className="section-kicker">ÇALIŞAN OPERASYON OMURGASI</span>
           <h2>İşi yalnızca kaydetmeyin; varlıktan bakıma, sahadan maliyete kadar izleyin.</h2>
-          <p>Teksanor’un paneli artık ekipman envanteri ve periyodik bakım planlarını da gerçek firma kayıtları olarak tutar. Bakım tamamlandığında sonraki tarih belirlenen sıklığa göre kendiliğinden hesaplanır.</p>
+          <p>Ekipman envanteri ve periyodik bakım planları, iş emirleri ve saha kayıtlarıyla aynı yerde tutulur. Bakım tamamlandığında bir sonraki tarih, tanımlı sıklığa göre kendiliğinden hesaplanır.</p>
           <div className="operations-command-list">
             <span><Factory size={20}/><b>Varlık envanteri</b><small>Makine, araç, cihaz, konum ve sorumlu kaydı</small></span>
             <span><CalendarCheck2 size={20}/><b>Periyodik bakım</b><small>Kontrol listesi, gecikme ve otomatik yeni tarih</small></span>
@@ -164,22 +163,6 @@ export default function Home() {
             <div><span>03</span><b>Sahada tamamlanır</b><small>Kayıt · geçmiş · yeni tarih</small></div>
           </div>
         </div>
-      </section>
-
-      <section className="readiness-mini-strip" aria-label="Teksanor ürün durumu">
-        <div>
-          <span>Yeni</span>
-          <b>Son kaynak kodda operasyon modülleri ve güvenlik sertleştirmeleri işlendi.</b>
-          <small>Finans, proje, iş emri, saha, satın alma, CRM, İK, risk ve otomasyon çekirdeği görünür; canlı müşteri öncesi kalan kritik işler ayrı listelenir.</small>
-        </div>
-        <Link href="/kurumsal-durum">Durumu ve yapılacakları aç <ArrowRight size={16} /></Link>
-      </section>
-
-      <section className="executive-strip" aria-label="Teksanor platform özellikleri">
-        <article><div><ShieldCheck size={21} /></div><span><b>Şirket bazlı güvenli alan</b><small>Her firma yalnızca kendi kayıtlarına erişir.</small></span></article>
-        <article><div><Gauge size={21} /></div><span><b>Tek ekranda finansal görünüm</b><small>Borç, gider, nakit ve belgeler birlikte izlenir.</small></span></article>
-        <article><div><Workflow size={21} /></div><span><b>İzlenebilir operasyon</b><small>Yetkiler ve işlem geçmişi merkezi olarak yönetilir.</small></span></article>
-        <article><div><Database size={21} /></div><span><b>Excel’den düzenli veriye</b><small>Dağınık tablolar anlaşılır kayıtlara dönüşür.</small></span></article>
       </section>
 
       <section className="section-block" id="cozumler">
@@ -226,16 +209,16 @@ export default function Home() {
           <p>
             Dijital dönüşüm yalnızca yeni bir yazılım kullanmak değildir. Doğru bilgiye, doğru zamanda ve doğru yetkiyle
             ulaşabilmek demektir. Bu nedenle her çözümü kullanıcı alışkanlıklarını, güvenliği ve büyüme ihtimalini birlikte
-            düşünerek tasarırız.
+            düşünerek tasarlarız.
           </p>
           <ul className="principles-list">
             {principles.map((principle) => <li key={principle}><CheckCircle2 size={18} />{principle}</li>)}
           </ul>
         </div>
         <div className="system-card">
-          <div className="system-topline"><span>TEKSANOR / SYSTEM VIEW</span><span className="status-dot">Çevrimiçi</span></div>
+          <div className="system-topline"><span>TEKSANOR / ÇALIŞMA MODELİ</span><span className="status-dot">Örnek</span></div>
           <div className="system-center">
-            <div className="system-core"><Layers3 size={32} /><b>Akıllı Sistem</b><small>Veri · Süreç · Karar</small></div>
+            <div className="system-core"><Layers3 size={32} /><b>Tek kayıt zinciri</b><small>Veri · Süreç · Karar</small></div>
             <div className="connector connector-a" />
             <div className="connector connector-b" />
             <div className="connector connector-c" />
@@ -256,7 +239,7 @@ export default function Home() {
           <p>Finans, proje ve operasyon ekiplerinin tekrar eden takip işlerini inceliyoruz. Ardından yalnızca izin verilen veriyi kullanan, taslağını sorumlu kişiye sunan ve kritik adımlarda insan onayı bekleyen ajan profilleri kuruyoruz.</p>
           <div className="home-agent-actions">
             <Link className="primary-action" href="/yapay-zeka-hizmeti">Ajan çalışma modelini incele <ArrowRight size={18} /></Link>
-            <span><ShieldCheck size={17} /> Prototip · İnsan onayı zorunlu</span>
+            <span><ShieldCheck size={17} /> Kritik adımlarda insan onayı</span>
           </div>
         </div>
         <div className="home-agent-visual">
@@ -339,9 +322,9 @@ export default function Home() {
       </section>
 
       <footer className="site-footer">
-        <div><img src="/assets/teksanor-logo.png" alt="Teksanor" /><p>Akıllı sistemler. Ölçülebilir ilerleme.</p></div>
-        <div className="footer-note">Teksanor, mühendislik ve teknoloji çözümleri için geliştirilen marka kimliğidir. Resmî şirket ve iletişim bilgileri kuruluş süreci tamamlandığında eklenecektir.</div>
-        <div className="footer-end">© 2026 Teksanor · Ekrem Alan <a href="https://github.com/ekremalann-sketch" target="_blank" rel="noopener noreferrer">GitHub profili ve projeler</a></div>
+        <div><img src="/assets/teksanor-logo.webp" alt="Teksanor" /><p>Akıllı sistemler. Ölçülebilir ilerleme.</p></div>
+        <div className="footer-note"><Link href="/platform">Platform</Link> · <Link href="/sektorler">Sektörler</Link> · <Link href="/guven">Güven merkezi</Link> · <Link href="/kurumsal-durum">Ürün durumu</Link> · <Link href="/gizlilik">Gizlilik</Link> · <Link href="/aydinlatma">Aydınlatma</Link> · <Link href="/cerezler">Çerezler</Link></div>
+        <div className="footer-end">© 2026 Teksanor · Geliştiren: <a href="https://github.com/ekremalann-sketch" target="_blank" rel="noopener noreferrer">Ekrem Alan</a></div>
       </footer>
     </main>
   );

@@ -1,3 +1,4 @@
+import {readdir,readFile} from 'node:fs/promises';
 // Ortak davranış testi altyapısı: gerçek rota kodu esbuild ile paketlenir,
 // bellek içi node:sqlite üzerinde D1 benzeri arayüzle çalışır. Yalnız sentetik veri.
 import {DatabaseSync} from 'node:sqlite';
@@ -16,9 +17,12 @@ export async function createHarness(name, modules, options={}){
   await build({stdin:{contents,resolveDir:process.cwd()},outfile,bundle:true,platform:'node',format:'esm',logLevel:'silent',define:{__TEKSANOR_COMMIT__:'"test-sha"'},plugins:[{name:'runtime',setup(b){b.onResolve({filter:/^cloudflare:workers$/},()=>({path:'runtime',namespace:'mock'}));b.onLoad({filter:/.*/,namespace:'mock'},()=>({contents:'export const env=globalThis.__teksanorTestEnv'}));b.onResolve({filter:/^next\/server$/},()=>({path:'response',namespace:'response'}));b.onLoad({filter:/.*/,namespace:'response'},()=>({contents:'export class NextResponse extends Response {static json(data,init){return Response.json(data,init)}}'}));}}]});
   const api=await import('../../'+outfile+'?'+Date.now());
   await api.database.ensureSchema();
+  sql.exec('CREATE TABLE IF NOT EXISTS __test_drizzle_migrations(name TEXT PRIMARY KEY)');
+  for(const file of (await readdir('drizzle')).filter(f=>f.endsWith('.sql')).sort()){if(sql.prepare('SELECT name FROM __test_drizzle_migrations WHERE name=?').get(file))continue;sql.exec((await readFile('drizzle/'+file,'utf8')).replaceAll('--> statement-breakpoint',''));sql.prepare('INSERT INTO __test_drizzle_migrations(name) VALUES(?)').run(file);}
   const tokens={};
   async function user(id,org,memberRole,profile){
     if(!sql.prepare('SELECT id FROM users WHERE id=?').get(id)){const p=await api.auth.hashPassword('Test-password-123!');sql.prepare('INSERT INTO users(id,username,email,full_name,password_hash,password_salt,role) VALUES(?,?,?,?,?,?,?)').run(id,id,id+'@example.test',id,p.hash,p.salt,'user');tokens[id]=await api.auth.createSession(id);}
+    if(['owner','admin'].includes(memberRole))sql.prepare('INSERT INTO user_security(user_id,mfa_enabled) VALUES(?,1) ON CONFLICT(user_id) DO UPDATE SET mfa_enabled=1').run(id);
     if(!sql.prepare('SELECT id FROM organizations WHERE id=?').get(org))sql.prepare('INSERT INTO organizations(id,name,slug) VALUES(?,?,?)').run(org,'Firma '+org,'firma-'+org);
     sql.prepare('INSERT OR REPLACE INTO organization_members(organization_id,user_id,role) VALUES(?,?,?)').run(org,id,memberRole);
     sql.prepare('INSERT OR REPLACE INTO organization_member_access(organization_id,user_id,access_profile) VALUES(?,?,?)').run(org,id,profile);

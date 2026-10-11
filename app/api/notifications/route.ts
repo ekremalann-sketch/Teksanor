@@ -15,14 +15,15 @@ export async function GET(request: Request) {
   try {
     const context = await requireOrganization(request, user);
     const access = await getMemberAccess(user, context.organization);
-    await createDueNotifications(context.organization.id,user.id,access);
+    // Firma gözünden (salt okunur) görünümde bildirim üretilmez.
+    if (!context.organization.view_as) await createDueNotifications(context.organization.id,user.id,access);
     const result = await getDb().prepare(
       `SELECT * FROM notifications WHERE organization_id = ? AND is_read = 0 AND user_id = ?
        ORDER BY created_at DESC LIMIT 50`)
       .bind(context.organization.id, user.id).all();
     return NextResponse.json({ notifications: result.results });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Bildirimler alınamadı." }, { status: 403 });
+    return NextResponse.json({ error: "Bildirimler alınamadı." }, { status: 403 });
   }
 }
 
@@ -45,7 +46,7 @@ export async function POST(request: Request) {
         text(body.entityType, 60) || null, text(body.entityId, 80) || null).run();
     return NextResponse.json({ ok: true, id });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Bildirim oluşturulamadı." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Bildirim oluşturulamadı." }, { status: errorStatus(error) });
   }
 }
 
@@ -61,6 +62,6 @@ export async function PATCH(request: Request) {
     await addAudit(user.id, "update", "notification", null, "Bildirimler okundu olarak işaretlendi.", context.organization.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Bildirimler güncellenemedi." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Bildirimler güncellenemedi." }, { status: errorStatus(error) });
   }
 }

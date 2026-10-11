@@ -89,21 +89,16 @@ test("dosyalar R2 içinde firma önekiyle ayrılır", async () => {
   assert.match(source, /scan_status/, "Dosya güvenlik kontrol durumu kaydedilmiyor");
 });
 
-test("MFA gereken kullanıcı için oturum ikinci adım tamamlanmadan açılmaz", async () => {
+test("Parola girişi MFA etkin hesapta çerez vermeden kod ister; kurulum zorlaması girişte yoktur", async () => {
   const source = await readFile(new URL("../app/api/auth/login/route.ts", import.meta.url), "utf8");
-  const mfaBranch = source.slice(source.indexOf("if (user.mfa_enabled"));
-  assert.match(mfaBranch, /mfaRequired:\s*true/);
-  assert.ok(
-    mfaBranch.indexOf("mfaRequired: true") < mfaBranch.indexOf("createSession("),
-    "MFA yanıtı oturum açılmadan önce dönmeli",
-  );
+  assert.ok(source.includes("mfaChallengeRequired(user)"));
+  assert.ok(source.includes("mfaRequired: true"));
+  assert.ok(!source.includes("mfaEnrollmentRequired"));
+  const challengeBranch = source.slice(source.indexOf("if (mfaChallengeRequired(user))"), source.indexOf("const token = await createSession"));
+  assert.ok(!challengeBranch.includes("Set-Cookie") && !challengeBranch.includes("createSession"), "MFA bekleyen girişte oturum çerezi verilmemeli");
 });
 
-test("MFA kurulumu yönetici çalışma alanını zorunlu olarak kilitlemez", async () => {
-  const source = await readFile(new URL("../lib/tenancy.ts", import.meta.url), "utf8");
-  assert.doesNotMatch(source, /user\.role === "admin" && !user\.mfa_enabled/);
-  assert.doesNotMatch(source, /MFA_REQUIRED/);
-});
+
 
 test("değiştiren API rotaları cross-site kaynak kontrolü uygular", async () => {
   for (const route of mutationRoutes) {

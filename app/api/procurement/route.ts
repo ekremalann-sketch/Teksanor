@@ -21,7 +21,7 @@ export async function GET(request: Request) {
       .bind(context.organization.id).all();
     return NextResponse.json({ procurement: result.results });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Satın alma talepleri alınamadı." }, { status: 403 });
+    return NextResponse.json({ error: "Satın alma talepleri alınamadı." }, { status: 403 });
   }
 }
 
@@ -53,6 +53,6 @@ export async function POST(request: Request) {
     await addAudit(user.id, "create", "procurement_request", id, `${requestNumber} satın alma talebi oluşturuldu.`, context.organization.id);
     return NextResponse.json({ ok: true, id, requestNumber });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Satın alma talebi oluşturulamadı." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Satın alma talebi oluşturulamadı." }, { status: errorStatus(error) });
   }
 }

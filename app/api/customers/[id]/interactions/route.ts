@@ -19,7 +19,7 @@ export async function GET(request: Request, routeContext: { params: Promise<{ id
       .bind(id, context.organization.id).all();
     return NextResponse.json({ interactions: result.results });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Etkileşimler alınamadı." }, { status: 403 });
+    return NextResponse.json({ error: "Etkileşimler alınamadı." }, { status: 403 });
   }
 }
 
@@ -47,6 +47,6 @@ export async function POST(request: Request, routeContext: { params: Promise<{ i
     await addAudit(user.id, "create", "customer_interaction", interactionId, `Müşteri etkileşimi kaydedildi.`, context.organization.id);
     return NextResponse.json({ ok: true, id: interactionId });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Etkileşim eklenemedi." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Etkileşim eklenemedi." }, { status: errorStatus(error) });
   }
 }

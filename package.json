@@ -8,14 +8,12 @@
     "npm": ">=11.0.0"
   },
   "dependencies": {
-    "@vinext/cloudflare": "1.0.0-beta.2",
     "exceljs": "4.4.0",
     "lucide-react": "1.24.0",
     "qrcode": "1.5.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "react-server-dom-webpack": "19.2.8",
-    "vinext": "1.0.0-beta.9"
+    "react-server-dom-webpack": "19.2.8"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.54.4",
@@ -26,11 +24,15 @@
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.3",
     "@vitejs/plugin-rsc": "0.5.34",
+    "drizzle-kit": "0.31.10",
+    "drizzle-orm": "0.45.2",
     "esbuild": "0.28.1",
     "tailwindcss": "4.3.3",
     "typescript": "7.0.2",
     "vite": "8.1.5",
-    "wrangler": "4.129.0"
+    "wrangler": "4.129.0",
+    "vinext": "1.1.0",
+    "@vinext/cloudflare": "1.0.0-beta.2"
   },
   "type": "module",
   "scripts": {

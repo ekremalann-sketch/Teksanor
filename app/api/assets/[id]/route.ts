@@ -29,7 +29,7 @@ export async function PUT(request: Request, routeContext: { params: Promise<{ id
     await addAudit(user.id, "update", "asset", id, "Varlık güncellendi.", organization.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Varlık güncellenemedi." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Varlık güncellenemedi." }, { status: errorStatus(error) });
   }
 }
 
@@ -46,6 +46,6 @@ export async function DELETE(request: Request, routeContext: { params: Promise<{
     await addAudit(user.id, "delete", "asset", id, undefined, organization.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Varlık silinemedi." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Varlık silinemedi." }, { status: errorStatus(error) });
   }
 }

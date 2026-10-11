@@ -9,7 +9,7 @@ function statement(query,values=[]){return {query,values,bind(...v){return state
 const db={prepare:statement,async exec(q){sql.exec(q)},async batch(statements){sql.exec('BEGIN');try{const out=statements.map(s=>{const stmt=sql.prepare(s.query);return stmt.columns().length?{results:stmt.all(...s.values),success:true}:{success:true,meta:{changes:Number(stmt.run(...s.values).changes)}}});sql.exec('COMMIT');return out}catch(e){sql.exec('ROLLBACK');throw e}}};
 globalThis.__teksanorTestEnv={DB:db,UPLOADS:{head:async()=>null}};
 await mkdir('tests/.tmp',{recursive:true});
-await build({stdin:{contents:`export * as auth from './lib/auth.ts'; export * as database from './lib/db.ts'; export * as tenancy from './lib/tenancy.ts'; export * as access from './lib/access.ts'; export * as jobs from './app/api/service/jobs/route.ts';export * as approval from './app/api/service/approval/route.ts';export * as chat from './app/api/agents/chat/route.ts';export * as dashboard from './app/api/dashboard/route.ts';export * as workorder from './app/api/work-orders/[id]/route.ts';export * as payments from './app/api/payments/route.ts';export * as mfa from './lib/mfa.ts';export * as recovery from './app/api/auth/recovery/route.ts';export * as account from './lib/account-tokens.ts';export * as health from './app/api/health/route.ts';`,resolveDir:process.cwd()},outfile:'tests/.tmp/integration.mjs',bundle:true,platform:'node',format:'esm',define:{__TEKSANOR_COMMIT__:'"test-sha"'},plugins:[{name:'runtime',setup(b){b.onResolve({filter:/^cloudflare:workers$/},()=>({path:'runtime',namespace:'mock'}));b.onLoad({filter:/.*/,namespace:'mock'},()=>({contents:'export const env=globalThis.__teksanorTestEnv'}));b.onResolve({filter:/^next\/server$/},()=>({path:'response',namespace:'response'}));b.onLoad({filter:/.*/,namespace:'response'},()=>({contents:'export class NextResponse extends Response {static json(data,init){return Response.json(data,init)}}'}));}}]});
+await build({stdin:{contents:`export * as units from './app/api/department-workflows/route.ts'; export * as unitLogic from './lib/department-workflows.ts'; export * as tasksApi from './app/api/tasks/route.ts'; export * as taskById from './app/api/tasks/[id]/route.ts'; export * as auth from './lib/auth.ts'; export * as database from './lib/db.ts'; export * as tenancy from './lib/tenancy.ts'; export * as access from './lib/access.ts'; export * as jobs from './app/api/service/jobs/route.ts';export * as approval from './app/api/service/approval/route.ts';export * as chat from './app/api/agents/chat/route.ts';export * as dashboard from './app/api/dashboard/route.ts';export * as workorder from './app/api/work-orders/[id]/route.ts';export * as payments from './app/api/payments/route.ts';export * as mfa from './lib/mfa.ts';export * as recovery from './app/api/auth/recovery/route.ts';export * as account from './lib/account-tokens.ts';export * as health from './app/api/health/route.ts';`,resolveDir:process.cwd()},outfile:'tests/.tmp/integration.mjs',bundle:true,platform:'node',format:'esm',define:{__TEKSANOR_COMMIT__:'"test-sha"'},plugins:[{name:'runtime',setup(b){b.onResolve({filter:/^cloudflare:workers$/},()=>({path:'runtime',namespace:'mock'}));b.onLoad({filter:/.*/,namespace:'mock'},()=>({contents:'export const env=globalThis.__teksanorTestEnv'}));b.onResolve({filter:/^next\/server$/},()=>({path:'response',namespace:'response'}));b.onLoad({filter:/.*/,namespace:'response'},()=>({contents:'export class NextResponse extends Response {static json(data,init){return Response.json(data,init)}}'}));}}]});
 const api=await import('./.tmp/integration.mjs');
 await api.database.ensureSchema();
 for(const id of ['boss','employee','finance','outsider']){
@@ -21,12 +21,13 @@ for(const [id,org,role,profile] of [['boss','a','owner','owner'],['employee','a'
  sql.prepare('INSERT INTO organization_members(organization_id,user_id,role) VALUES(?,?,?)').run(org,id,role);
  sql.prepare('INSERT INTO organization_member_access(organization_id,user_id,access_profile) VALUES(?,?,?)').run(org,id,profile);
 }
+sql.prepare("INSERT INTO user_security(user_id,mfa_enabled) VALUES('boss',1),('outsider',1)").run();
 const tokens={};for(const id of ['boss','employee','finance','outsider'])tokens[id]=await api.auth.createSession(id);
 function req(user,path,method='GET',body,org='a'){return new Request('https://test.local'+path,{method,headers:{Cookie:'teksanor_session='+tokens[user],'X-Organization-Id':org,'Content-Type':'application/json',Origin:'https://test.local'},body:body?JSON.stringify(body):undefined});}
 async function json(response){return response.json()}
 let job;
 await test('schema initializes on a fresh database and includes project, service, MFA and access tables',()=>{for(const table of ['projects','service_jobs','user_security','organization_member_access'])assert.ok(sql.prepare("SELECT name FROM sqlite_master WHERE name=?").get(table));});
-await test('cross-company organization selection is rejected',async()=>{const u=await api.auth.getCurrentUser(req('outsider','/api/work-orders'));await assert.rejects(()=>api.tenancy.requireOrganization(req('outsider','/api/work-orders'),u));});
+await test('cross-company organization selection never grants the foreign company',async()=>{const u=await api.auth.getCurrentUser(req('outsider','/api/work-orders'));const ctx=await api.tenancy.requireOrganization(req('outsider','/api/work-orders'),u);assert.equal(ctx.organization.id,'b');assert.ok(!ctx.organizations.some(o=>o.id==='a'));await assert.rejects(()=>api.tenancy.requireOrganization(req('outsider','/api/work-orders','POST',{}),u));});
 await test('employee cannot call finance, HR or assistant APIs directly',async()=>{const u=await api.auth.getCurrentUser(req('employee','/api/agents/chat'));for(const path of ['treasury','payments','employees','agents/chat'])await assert.rejects(()=>api.tenancy.requireOrganization(req('employee','/api/'+path),u));});
 await test('employee dashboard never returns financial summaries or other audit details',async()=>{sql.prepare("INSERT INTO organization_period_summaries(id,organization_id,period,total_debt) VALUES('sum','a','now',987654)").run();const d=await json(await api.dashboard.GET(req('employee','/api/dashboard')));assert.deepEqual(d.summaries,[]);assert.deepEqual(d.activity,[]);});
 await test('service creation validates foreign assets and assigned users',async()=>{const r=await api.jobs.POST(req('boss','/api/service/jobs','POST',{action:'create',title:'x',assignedUserId:'outsider'}));assert.notEqual(r.status,201);});
@@ -59,7 +60,7 @@ await test('bootstrap admin secret rotation restores access and revokes old sess
  const saved=sql.prepare("SELECT password_hash,password_salt FROM users WHERE id='admin-reset'").get();
  assert.ok(await api.auth.verifyPassword('New-password-456!',saved.password_salt,saved.password_hash));
 });
-await test('health allows disabled optional storage but rejects broken configured storage',async()=>{assert.equal((await api.health.GET()).status,200);globalThis.__teksanorTestEnv.UPLOADS=undefined;const response=await api.health.GET();assert.equal(response.status,200);assert.equal((await response.json()).capabilities.storage,'disabled');globalThis.__teksanorTestEnv.UPLOADS={head:async()=>{throw new Error('Storage unavailable')}};assert.equal((await api.health.GET()).status,503);globalThis.__teksanorTestEnv.UPLOADS={head:async()=>null}});
+await test('health allows disabled optional storage but rejects broken configured storage',async()=>{assert.equal((await api.health.GET()).status,200);globalThis.__teksanorTestEnv.UPLOADS=undefined;const response=await api.health.GET();assert.equal(response.status,200);const health=await response.json();assert.equal(health.ok,true);assert.equal(health.version,"test-sha");assert.equal(health.capabilities.storage,"disabled");assert.ok(health.checkedAt);assert.equal(health.warnings.length,1);globalThis.__teksanorTestEnv.UPLOADS={head:async()=>{throw new Error('Storage unavailable')}};assert.equal((await api.health.GET()).status,503);globalThis.__teksanorTestEnv.UPLOADS={head:async()=>null}});
 await test('work completion, customer acceptance and final collection finish the full service lifecycle',async()=>{
  let r=await api.jobs.POST(req('employee','/api/service/jobs','POST',{action:'update',id:job,version:4,stage:'completed',outcome:'Pompa kontrol edildi. Bağlantı sıkıldı.'}));assert.equal(r.status,200);
  r=await api.jobs.POST(req('boss','/api/service/jobs','POST',{action:'share',id:job,version:5,purpose:'completion'}));const t=new URLSearchParams((await json(r)).path.split('#')[1]).get('token');
@@ -98,4 +99,93 @@ await test('database roundtrip preserves service records and foreign keys in an 
  const tables=sql.prepare("SELECT name,sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all();
  for(const t of tables){copy.exec(t.sql);const rows=sql.prepare(`SELECT * FROM ${t.name}`).all();for(const row of rows){const cols=Object.keys(row);copy.prepare(`INSERT INTO ${t.name}(${cols.join(',')}) VALUES(${cols.map(()=>'?').join(',')})`).run(...Object.values(row));}}
  assert.equal(copy.prepare('PRAGMA integrity_check').get().integrity_check,'ok');assert.deepEqual(copy.prepare('PRAGMA foreign_key_check').all(),[]);assert.equal(copy.prepare('SELECT COUNT(*) AS n FROM service_jobs').get().n,2);copy.close();
+});
+await test('platform admin cannot enumerate or manage unjoined tenants', async()=>{
+ sql.prepare("UPDATE users SET role='admin' WHERE id='outsider'").run();
+ const u={id:'outsider',role:'admin',username:'outsider',active:1,mfa_enabled:1};
+ const orgs=await api.tenancy.listOrganizations(u);
+ assert.deepEqual(orgs.map(o=>o.id),['b']);
+ // Üye olunmayan firma istenince kendi firmasına (b) düşer; a asla açılmaz.
+ assert.equal((await api.tenancy.requireOrganization(req('outsider','/api/dashboard'),u)).organization.id,'b');
+ // Firma gözünden görünüm yalnız açıkça başlatılmış çerezle, yalnız okuma için açılır; değişiklik reddedilir.
+ const viewAs=(path,method='GET',org='a',cookieOrg='a')=>{const r=req('outsider',path,method,undefined,org);const h=new Headers(r.headers);h.set('Cookie',h.get('Cookie')+'; tk_view_as='+cookieOrg);return new Request(r.url,{method,headers:h});};
+ const ctx=await api.tenancy.requireOrganization(viewAs('/api/dashboard'),u);
+ assert.equal(ctx.organization.id,'a'); assert.equal(ctx.organization.view_as,true);
+ const acc=await api.access.getMemberAccess(u,ctx.organization); assert.deepEqual(acc.editModules,[]);
+ await assert.rejects(()=>api.tenancy.requireOrganization(viewAs('/api/tasks','POST'),u),/salt okunur/);
+ const mismatched=await api.tenancy.requireOrganization(viewAs('/api/dashboard','GET','a','b'),u);assert.equal(mismatched.organization.id,'b');assert.ok(!mismatched.organization.view_as);
+ // İsteğe bağlı modda MFA kurulumu firma gözünden görünümü kilitlemez.
+ assert.equal((await api.tenancy.requireOrganization(viewAs('/api/dashboard'),{...u,mfa_enabled:0})).organization.view_as,true);
+ globalThis.__teksanorTestEnv.MFA_MODE='required';
+ await assert.rejects(()=>api.tenancy.requireOrganization(viewAs('/api/dashboard'),{...u,mfa_enabled:0}),/iki aşamalı/);
+ delete globalThis.__teksanorTestEnv.MFA_MODE;
+ sql.prepare("UPDATE users SET role='user' WHERE id='outsider'").run();
+ const plain=await api.tenancy.requireOrganization(viewAs('/api/dashboard'),{...u,role:'user'});assert.equal(plain.organization.id,'b');assert.ok(!plain.organization.view_as);
+});
+await test('account login attempt limit cannot be bypassed by switching IP', async()=>{
+ for(let i=0;i<15;i++) await api.auth.enforceAuthRateLimit(new Request('https://test.local',{headers:{'cf-connecting-ip':'192.0.2.1'}}),'login','victim');
+ await assert.rejects(()=>api.auth.enforceAuthRateLimit(new Request('https://test.local',{headers:{'cf-connecting-ip':'192.0.2.1'}}),'login','victim'));
+ await assert.rejects(()=>api.auth.enforceAuthRateLimit(new Request('https://test.local',{headers:{'cf-connecting-ip':'192.0.2.2'}}),'login','victim'));
+ await api.auth.enforceAuthRateLimit(new Request('https://test.local',{headers:{'cf-connecting-ip':'192.0.2.2'}}),'login','different-account');
+});
+await test('approved payment cannot be overwritten by a finance importer', async()=>{
+ sql.prepare("UPDATE sessions SET expires_at=datetime('now','+1 day') WHERE user_id='finance'").run();
+ const body={period:'Audit period',ownerName:'Demo',bankName:'AuditBank',accountName:'Card',totalDebt:1000};
+ assert.equal((await api.payments.POST(req('boss','/api/payments','POST',body))).status,201);
+ const r=await api.payments.POST(req('finance','/api/payments','POST',{...body,totalDebt:1,upsert:true}));
+ assert.equal(r.status,403);
+ assert.equal(sql.prepare("SELECT total_debt FROM payment_records WHERE bank_name='AuditBank'").get().total_debt,1000);
+});
+await test('finance dates are calendar-validated and normalized before storage', async()=>{
+ const b={period:'Date test',ownerName:'Demo',bankName:'DateBank',accountName:'Card',totalDebt:100,dueDate:'30.09.2026'};
+ assert.equal((await api.payments.POST(req('boss','/api/payments','POST',b))).status,201);
+ assert.equal(sql.prepare("SELECT due_date FROM payment_records WHERE bank_name='DateBank'").get().due_date,'2026-09-30');
+ for(const value of ['31.02.2026','abc','x'.repeat(5000)]) assert.equal((await api.payments.POST(req('boss','/api/payments','POST',{...b,dueDate:value}))).status,400);
+});
+await test('consumed bootstrap secret does not remain an alternative password', async()=>{
+ const next=await api.auth.hashPassword('After-recovery-789!');
+ sql.prepare("UPDATE users SET password_hash=?,password_salt=? WHERE id='admin-reset'").run(next.hash,next.salt);
+ await assert.rejects(()=>api.auth.loginWithUsername({username:'admin1',password:'New-password-456!'}));
+ assert.equal((await api.auth.loginWithUsername({username:'admin1',password:'After-recovery-789!'})).id,'admin-reset');
+});
+
+await test('finance importer snapshot is retained in the same transaction as update',async()=>{
+ const b={period:'Snapshot',ownerName:'Demo',bankName:'HistoryBank',accountName:'Card',totalDebt:100};
+ await api.payments.POST(req('boss','/api/payments','POST',b));
+ const r=await api.payments.POST(req('boss','/api/payments','POST',{...b,totalDebt:200,upsert:true}));assert.equal(r.status,200);
+ const row=sql.prepare("SELECT details FROM audit_logs WHERE action='payment_snapshot' AND details LIKE '%Snapshot%'").get();assert.equal(JSON.parse(row.details).totalDebt,100);
+});
+await test('assigned technician can issue only a short-lived completion link',async()=>{
+ tokens.employee=await api.auth.createSession('employee'); tokens.outsider=await api.auth.createSession('outsider');
+ const created=await json(await api.jobs.POST(req('boss','/api/service/jobs','POST',{action:'create',title:'Yerinde onay testi',assignedUserId:'employee'})));const id=created.id;
+ sql.prepare("UPDATE service_jobs SET stage='quoted' WHERE id=?").run(id);
+ assert.equal((await api.jobs.POST(req('employee','/api/service/jobs','POST',{action:'share',id,version:1,purpose:'quote'}))).status,403);
+ sql.prepare("UPDATE service_jobs SET stage='completed',outcome='Kontrol yapıldı.' WHERE id=?").run(id);
+ assert.equal((await api.jobs.POST(req('employee','/api/service/jobs','POST',{action:'share',id,version:1,purpose:'completion'}))).status,200);
+ const minutes=sql.prepare("SELECT (julianday(expires_at)-julianday('now'))*1440 AS minutes FROM service_approvals WHERE job_id=?").get(id).minutes;assert.ok(minutes>58&&minutes<=60);
+ assert.equal((await api.jobs.POST(req('outsider','/api/service/jobs','POST',{action:'share',id,version:1,purpose:'completion'}))).status,403);
+});
+
+await test('department workspace enforces module privacy, approval gates, versions and generic-task isolation',async()=>{
+ tokens.boss=await api.auth.createSession('boss');tokens.employee=await api.auth.createSession('employee');tokens.outsider=await api.auth.createSession('outsider');
+ const read=()=>req('boss','/api/department-workflows?unit=hr');
+ assert.equal((await api.units.GET(req('employee','/api/department-workflows?unit=hr'))).status,403);
+ // Başka firma kimliğiyle okuma: kendi firmasına (b) düşer; a firmasının birim kayıtları dönmez.
+ const foreignUnits=await api.units.GET(req('outsider','/api/department-workflows?unit=hr'));const ownUnits=await api.units.GET(req('outsider','/api/department-workflows?unit=hr','GET',undefined,'b'));assert.equal(foreignUnits.status,ownUnits.status);assert.equal(await foreignUnits.text(),await ownUnits.text());
+ const create={unit:'hr',action:'create',process:'İzin',title:'İzin planı',owner:'İK sorumlusu',approver:'boss',note:'İzin kapsamı',dueDate:'2026-11-01'};
+ assert.equal((await api.units.POST(req('boss','/api/department-workflows','POST',{...create,approver:'outsider'}))).status,400);
+ const response=await api.units.POST(req('boss','/api/department-workflows','POST',create));assert.equal(response.status,200);const {id}=await response.json();
+ let record=(await (await api.units.GET(read())).json()).items[0];assert.equal(record.workflow.stage,0);
+ const advance=(version,action)=>api.units.POST(req('boss','/api/department-workflows','POST',{unit:'hr',id,version,action,note:'Kontrol sonucu kaydedildi.'}));
+ assert.equal((await advance(1,'advance')).status,200);assert.equal((await advance(1,'advance')).status,409);assert.equal((await advance(2,'advance')).status,200);assert.equal((await advance(3,'advance')).status,400);assert.equal((await advance(3,'approve')).status,200);
+ const generic=await api.tasksApi.GET(req('employee','/api/tasks'));assert.ok(!(await generic.json()).tasks.some(t=>t.id===id));
+ assert.equal((await api.taskById.PUT(req('boss','/api/tasks/'+id,'PUT',{status:'done'}),{params:Promise.resolve({id})})).status,403);
+ assert.equal((await api.taskById.DELETE(req('boss','/api/tasks/'+id,'DELETE'),{params:Promise.resolve({id})})).status,404);
+ assert.equal((await advance(4,'advance')).status,200);assert.equal((await advance(5,'advance')).status,400);
+});
+await test('a different manager cannot decide the assigned unit approval',()=>{
+ const record={unit:'rd',process:'Deney',stage:2,note:'Deney planı',approver:'boss',history:[]};
+ assert.throws(()=>api.unitLogic.advanceUnitRecord(record,'approve','employee',false,'Sonuç'),/atanmış/);
+ assert.throws(()=>api.unitLogic.advanceUnitRecord(record,'approve','other-manager',true,'Sonuç'),/atanmış/);
+ const rejected=api.unitLogic.advanceUnitRecord(record,'reject','boss',true,'Başarı ölçütü eksik');assert.equal(rejected.stage,0);
 });

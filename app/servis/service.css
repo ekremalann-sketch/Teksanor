@@ -152,3 +152,5 @@
 .service-next small{color:#6d4d12}
 .share-wa{background:#0f6b3a!important}
 .share-wa:hover{background:#0c5a31!important}
+/* Liste kaydırılabilir olduğunda kartlar sıkışıp durum etiketleri kesilmesin */
+.service-list>*{flex-shrink:0}

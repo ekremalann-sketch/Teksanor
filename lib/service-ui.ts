@@ -51,7 +51,7 @@ export function nextStep(stage: string, manage: boolean): NextStep {
     case "quoted": return manage ? { kind: "share", label: "Teklifi müşteriye gönder", purpose: "quote", hint: "Müşteri bağlantıyı açıp teklifi onaylar; isterse imzalar." } : { kind: "info", hint: "Teklif müşteri onayında." };
     case "quote_approved": return { kind: "stage", label: "İşe başla", stage: "in_progress", hint: "Teklif onaylandı. Sahaya çıktığınızda işi başlatın." };
     case "in_progress": return { kind: "stage", label: "İşi tamamla", stage: "completed", needsNote: true, hint: "Yapılan işlemi yazın ve saha formlarını doldurun, sonra işi tamamlayın." };
-    case "completed": return manage ? { kind: "share", label: "İş raporunu müşteriye gönder", purpose: "completion", hint: "Müşteri raporu onaylayınca iş kapanır ve fatura taslağı açılır." } : { kind: "info", hint: "İş raporu yönetici ve müşteri onayında." };
+    case "completed": return { kind: "share", label: manage ? "İş raporunu müşteriye gönder" : "Müşteriden yerinde onay al", purpose: "completion", hint: manage ? "Müşteri raporu onaylayınca iş kapanır ve fatura taslağı açılır." : "Müşteri bağlantıyı kendi cihazında açıp raporu inceleyebilir ve imzalayabilir. Bağlantı 1 saat geçerlidir." };
     case "accepted": return manage ? { kind: "info", hint: "Müşteri onayladı. Tahsil edilen tutarı girip durumu “Tahsil edildi” yapın." } : { kind: "info", hint: "İş müşteri tarafından onaylandı." };
     case "collected": return { kind: "info", hint: "İş tamamlandı ve tahsil edildi." };
     default: return { kind: "info", hint: "İş iptal edildi." };
@@ -61,7 +61,7 @@ export function nextStep(stage: string, manage: boolean): NextStep {
 /** Onay bağlantısını telefondan tek dokunuşla göndermek için WhatsApp ve e-posta adresleri (ücretsiz, hesap gerektirmez). */
 export function shareLinks(link: string, company: string, title: string, purpose: "quote" | "completion") {
   const subject = purpose === "quote" ? `${company} · teklif onayı: ${title}` : `${company} · iş raporu onayı: ${title}`;
-  const body = `Merhaba, ${purpose === "quote" ? "teklifimizi" : "yaptığımız işin raporunu"} aşağıdaki bağlantıdan inceleyip onaylayabilirsiniz (7 gün geçerli):\n${link}`;
+  const body = `Merhaba, ${purpose === "quote" ? "teklifimizi" : "yaptığımız işin raporunu"} aşağıdaki bağlantıdan inceleyip onaylayabilirsiniz:\n${link}`;
   return {
     whatsapp: `https://wa.me/?text=${encodeURIComponent(body)}`,
     email: `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,

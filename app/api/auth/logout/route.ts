@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { clearSessionCookie, readCookie } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { rejectCrossSiteMutation } from "@/lib/security";
+import { VIEW_AS_COOKIE } from "@/lib/tenancy";
 
 async function hash(value: string) {
   const bytes = new TextEncoder().encode(value);
@@ -15,5 +16,7 @@ export async function POST(request: Request) {
   if (token) await getDb().prepare("DELETE FROM sessions WHERE token_hash = ?").bind(await hash(token)).run();
   const response = NextResponse.json({ ok: true });
   response.headers.set("Set-Cookie", clearSessionCookie());
+  // Firma gözünden görünüm çerezi de çıkışta biter.
+  response.headers.append("Set-Cookie", `${VIEW_AS_COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Strict`);
   return response;
 }

@@ -20,7 +20,7 @@ export async function GET(request: Request) {
       .bind(organization.id).all();
     return NextResponse.json({ assets: result.results });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Varlıklar alınamadı." }, { status: 403 });
+    return NextResponse.json({ error: "Varlıklar alınamadı." }, { status: 403 });
   }
 }
 
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
     await addAudit(user.id, "create", "asset", id, `${assetCode} varlığı oluşturuldu.`, organization.id);
     return NextResponse.json({ ok: true, id, assetCode });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Varlık oluşturulamadı.";
+    const message = "Varlık oluşturulamadı.";
     return NextResponse.json({ error: message.includes("UNIQUE") ? "Bu varlık kodu zaten kullanılıyor." : message }, { status: 400 });
   }
 }

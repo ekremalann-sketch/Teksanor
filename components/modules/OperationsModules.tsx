@@ -1,6 +1,8 @@
 "use client";
+import { filterList } from "@/lib/list-filter";
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useModalKeys } from "../shared/useModalKeys";
 import {
   AlertOctagon, ArrowRight, Bot, Check, CheckSquare, Clock, Loader2, MapPin, MessageCircle,
   Phone, Plus, Search, Send, ShoppingCart, Trash2, Users2, Wrench, X, Zap,
@@ -76,8 +78,9 @@ type AutomationRun = { id: string; source: "manual" | "schedule"; status: "match
 
 /* --------------------------------------------------------- generic modal --- */
 function ModuleModal({ eyebrow, title, onClose, onSubmit, saving, children, submitLabel = "Kaydet" }: { eyebrow: string; title: string; onClose: () => void; onSubmit: (event: FormEvent<HTMLFormElement>) => void; saving: boolean; children: React.ReactNode; submitLabel?: string }) {
+  useModalKeys(onClose);
   return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-    <form className="entry-modal" onSubmit={onSubmit}>
+    <form className="entry-modal" role="dialog" aria-modal="true" onSubmit={onSubmit}>
       <div className="modal-head"><div><span>{eyebrow}</span><h2>{title}</h2></div><button type="button" onClick={onClose} aria-label="Pencereyi kapat"><X size={19} /></button></div>
       {children}
       <div className="modal-actions"><button className="outline-button" type="button" onClick={onClose}>Vazgeç</button><button className="panel-primary" disabled={saving}>{saving ? "Kaydediliyor..." : submitLabel}</button></div>
@@ -93,15 +96,15 @@ function ModuleEmpty({ icon: Icon, title, text, onAdd, addLabel }: { icon: typeo
   return <div className="empty-state"><Icon size={28} /><b>{title}</b><p>{text}</p>{onAdd && <button className="panel-primary" style={{ marginTop: 14 }} onClick={onAdd}><Plus size={16} /> {addLabel}</button>}</div>;
 }
 
-type ViewProps<T> = { items: T[]; organizationId: string; onReload: () => Promise<void> | void; notify: (text: string) => void; search?: string };
+type ViewProps<T> = { items: T[]; organizationId: string; onReload: () => Promise<void> | void; notify: (text: string) => void; search?: string; onFilterChange?: (value: string) => void };
 
 /* -------------------------------------------------------------- Tasks ------ */
-export function TasksView({ items, organizationId, onReload, notify, search = "" }: ViewProps<Task>) {
+export function TasksView({ items, organizationId, onReload, notify, search = "", onFilterChange }: ViewProps<Task>) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState("all");
   const term = search.toLocaleLowerCase("tr-TR").trim();
-  const filtered = items.filter((t) => (filter === "all" || t.status === filter) && (!term || `${t.title} ${t.department} ${t.assignee_name ?? ""}`.toLocaleLowerCase("tr-TR").includes(term)));
+  const filtered = filterList(items, "tasks", search, filter);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setSaving(true);
@@ -118,7 +121,7 @@ export function TasksView({ items, organizationId, onReload, notify, search = ""
   const filters = [["all", "Tümü"], ["open", "Açık"], ["in_progress", "Sürüyor"], ["done", "Tamamlandı"], ["cancelled", "İptal"]];
   return <>
     <PanelHead eyebrow="GÖREV YÖNETİMİ" title="Departman görevlerini tek listede takip edin." text="Görevleri sorumluya, önceliğe ve son tarihe göre düzenleyin; durumu tek tıkla değiştirin." count={`${items.length} görev`} action={<button className="panel-primary" onClick={() => setOpen(true)}><Plus size={17} /> Yeni görev</button>} />
-    <section className="payment-period-bar"><div><span>DURUM FİLTRESİ</span><b>Görevleri duruma göre süzün</b></div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{filters.map(([id, label]) => <button key={id} type="button" className={filter === id ? "panel-primary" : "outline-button"} style={{ padding: "8px 14px" }} onClick={() => setFilter(id)}>{label}</button>)}</div></section>
+    <section className="payment-period-bar"><div><span>DURUM FİLTRESİ</span><b>Görevleri duruma göre süzün</b></div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{filters.map(([id, label]) => <button key={id} type="button" className={filter === id ? "panel-primary" : "outline-button"} style={{ padding: "8px 14px" }} onClick={() => { setFilter(id); onFilterChange?.(id); }}>{label}</button>)}</div></section>
     <section className="table-card">
       <div className="table-heading"><div><h3>Görevler</h3><p>Durumu değiştirmek için ilgili düğmeyi kullanın.</p></div><span>{filtered.length} kayıt</span></div>
       {filtered.length ? <div className="responsive-table"><table><thead><tr><th>Görev</th><th>Departman</th><th>Sorumlu</th><th>Öncelik</th><th>Son tarih</th><th>Durum</th><th /></tr></thead><tbody>
@@ -143,7 +146,7 @@ export function WorkOrdersView({ items, organizationId, onReload, notify, search
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const term = search.toLocaleLowerCase("tr-TR").trim();
-  const filtered = items.filter((w) => !term || `${w.order_number} ${w.title} ${w.customer_name ?? ""} ${w.location ?? ""}`.toLocaleLowerCase("tr-TR").includes(term));
+  const filtered = filterList(items, "work-orders", search);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setSaving(true);
     const payload = Object.fromEntries(new FormData(event.currentTarget).entries());
@@ -184,7 +187,7 @@ export function FieldVisitsView({ items, organizationId, onReload, notify, searc
   const [saving, setSaving] = useState(false);
   const term = search.toLocaleLowerCase("tr-TR").trim();
   const sorted = [...items].sort((a, b) => (b.visit_date || "").localeCompare(a.visit_date || ""));
-  const filtered = sorted.filter((v) => !term || `${v.visit_number} ${v.visitor_name} ${v.location} ${v.customer_name ?? ""}`.toLocaleLowerCase("tr-TR").includes(term));
+  const filtered = filterList(sorted, "field-visits", search);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setSaving(true);
     const payload = Object.fromEntries(new FormData(event.currentTarget).entries());
@@ -222,7 +225,7 @@ export function ProcurementView({ items, organizationId, onReload, notify, searc
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const term = search.toLocaleLowerCase("tr-TR").trim();
-  const filtered = items.filter((p) => !term || `${p.request_number} ${p.title} ${p.supplier_name ?? ""} ${p.department}`.toLocaleLowerCase("tr-TR").includes(term));
+  const filtered = filterList(items, "procurement", search);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setSaving(true);
     const payload = Object.fromEntries(new FormData(event.currentTarget).entries());
@@ -267,7 +270,7 @@ export function CrmView({ items, organizationId, onReload, notify, search = "" }
   const [interactionOpen, setInteractionOpen] = useState(false);
   const [savingInteraction, setSavingInteraction] = useState(false);
   const term = search.toLocaleLowerCase("tr-TR").trim();
-  const filtered = items.filter((c) => !term || `${c.name} ${c.company_name ?? ""} ${c.sector ?? ""}`.toLocaleLowerCase("tr-TR").includes(term));
+  const filtered = filterList(items, "crm", search);
   const current = items.find((c) => c.id === selected) ?? null;
 
   useEffect(() => { if (!selected && filtered.length) setSelected(filtered[0].id); }, [filtered, selected]);
@@ -360,7 +363,7 @@ export function HrView({ items, organizationId, onReload, notify, search = "" }:
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const term = search.toLocaleLowerCase("tr-TR").trim();
-  const filtered = items.filter((e) => !term || `${e.full_name} ${e.title ?? ""} ${e.department}`.toLocaleLowerCase("tr-TR").includes(term));
+  const filtered = filterList(items, "hr", search);
   const grouped = useMemo(() => { const map = new Map<string, Employee[]>(); for (const e of filtered) { const list = map.get(e.department) ?? []; list.push(e); map.set(e.department, list); } return [...map.entries()]; }, [filtered]);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setSaving(true);
@@ -401,7 +404,7 @@ export function RisksView({ items, organizationId, onReload, notify, search = ""
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const term = search.toLocaleLowerCase("tr-TR").trim();
-  const filtered = items.filter((r) => !term || `${r.title} ${r.department} ${r.owner_name ?? ""}`.toLocaleLowerCase("tr-TR").includes(term));
+  const filtered = filterList(items, "risks", search);
   const scoreOf = (r: Risk) => ({ low: 1, medium: 2, high: 3, critical: 4 }[r.likelihood] ?? 2) * ({ low: 1, medium: 2, high: 3, critical: 4 }[r.impact] ?? 2);
   const cellColor = (score: number) => score >= 9 ? "#c0392b" : score >= 6 ? "#e67e22" : score >= 3 ? "#e0a80d" : "#1a8c53";
   const likelihoods: Risk["likelihood"][] = ["high", "medium", "low"];
@@ -515,6 +518,7 @@ export function AgentWorkforceView({ agents, organizationId, notify }: { agents:
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [externalProcessingAcknowledged,setExternalProcessingAcknowledged]=useState(false);
   const [modelAvailable, setModelAvailable] = useState<boolean | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const persona = agents.find((a) => a.name === activeAgent) ?? null;
@@ -535,12 +539,12 @@ export function AgentWorkforceView({ agents, organizationId, notify }: { agents:
   async function send(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const message = input.trim();
-    if (!message || !activeAgent || sending || modelAvailable !== true) return;
+    if (!message || !activeAgent || sending || modelAvailable !== true || !externalProcessingAcknowledged) return;
     setSending(true); setInput("");
     const temp: AgentChat = { id: `tmp-${Date.now()}`, agent_name: activeAgent, role: "user", content: message, created_at: new Date().toISOString() };
     setMessages((prev) => [...prev, temp]);
     try {
-      const r = await api("/api/agents/chat", organizationId, "POST", { agentName: activeAgent, message, organizationId }) as { reply?: string; source?: string };
+      const r = await api("/api/agents/chat", organizationId, "POST", { agentName: activeAgent, message, externalProcessingAcknowledged, organizationId }) as { reply?: string; source?: string };
       setMessages((prev) => [...prev, { id: `a-${Date.now()}`, agent_name: activeAgent, role: "assistant", content: r.reply || "", created_at: new Date().toISOString() }]);
     } catch (e) { notify(e instanceof Error ? e.message : "Yanıt alınamadı."); setMessages((prev) => prev.filter((m) => m.id !== temp.id)); }
     finally { setSending(false); }
@@ -558,14 +562,16 @@ export function AgentWorkforceView({ agents, organizationId, notify }: { agents:
           {sending && <div className="agent-chat-message assistant waiting"><Loader2 className="spin" size={16} /> Yanıt hazırlanıyor...</div>}
         </>}
       </div>
+      <p className="form-help">Mesaj ve yetkili özet harici OpenAI hizmetine iletilir; yurt dışı işleme söz konusu olabilir. Telefon, e-posta, kimlik ve IBAN için otomatik maskeleme uygulanır; ad, adres veya sağlık bilgisi yazmayın. Kurumunuz aktarım koşullarını doğrulamadan kullanmayın. Sohbet görünümü son 90 günle sınırlıdır; bu otomatik imha garantisi değildir.</p>
+      <label><input type="checkbox" checked={externalProcessingAcknowledged} onChange={e=>setExternalProcessingAcknowledged(e.target.checked)}/> Veri aktarımı bilgilendirmesini okudum; kurum kullanım yetkim var.</label>
       <form onSubmit={send} className="agent-chat-form">
         <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }} placeholder={modelAvailable === false ? "Yapay zekâ bağlantısı etkin değil" : `${persona.name} ile konuşmaya devam edin...`} rows={2} disabled={sending || modelAvailable !== true} />
-        <button className="panel-primary" disabled={sending || modelAvailable !== true || !input.trim()} aria-label="Mesajı gönder"><Send size={17} /></button>
+        <button className="panel-primary" disabled={sending || modelAvailable !== true || !externalProcessingAcknowledged || !input.trim()} aria-label="Mesajı gönder"><Send size={17} /></button>
       </form>
     </div> : <div className="agent-card-grid">{agents.map((agent) => <article key={agent.name}>
       <div className="agent-avatar"><Bot size={22} /></div><span>{agent.department}</span><h3>{agent.name}</h3>
       <b>Görevi</b><p>{agent.task}</p><b>Yetki sınırı</b><p>{agent.boundary}</p>
-      <div><em>İnsan onayı zorunlu</em><button type="button" onClick={() => setActiveAgent(agent.name)}><MessageCircle size={14} /> Sohbet başlat</button></div>
+      <div><em>Taslak yardımcısı</em><button type="button" onClick={() => setActiveAgent(agent.name)}><MessageCircle size={14} /> Sohbet başlat</button></div>
     </article>)}</div>}
   </section>;
 }

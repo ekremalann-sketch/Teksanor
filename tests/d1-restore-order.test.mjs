@@ -19,7 +19,7 @@ CREATE TABLE sessions (token_hash TEXT PRIMARY KEY, user_id TEXT REFERENCES user
 CREATE TABLE users (id TEXT PRIMARY KEY, username TEXT);
 INSERT INTO "users" ("id","username") VALUES('u1','demo');
 CREATE INDEX idx_pay ON payment_records(organization_id);`;
-const verify=(sql)=>{const d=mkdtempSync(join(tmpdir(),'d1o-'));const f=join(d,'x.sql');writeFileSync(f,sql);return spawnSync('python3',['scripts/verify-sql-backup.py',f],{encoding:'utf8'});};
+const verify=(sql)=>{const d=mkdtempSync(join(tmpdir(),'d1o-'));const f=join(d,'x.sql');writeFileSync(f,sql);return spawnSync(process.env.PYTHON_EXECUTABLE || (process.platform === 'win32' ? 'python' : 'python3'),['scripts/verify-sql-backup.py',f],{encoding:'utf8'});};
 
 test('bölücü tırnak içindeki noktalı virgül ve satır sonlarını korur',()=>{
   const parts=splitSqlStatements(EXPORT);

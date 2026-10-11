@@ -19,7 +19,7 @@ export async function GET(request: Request) {
       .bind(context.organization.id).all();
     return NextResponse.json({ fieldVisits: result.results });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Saha ziyaretleri alınamadı." }, { status: 403 });
+    return NextResponse.json({ error: "Saha ziyaretleri alınamadı." }, { status: 403 });
   }
 }
 
@@ -49,6 +49,6 @@ export async function POST(request: Request) {
     await addAudit(user.id, "create", "field_visit", id, `${visitNumber} saha ziyareti oluşturuldu.`, context.organization.id);
     return NextResponse.json({ ok: true, id, visitNumber });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Saha ziyareti oluşturulamadı." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Saha ziyareti oluşturulamadı." }, { status: errorStatus(error) });
   }
 }

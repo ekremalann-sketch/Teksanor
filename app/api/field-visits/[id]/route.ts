@@ -36,7 +36,7 @@ export async function PUT(request: Request, routeContext: { params: Promise<{ id
     await addAudit(user.id, "update", "field_visit", id, `${existing.visit_number} saha ziyareti güncellendi.`, context.organization.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Saha ziyareti güncellenemedi." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Saha ziyareti güncellenemedi." }, { status: errorStatus(error) });
   }
 }
 
@@ -53,6 +53,6 @@ export async function DELETE(request: Request, routeContext: { params: Promise<{
     await addAudit(user.id, "delete", "field_visit", id, undefined, context.organization.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Saha ziyareti silinemedi." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Saha ziyareti silinemedi." }, { status: errorStatus(error) });
   }
 }

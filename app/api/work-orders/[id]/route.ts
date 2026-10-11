@@ -40,7 +40,7 @@ export async function PUT(request: Request, routeContext: { params: Promise<{ id
     await addAudit(user.id, "update", "work_order", id, `${existing.order_number} iş emri güncellendi.`, context.organization.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "İş emri güncellenemedi." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "İş emri güncellenemedi." }, { status: errorStatus(error) });
   }
 }
 
@@ -58,6 +58,6 @@ export async function DELETE(request: Request, routeContext: { params: Promise<{
     await addAudit(user.id, "delete", "work_order", id, undefined, context.organization.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "İş emri silinemedi." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "İş emri silinemedi." }, { status: errorStatus(error) });
   }
 }

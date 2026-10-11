@@ -39,7 +39,7 @@ export async function PUT(request: Request, routeContext: { params: Promise<{ id
     }
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Bakım planı güncellenemedi." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Bakım planı güncellenemedi." }, { status: errorStatus(error) });
   }
 }
 
@@ -56,6 +56,6 @@ export async function DELETE(request: Request, routeContext: { params: Promise<{
     await addAudit(user.id, "delete", "maintenance_plan", id, undefined, organization.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Bakım planı silinemedi." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Bakım planı silinemedi." }, { status: errorStatus(error) });
   }
 }
