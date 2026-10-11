@@ -5,7 +5,7 @@ import { requireOrganization, canManageOrganization } from "@/lib/tenancy";
 import { rejectCrossSiteMutation } from "@/lib/security";
 
 const noStore = { "Cache-Control": "private, no-store" };
-const PASSWORD_ALPHABET = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const PASSWORD_ALPHABET = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // gitleaks:allow -- parola üretim alfabesi, kimlik bilgisi değil
 
 /** Okunması kolay, tek seferlik geçici parola: 3 × 4 karakter (≈ 69 bit). */
 function createTemporaryPassword() {

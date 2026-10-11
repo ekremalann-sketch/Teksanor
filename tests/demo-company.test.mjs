@@ -10,7 +10,7 @@ await h.user('boss','a','owner','owner');
 // D1 ücretsiz plan: istek başına en fazla 50 sorgu. Her isteğin sorgu sayısını ölç.
 const env=globalThis.__teksanorTestEnv;const realPrepare=env.DB.prepare;let queries=0;env.DB.prepare=(q)=>{queries++;return realPrepare(q);};
 const post=async(u,body)=>{queries=0;const r=await api.demo.POST(req(u,'/api/organizations/demo','POST',body,'a'));post.last=queries;return r;};
-const acc=(over={})=>[{accessProfile:'owner',username:'demo.sahip',password:'Ornek-Parola-123',...over},{accessProfile:'employee',roleKey:'ornek.teknisyen1',username:'demo.tek1',password:'Ornek-Parola-456'},{accessProfile:'hr',username:'demo.ik',password:''}];
+const acc=(over={})=>[{accessProfile:'owner',username:'demo.sahip',password:'Ornek-Parola-123',...over},{accessProfile:'employee',roleKey:'ornek.teknisyen1',username:'demo.tek1',password:'Ornek-Parola-456'},{accessProfile:'hr',username:'demo.ik',password:''}]; // gitleaks:allow -- sentetik test parolaları, üretim hesabı yok
 
 await test('örnek işletme: firma sahibi bile oluşturamaz, yalnız platform yöneticisi',async()=>{
   assert.equal((await post('boss',{accounts:acc()})).status,403);
@@ -19,7 +19,7 @@ await test('örnek işletme: firma sahibi bile oluşturamaz, yalnız platform y�
 await test('örnek işletme: parola ve kullanıcı adı doğrulanır, sahip zorunlu',async()=>{
   assert.equal((await post('platform',{accounts:acc({password:'kisa'})})).status,400);
   assert.equal((await post('platform',{accounts:acc({username:'A B'})})).status,400);
-  assert.equal((await post('platform',{accounts:[{accessProfile:'hr',username:'x.ik',password:'Ornek-Parola-789'}]})).status,400);
+  assert.equal((await post('platform',{accounts:[{accessProfile:'hr',username:'x.ik',password:'Ornek-Parola-789'}]})).status,400); // gitleaks:allow -- sentetik test parolası
   assert.equal((await post('platform',{accounts:acc({username:'boss'})})).status,409,'kayıtlı kullanıcı adı');
 });
 let orgId;
