@@ -15,6 +15,8 @@ concurrency:
 jobs:
   security-gate:
     uses: ./.github/workflows/security.yml
+    with:
+      production-only: true
     permissions:
       contents: read
   build-and-deploy:
