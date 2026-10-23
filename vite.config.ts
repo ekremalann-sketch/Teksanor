@@ -22,6 +22,7 @@ export default defineConfig({
       cache: { cdn: cdnAdapter() },
     }),
     cloudflare({
+      configPath: "wrangler.worker.jsonc",
       viteEnvironment: {
         name: "rsc",
         childEnvironments: ["ssr"],
