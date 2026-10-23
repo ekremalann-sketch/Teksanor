@@ -475,9 +475,33 @@ export function AutomationsView({ items, organizationId, onReload, notify }: Vie
     catch (e) { notify(e instanceof Error ? e.message : "Çalıştırılamadı."); } finally { setRunning(null); }
   }
   async function remove(id: string) { if (!window.confirm("Bu kuralı silmek istediğinizden emin misiniz? Çalışma geçmişi kayıtlarda kalır.")) return; try { await api(`/api/automations/${id}`, organizationId, "DELETE"); notify("Kural silindi."); await onReload(); } catch (e) { notify(e instanceof Error ? e.message : "Silinemedi."); } }
+  // Acil durdurma: firmanın tüm otomasyonlarını tek tuşla durdurur; kural ayarları korunur.
+  const [control, setControl] = useState<{ paused: boolean; canControl: boolean } | null>(null);
+  const [confirmStop, setConfirmStop] = useState(false);
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/automations?control=1", { headers: { "X-Organization-Id": organizationId }, cache: "no-store" })
+      .then(async (r) => { if (r.ok && active) setControl(await r.json()); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [organizationId]);
+  async function setPaused(paused: boolean) {
+    try {
+      const r = await api("/api/automations", organizationId, "PATCH", { action: paused ? "emergency-stop" : "resume" }) as { paused?: boolean };
+      setControl((c) => ({ canControl: c?.canControl ?? true, paused: Boolean(r.paused) })); setConfirmStop(false);
+      notify(paused ? "Tüm otomasyonlar durduruldu. İşlem kayda geçti." : "Otomasyonlar yeniden başlatıldı.");
+    } catch (e) { notify(e instanceof Error ? e.message : "İşlem tamamlanamadı."); }
+  }
   const activeCount = items.filter((r) => r.is_active).length;
   const runStatus: Record<AutomationRun["status"], [string, string, string]> = { matched: ["#fff2e0", "#9a4d05", "Eşleşme var"], clear: ["#e4f5ec", "#146c43", "Temiz"], skipped: ["#eef2f7", "#475467", "Atlandı"] };
   return <>
+    {control && <div className={`automation-control ${control.paused ? "paused" : ""}`} role="status">
+      <span><b>{control.paused ? "Otomasyonlar durduruldu" : "Otomasyonlar çalışıyor"}</b><small>{control.paused ? "Zamanlanmış ve elle başlatılan çalıştırmalar yapılmaz. Kural ayarları korunur." : "Gerekirse tüm kuralları tek tuşla durdurabilirsiniz; işlem kayda geçer."}</small></span>
+      {control.canControl && (control.paused
+        ? <button type="button" className="outline-button" onClick={() => void setPaused(false)}>Yeniden başlat</button>
+        : confirmStop
+          ? <span className="automation-confirm"><span>Tüm otomasyonlar durdurulsun mu?</span><button type="button" className="danger-button" onClick={() => void setPaused(true)}>Evet, durdur</button><button type="button" className="outline-button" onClick={() => setConfirmStop(false)}>Vazgeç</button></span>
+          : <button type="button" className="danger-button" onClick={() => setConfirmStop(true)}>Acil durdur</button>)}
+    </div>}
     <PanelHead eyebrow="OTOMASYON MERKEZİ" title="Tekrarlanan kontrolleri kurallarla otomatikleştirin." text="Zamanlayıcı anahtarı iki ortamda da yapılandırılmışsa etkin kurallar her gün 08:15'te (TSİ) çalışır. Yeni kurallar başlangıçta duraklatılır; önce elle deneyip sonra etkinleştirin. E-posta/SMS gönderilmez." count={`${items.length} kural · ${activeCount} etkin`} action={<button className="panel-primary" onClick={() => setOpen(true)}><Plus size={17} /> Yeni kural</button>} />
     {items.length ? <section className="project-card-grid">{items.map((rule) => <article key={rule.id} style={{ opacity: rule.is_active ? 1 : 0.72 }}>
       <div className="project-card-top"><span>{triggerLabel[rule.trigger_type] || "Eski tetik"}</span><span style={badge(rule.is_active && ruleCheck(rule) ? "#e4f5ec" : "#eef2f7", rule.is_active && ruleCheck(rule) ? "#146c43" : "#475467")}>{!ruleCheck(rule) ? "Kontrol doğrulanacak" : rule.is_active ? "Etkin" : "Duraklatıldı"}</span></div>
@@ -562,7 +586,7 @@ export function AgentWorkforceView({ agents, organizationId, notify }: { agents:
           {sending && <div className="agent-chat-message assistant waiting"><Loader2 className="spin" size={16} /> Yanıt hazırlanıyor...</div>}
         </>}
       </div>
-      <p className="form-help">Mesaj ve yetkili özet harici OpenAI hizmetine iletilir; yurt dışı işleme söz konusu olabilir. Telefon, e-posta, kimlik ve IBAN için otomatik maskeleme uygulanır; ad, adres veya sağlık bilgisi yazmayın. Kurumunuz aktarım koşullarını doğrulamadan kullanmayın. Sohbet görünümü son 90 günle sınırlıdır; bu otomatik imha garantisi değildir.</p>
+      <p className="form-help">Sorunuz sunucuda bir konu başlığına çevrilir; dış yapay zekâ hizmetine (OpenAI) yalnız bu başlık ve yetkili sayısal özet gider. Yazdığınız metin, kişi adları ve geçmiş sohbet gönderilmez. Öneriler insan onayı gerektirir.</p>
       <label><input type="checkbox" checked={externalProcessingAcknowledged} onChange={e=>setExternalProcessingAcknowledged(e.target.checked)}/> Veri aktarımı bilgilendirmesini okudum; kurum kullanım yetkim var.</label>
       <form onSubmit={send} className="agent-chat-form">
         <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }} placeholder={modelAvailable === false ? "Yapay zekâ bağlantısı etkin değil" : `${persona.name} ile konuşmaya devam edin...`} rows={2} disabled={sending || modelAvailable !== true} />
