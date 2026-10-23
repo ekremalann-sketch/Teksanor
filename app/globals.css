@@ -1791,3 +1791,12 @@ img[src*="teksanor-logo"]{aspect-ratio:5/2;object-fit:contain}
 .users-page { max-width: none; padding-inline: max(16px, calc((100vw - 1180px) / 2)); }
 .users-list li { grid-template-columns: 40px minmax(160px, 1.3fr) minmax(160px, 1.2fr) 72px 236px; }
 @media (max-width: 760px) { .users-list li { grid-template-columns: 38px 1fr auto; } }
+
+/* Otomasyon acil durdurma şeridi */
+.automation-control { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; padding: 12px 14px; border: 1px solid #cfe3d6; border-radius: 12px; background: #f3fbf6; }
+.automation-control.paused { border-color: #f1c4c4; background: #fff5f5; }
+.automation-control b { display: block; font-size: 14px; color: #102035; }
+.automation-control small { display: block; margin-top: 2px; font-size: 12.5px; color: #5b6b80; }
+.automation-confirm { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: #7a1f1f; }
+.danger-button { min-height: 36px; padding: 0 14px; border: 1px solid #e3a3a3; border-radius: 8px; background: #fff; color: #a42d2d; font: inherit; font-size: 12.5px; font-weight: 750; cursor: pointer; }
+.danger-button:hover { background: #fdecec; }

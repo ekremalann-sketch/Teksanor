@@ -1,3 +1,4 @@
+import { isAutomationPaused } from "./automation-control";
 import { canView, type MemberAccess, type ModuleId } from "./access";
 import { createId, getDb } from "./db";
 
@@ -91,6 +92,10 @@ export async function runRule(input: {
 }) {
   await ensureRunsTable();
   const db = getDb();
+  if (await isAutomationPaused(input.organizationId)) {
+    return { runId: "", check: null, scanned: 0, matched: 0, status: "skipped" as const,
+      detail: "Otomasyonlar acil durdurma ile durduruldu. Yeniden başlatmak için Otomasyonlar ekranını kullanın.", sample: [] as string[] };
+  }
   const check = resolveCheck(input.rule);
   if (!check || input.rule.action_type !== "notify") {
     return { runId: "", check: null, scanned: 0, matched: 0, status: "skipped" as const,
