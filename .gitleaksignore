@@ -1,0 +1,6 @@
+
+# Reviewed 2026-10-23: historical password alphabet and synthetic test inputs only.
+# Exact fingerprints, not path/rule-wide allowlists. Two findings share line 13.
+0e2202580beb3e19adc5f85e6c193a72f684c0c9:app/api/users/[id]/route.ts:generic-api-key:8
+0e2202580beb3e19adc5f85e6c193a72f684c0c9:tests/demo-company.test.mjs:generic-api-key:13
+0e2202580beb3e19adc5f85e6c193a72f684c0c9:tests/demo-company.test.mjs:generic-api-key:22

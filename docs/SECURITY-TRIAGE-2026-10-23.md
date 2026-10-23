@@ -1,0 +1,7 @@
+# Teksanor — dar istisna ve yayın kapısı incelemesi
+
+23 Ekim 2026. Kullanıcının ilettiği ikinci inceleme ardından kaynak commit bağımsız olarak okundu. 0e2202580beb3e19adc5f85e6c193a72f684c0c9 içinde app/api/users/[id]/route.ts satır 8 sabit parola üretim alfabesidir; test dosyasının 13 ve 22. satırları sentetik hesap/girdi testleridir. Gerçek anahtar/parola değerleri bu belgeye alınmadı. Üç tam fingerprint dört adayı kapsar. .gitleaksignore başka commit/dosya/satır veya kurala istisna vermez. Yeni benzer sırlar taranmaya devam eder. Anahtar iptal işlemi yapılmadı.
+
+cloudflare-pages.yml mevcut güvenlik kapısını security.yml ile çağırır. Tam audit dev paketlerini de high seviyesinde saydığında yayın kapısı tümüyle bloklanır. Seçilen düzeltme: yalnız mevcut çağıranda production-only=true; bağımsız push/PR/haftalık audit hâlâ dev dahil çalışır ve yüksek uyarıda başarısız olur. Continue-on-error eklenmedi. Dev uyarıları kapatılmadı; artefakt erişilebilirliği/derleme sırları için incelenmeleri gerekir. Üretim auditinin geçmesi bütün çalışma zamanı paketlerinin güvenli olduğunu kanıtlamaz; build sırasında dev paketi çıktıya gömülebilir. Kullanıcıya bu artık risk açıkça raporlanmalıdır. Yeni yayın veya ana dal birleştirmesi yapılmadı.
+
+Paket sürüm önerileri resmî duyuru ve dağıtım çıktısıyla yeniden doğrulanacak; büyük vinext/Next/React yükseltmesi bu kurulum PR'ına eklenmedi. Ayrı, testli güncelleme gerektirir. 'Ciddi açık yok' sonucu bu dar incelemeden çıkarılamaz.
