@@ -43,3 +43,16 @@ Cloudflare panelinde mevcut production commit `6344da8` ve `39f4cf4c` yayını h
 Ana dala birleştirme ve üretim yayını yapılmadı. Son canlı doğrulama ancak kullanıcı onayıyla yayınlandıktan sonra yapılabilir.
 
 Kaynak: https://developers.cloudflare.com/pages/functions/wrangler-configuration/
+
+## Cloudflare üzerinde son doğrulama
+
+Düzeltme commit'i `02e791f`, PR #26 dalı için mevcut Git entegrasyonu otomatik preview oluşturdu. Deployment `fed22298-ac13-4e18-a33d-b452eb1963c7` günlüğü:
+
+```text
+2026-10-23T09:44:45Z Successfully read the Wrangler configuration file.
+2026-10-23T09:44:48Z Compiled Worker successfully
+2026-10-23T09:44:57Z Success: Assets published!
+2026-10-23T09:45:00Z Success: Your site was deployed!
+```
+
+Önizleme: https://fed22298.teksanor.pages.dev . Bu kanıt yalnız Pages paketleme sorununun düzeltildiğini gösterir; ayrı preview D1 bulunmadığından kullanıcı girişinin tamamı doğrulanmış sayılmaz. Production hâlâ `6344da8` commit'indedir; manuel üretim yayını yapılmadı.
