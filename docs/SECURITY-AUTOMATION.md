@@ -24,6 +24,6 @@ Kabul: üç workflow çalışır; hata ve atlanma görünürdür; test/derleme h
 
 ## AI/veri risk kataloğu eki — 23 Ekim 2026
 
-.security/ai-data-controls.json ve docs/AI-DATA-SECURITY.md 50 risk başlığını, önlemini ve doğrulamasını içerir. AI and data review inventory görev özeti bunların tamamını gösterir. Başlangıçta 50/50 KANIT YOK; rapor üretimi korumaların uygulanmış olduğu anlamına gelmez. Altı sentetik test yalnız rapor güvenilirliğini denetler. Günlük yapay zekâ inceleme takibi de bu kataloğa genişletilmiştir.
+.security/ai-data-controls.json ve docs/AI-DATA-SECURITY.md 50 risk başlığını, önlemini ve doğrulamasını içerir. AI and data review inventory görev özeti bunların tamamını gösterir. Başlangıçta 50/50 KANIT YOK; rapor üretimi korumaların uygulanmış olduğu anlamına gelmez. Yedi sentetik test yalnız rapor güvenilirliğini denetler. Günlük yapay zekâ inceleme takibi de bu kataloğa genişletilmiştir.
 
 Yayın kapısı açıklaması güncellendi: cloudflare-pages.yml, security.yml çağrısında production-only=true kullanır. Bağımsız tam taramalar dev dahil yüksek uyarıda başarısız olmaya devam eder. Dar geçmiş Gitleaks istisnalarının gerekçesi docs/SECURITY-TRIAGE-2026-10-23.md içindedir. Geliştirme paketleri zararsız ilan edilmedi.
