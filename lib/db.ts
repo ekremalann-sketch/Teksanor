@@ -1,4 +1,5 @@
 import { initializeService } from "./service";
+import { requestSafeInitializer } from "./request-safe-initializer";
 import { env } from "cloudflare:workers";
 
 type Statement = {
@@ -311,6 +312,17 @@ const schemaStatements = [
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 )`,
+`CREATE TABLE IF NOT EXISTS asset_types (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  default_frequency_type TEXT CHECK (default_frequency_type IN ('day', 'week', 'month', 'year')),
+  default_frequency_value INTEGER,
+  checklist_text TEXT,
+  created_by TEXT REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (organization_id, name)
+)`,
 `CREATE INDEX IF NOT EXISTS assets_org_status_idx ON assets (organization_id, status)`,
 `CREATE INDEX IF NOT EXISTS maintenance_org_due_idx ON maintenance_plans (organization_id, next_due_date, status)`,
 `CREATE TABLE IF NOT EXISTS work_orders (
@@ -502,20 +514,20 @@ const schemaStatements = [
 export const DEFAULT_ORGANIZATION_ID = "org_alan_group";
 
 const CURRENT_SCHEMA_VERSION = "2026-10-11-mfa-recovery-v5";
-let schemaPromise: Promise<void> | null = null;
+const ensureDatabaseSchema = requestSafeInitializer(checkSchemaVersion);
+// An additive feature must not rerun legacy data-copy/bootstrap operations.
+const ensureAssetTypes = requestSafeInitializer(async (database: Database) => {
+  const definition = schemaStatements.find((s) => s.startsWith("CREATE TABLE IF NOT EXISTS asset_types"))!;
+  await database.prepare(definition).run();
+});
 
 export async function ensureSchema() {
-  if (!schemaPromise) {
-    schemaPromise = checkSchemaVersion().catch((error) => {
-      schemaPromise = null;
-      throw error;
-    });
-  }
-  return schemaPromise;
+  const database = getDb();
+  await ensureDatabaseSchema(database);
+  await ensureAssetTypes(database);
 }
 
-async function checkSchemaVersion() {
-  const database = getDb();
+async function checkSchemaVersion(database: Database) {
   try {
     const current = await database.prepare("SELECT value FROM app_metadata WHERE key = 'schema_version'").first<{ value: string }>();
     if (current?.value === CURRENT_SCHEMA_VERSION) return;

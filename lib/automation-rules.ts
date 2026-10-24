@@ -1,6 +1,7 @@
 import { isAutomationPaused } from "./automation-control";
 import { canView, type MemberAccess, type ModuleId } from "./access";
 import { createId, getDb } from "./db";
+import { requestSafeInitializer } from "./request-safe-initializer";
 
 // Otomasyon kuralının neyi kontrol edeceği artık kural adından tahmin edilmez; kullanıcı
 // açıkça seçer ve seçim trigger_config içinde {"check": "..."} olarak saklanır.
@@ -68,14 +69,12 @@ export const RUNS_TABLE_SQL = `CREATE TABLE IF NOT EXISTS automation_runs (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 )`;
 
-let runsTableReady: Promise<void> | null = null;
-export function ensureRunsTable() {
-  runsTableReady ??= (async () => {
-    const db = getDb();
+const initializeRunsTable = requestSafeInitializer(async (db: ReturnType<typeof getDb>) => {
     await db.prepare(RUNS_TABLE_SQL).run();
     await db.prepare("CREATE INDEX IF NOT EXISTS idx_automation_runs_rule ON automation_runs(organization_id, rule_id, created_at)").run();
-  })().catch((error) => { runsTableReady = null; throw error; });
-  return runsTableReady;
+});
+export function ensureRunsTable() {
+  return initializeRunsTable(getDb());
 }
 
 /**

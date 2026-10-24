@@ -1800,3 +1800,38 @@ img[src*="teksanor-logo"]{aspect-ratio:5/2;object-fit:contain}
 .automation-confirm { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: #7a1f1f; }
 .danger-button { min-height: 36px; padding: 0 14px; border: 1px solid #e3a3a3; border-radius: 8px; background: #fff; color: #a42d2d; font: inherit; font-size: 12.5px; font-weight: 750; cursor: pointer; }
 .danger-button:hover { background: #fdecec; }
+
+/* Firma tanımlı ekipman türleri */
+.asset-types-panel{background:#fff;border:1px solid #dfe6ee;border-radius:14px;padding:6px 16px;margin-bottom:14px}
+.asset-types-panel summary{min-height:48px;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;cursor:pointer}
+.asset-types-panel summary span{color:#5b6878;font-size:13px}
+.asset-type-list{list-style:none;margin:6px 0 12px;padding:0;display:grid;gap:6px}
+.asset-type-list li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 12px;border:1px solid #e5eaf0;border-radius:10px}
+.asset-type-list small{display:block;color:#5b6878;font-size:12.5px}
+.asset-type-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;align-items:end;padding-bottom:12px}
+.asset-type-form label,.asset-type-field{display:flex;flex-direction:column;gap:4px;font-weight:600;font-size:13px}
+.asset-type-form label.full{grid-column:1/-1}
+.asset-type-form em{font-style:normal;font-weight:400;color:#5b6878;font-size:12px}
+.asset-type-form input,.asset-type-form select,.asset-type-form textarea{min-height:42px;border:1px solid #cbd5e1;border-radius:10px;padding:8px 10px;font:inherit}
+.asset-type-freq{display:flex;gap:6px}.asset-type-freq input{width:90px}
+.asset-autoplan{flex-direction:row!important;align-items:center;gap:8px}
+/* Sade menü: ana başlıklar + Diğer; bölüm içi sekmeler */
+.nav-more{margin-top:6px}
+.nav-more summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;min-height:42px;padding:0 12px;border-radius:10px;color:inherit;font-weight:500;font-size:inherit}
+.nav-more summary::-webkit-details-marker{display:none}
+.nav-more[open] summary{opacity:.85}
+.section-tabs{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}
+.section-tabs button,.section-tabs a{min-height:40px;padding:6px 14px;border-radius:999px;border:1px solid #cbd5e1;background:#fff;font-weight:600;cursor:pointer;color:#14202e;text-decoration:none;display:inline-flex;align-items:center}
+.section-tabs .on{background:#16324f;border-color:#16324f;color:#fff}
+/* "Diğer" içindeki bağlantılar ana menüyle aynı görünür */
+.nav-more{display:grid;gap:4px}
+.nav-more summary{min-height:46px;color:#8fa3bb;font-size:13px}
+.nav-more summary:hover{color:#dce8f6;background:rgba(255,255,255,.04)}
+.nav-more > button{min-height:44px;padding:0 12px 0 22px;display:flex;align-items:center;gap:11px;border:0;border-radius:8px;color:#8fa3bb;background:transparent;cursor:pointer;text-align:left;font-size:13px}
+.nav-more > button:hover{color:#dce8f6;background:rgba(255,255,255,.04)}
+.nav-more > button.active{color:#f4f8fd;background:linear-gradient(90deg,rgba(48,111,191,.28),rgba(48,111,191,.08));box-shadow:inset 2px 0 #75a8e7}
+.nav-more > a.nav-link{min-height:44px;padding:0 12px 0 22px;display:flex;align-items:center;gap:11px;border-radius:8px;color:#c9d8ea;text-decoration:none;font-size:13px}
+.nav-more > a.nav-link:hover{color:#fff;background:rgba(255,255,255,.05)}
+.nav-more > a.nav-link svg{color:#e0bd73}
+.form-grid label.asset-autoplan{display:flex!important;flex-direction:row!important;align-items:center;gap:10px;font-size:13px}
+.form-grid label.asset-autoplan input{width:20px!important;height:20px!important;min-height:0!important;padding:0!important;flex:none;margin:0}

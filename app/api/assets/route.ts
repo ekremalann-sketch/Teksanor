@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { addAudit, createId, getDb } from "@/lib/db";
+import { createId, getDb } from "@/lib/db";
 import { rejectCrossSiteMutation } from "@/lib/security";
 import { requireOrganization } from "@/lib/tenancy";
+import { requireModuleAccess } from "@/lib/access";
 
 const text = (value: unknown, max = 240) => String(value ?? "").trim().slice(0, max);
 const statuses = new Set(["active", "maintenance", "inactive", "retired"]);
@@ -37,16 +38,37 @@ export async function POST(request: Request) {
     const assetCode = text(body.assetCode, 40) || `VRL-${String((count?.c ?? 0) + 1).padStart(4, "0")}`;
     const status = statuses.has(text(body.status)) ? text(body.status) : "active";
     const id = createId("asset");
-    await getDb().prepare(`INSERT INTO assets
+    const statements = [getDb().prepare(`INSERT INTO assets
       (id, organization_id, asset_code, name, category, brand, model, serial_number, location, status,
        responsible_name, purchase_date, warranty_end, notes, created_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .bind(id, organization.id, assetCode, name, text(body.category) || "Ekipman", text(body.brand) || null,
         text(body.model) || null, text(body.serialNumber) || null, text(body.location) || null, status,
         text(body.responsibleName) || null, text(body.purchaseDate, 20) || null, text(body.warrantyEnd, 20) || null,
-        text(body.notes, 1500) || null, user.id).run();
-    await addAudit(user.id, "create", "asset", id, `${assetCode} varlığı oluşturuldu.`, organization.id);
-    return NextResponse.json({ ok: true, id, assetCode });
+        text(body.notes, 1500) || null, user.id)];
+    const audit = (entity: string, entityId: string, details: string) => getDb().prepare("INSERT INTO audit_logs (id,user_id,action,entity_type,entity_id,details,organization_id) VALUES (?,?,'create',?,?,?,?)")
+      .bind(createId("audit"), user.id, entity, entityId, details, organization.id);
+    statements.push(audit("asset", id, `${assetCode} varlığı oluşturuldu.`));
+    // Firma tanımlı ekipman türünün varsayılan bakım sıklığı varsa ve kullanıcı isterse bakım planı da açılır.
+    let planId: string | null = null;
+    if (body.autoPlan === true || body.autoPlan === "on") {
+      await requireModuleAccess(user, organization, "maintenance", "edit");
+      const type = await getDb().prepare("SELECT name, default_frequency_type AS ft, default_frequency_value AS fv, checklist_text AS cl FROM asset_types WHERE organization_id = ? AND name = ?")
+        .bind(organization.id, text(body.category)).first<{ name: string; ft: string | null; fv: number | null; cl: string | null }>();
+      if (!type?.ft || !type.fv) return NextResponse.json({ error: "Otomatik bakım için bakım sıklığı tanımlanmış bir ekipman türü seçin." }, { status: 400 });
+      if (type.ft && type.fv) {
+        planId = createId("maint");
+        const due = new Date();
+        if (type.ft === "day") due.setDate(due.getDate() + type.fv); else if (type.ft === "week") due.setDate(due.getDate() + 7 * type.fv);
+        else if (type.ft === "month") due.setMonth(due.getMonth() + type.fv); else due.setFullYear(due.getFullYear() + type.fv);
+        statements.push(getDb().prepare(`INSERT INTO maintenance_plans (id,organization_id,asset_id,title,frequency_type,frequency_value,next_due_date,assigned_to,checklist_text,status,created_by)
+          VALUES (?,?,?,?,?,?,?,?,?,'active',?)`).bind(planId, organization.id, id, `${type.name} periyodik bakımı`, type.ft, type.fv, due.toISOString().slice(0, 10),
+          text(body.responsibleName) || null, type.cl, user.id));
+        statements.push(audit("maintenance_plan", planId, `${assetCode} için ${type.name} bakım planı otomatik açıldı.`));
+      }
+    }
+    await getDb().batch(statements);
+    return NextResponse.json({ ok: true, id, assetCode, planId });
   } catch (error) {
     const message = "Varlık oluşturulamadı.";
     return NextResponse.json({ error: message.includes("UNIQUE") ? "Bu varlık kodu zaten kullanılıyor." : message }, { status: 400 });
