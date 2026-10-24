@@ -46,7 +46,23 @@ export async function POST(request: Request) {
         text(body.responsibleName) || null, text(body.purchaseDate, 20) || null, text(body.warrantyEnd, 20) || null,
         text(body.notes, 1500) || null, user.id).run();
     await addAudit(user.id, "create", "asset", id, `${assetCode} varlığı oluşturuldu.`, organization.id);
-    return NextResponse.json({ ok: true, id, assetCode });
+    // Firma tanımlı ekipman türünün varsayılan bakım sıklığı varsa ve kullanıcı isterse bakım planı da açılır.
+    let planId: string | null = null;
+    if (body.autoPlan === true || body.autoPlan === "on") {
+      const type = await getDb().prepare("SELECT name, default_frequency_type AS ft, default_frequency_value AS fv, checklist_text AS cl FROM asset_types WHERE organization_id = ? AND name = ?")
+        .bind(organization.id, text(body.category)).first<{ name: string; ft: string | null; fv: number | null; cl: string | null }>();
+      if (type?.ft && type.fv) {
+        planId = createId("maint");
+        const due = new Date();
+        if (type.ft === "day") due.setDate(due.getDate() + type.fv); else if (type.ft === "week") due.setDate(due.getDate() + 7 * type.fv);
+        else if (type.ft === "month") due.setMonth(due.getMonth() + type.fv); else due.setFullYear(due.getFullYear() + type.fv);
+        await getDb().prepare(`INSERT INTO maintenance_plans (id,organization_id,asset_id,title,frequency_type,frequency_value,next_due_date,assigned_to,checklist_text,status,created_by)
+          VALUES (?,?,?,?,?,?,?,?,?,'active',?)`).bind(planId, organization.id, id, `${type.name} periyodik bakımı`, type.ft, type.fv, due.toISOString().slice(0, 10),
+          text(body.responsibleName) || null, type.cl, user.id).run();
+        await addAudit(user.id, "create", "maintenance_plan", planId, `${assetCode} için ${type.name} bakım planı otomatik açıldı.`, organization.id);
+      }
+    }
+    return NextResponse.json({ ok: true, id, assetCode, planId });
   } catch (error) {
     const message = "Varlık oluşturulamadı.";
     return NextResponse.json({ error: message.includes("UNIQUE") ? "Bu varlık kodu zaten kullanılıyor." : message }, { status: 400 });

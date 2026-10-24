@@ -311,6 +311,17 @@ const schemaStatements = [
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 )`,
+`CREATE TABLE IF NOT EXISTS asset_types (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  default_frequency_type TEXT CHECK (default_frequency_type IN ('day', 'week', 'month', 'year')),
+  default_frequency_value INTEGER,
+  checklist_text TEXT,
+  created_by TEXT REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (organization_id, name)
+)`,
 `CREATE INDEX IF NOT EXISTS assets_org_status_idx ON assets (organization_id, status)`,
 `CREATE INDEX IF NOT EXISTS maintenance_org_due_idx ON maintenance_plans (organization_id, next_due_date, status)`,
 `CREATE TABLE IF NOT EXISTS work_orders (
@@ -501,7 +512,7 @@ const schemaStatements = [
 // Kimlik mevcut kurulumlarla uyumluluk için değişmez; yeni kurulumda görünen ad "Teksanor Yönetim" olur.
 export const DEFAULT_ORGANIZATION_ID = "org_alan_group";
 
-const CURRENT_SCHEMA_VERSION = "2026-10-11-mfa-recovery-v5";
+const CURRENT_SCHEMA_VERSION = "2026-10-25-asset-types-v6";
 let schemaPromise: Promise<void> | null = null;
 
 export async function ensureSchema() {

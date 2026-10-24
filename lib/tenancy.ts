@@ -72,7 +72,7 @@ export async function requireOrganization(request: Request, user: AppUser) {
   const segment = new URL(request.url).pathname.split("/")[2];
   const modules: Record<string, ModuleId> = {
     payments: "payments", expenses: "expenses", treasury: "treasury", projects: "projects",
-    tasks: "tasks", "work-orders": "work-orders", assets: "assets", maintenance: "maintenance",
+    tasks: "tasks", "work-orders": "work-orders", assets: "assets", "asset-types": "assets", maintenance: "maintenance",
     "field-visits": "field-visits", procurement: "procurement", customers: "crm", employees: "hr",
     risks: "risks", automations: "automations", agents: "agents", uploads: "files", users: "users",
     organization: "company", service: "work-orders",
