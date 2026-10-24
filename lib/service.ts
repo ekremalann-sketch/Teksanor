@@ -1,4 +1,5 @@
 import {getDb,type Database} from "./db";
+import {requestSafeInitializer} from "./request-safe-initializer";
 export const serviceSchema=[
 `CREATE TABLE IF NOT EXISTS service_jobs (
  id TEXT PRIMARY KEY REFERENCES work_orders(id), organization_id TEXT NOT NULL REFERENCES organizations(id),
@@ -37,17 +38,16 @@ export async function initializeService(db:Database){for(const sql of [...servic
 // Yalnız eklemeli geçiş: mevcut canlı veri tabanında imza sütunu ve kontrol listesi tabloları yoksa ekler.
 // Genel şema sürümü bilerek yükseltilmedi; o yol tüm kurulum adımlarını (eski tablolardan
 // kopyalama dahil) yeniden çalıştırır. Bu fonksiyon yalnız yeni tablo/sütun ekler.
-let serviceColumns:Promise<void>|null=null;
-export function ensureServiceColumns(db:Database=getDb()){
- if(!serviceColumns)serviceColumns=(async()=>{
+const initializeServiceColumns=requestSafeInitializer(async(db:Database)=>{
   const cols=await db.prepare("PRAGMA table_info(service_approvals)").all<{name:string}>();
   for(const sql of serviceExtensionSchema)await db.prepare(sql).run();
   if(cols.results.length&&!cols.results.some(c=>c.name==="signature_path")){
    try{await db.prepare("ALTER TABLE service_approvals ADD COLUMN signature_path TEXT").run();}
    catch(e){if(!/duplicate column/i.test(String(e)))throw e;} // eşzamanlı ilk istek
   }
- })().catch(e=>{serviceColumns=null;throw e;});
- return serviceColumns;
+ });
+export function ensureServiceColumns(db:Database=getDb()){
+ return initializeServiceColumns(db);
 }
 export function cents(value:unknown){const n=Number(value);if(!Number.isFinite(n)||n<0||n>100000000)throw new Error("Tutar 0–100.000.000 TL arasında olmalı.");return Math.round(n*100);}
 export const transitions:Record<string,string[]>={requested:["quoted","cancelled"],quoted:["requested","cancelled"],quote_approved:["in_progress","cancelled"],in_progress:["completed","cancelled"],completed:["in_progress"],accepted:["collected"],collected:[],cancelled:[]};

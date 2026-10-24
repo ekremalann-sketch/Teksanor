@@ -29,3 +29,33 @@ await test('Tür kaldırılınca varlıklar silinmez; başka firma türü sileme
  assert.equal((await api.types.DELETE(req('owner',`/api/asset-types?id=${typeId}`,'DELETE',undefined,'a'))).status,200);
  assert.equal(sql.prepare("SELECT COUNT(*) n FROM assets WHERE category='Jeneratör'").get().n,2);
 });
+
+await test('Geçersiz sıklık ve tanımsız otomatik bakım reddedilir; yarım varlık kaydı oluşmaz',async()=>{
+ for(const frequencyValue of ['abc',0,-1,1.5,1000]) assert.equal((await api.types.POST(req('owner','/api/asset-types','POST',{name:'Geçersiz',frequencyType:'month',frequencyValue},'a'))).status,400);
+ const before=sql.prepare('SELECT count(*) n FROM assets').get().n;
+ assert.equal((await api.assets.POST(req('owner','/api/assets','POST',{name:'Eksik tür',category:'Yok',autoPlan:true},'a'))).status,400);
+ assert.equal(sql.prepare('SELECT count(*) n FROM assets').get().n,before);
+});
+
+await test('Bakım veya denetim kaydı yazılamazsa varlık ve bakım birlikte geri alınır',async()=>{
+ assert.equal((await api.types.POST(req('owner','/api/asset-types','POST',{name:'Test türü',frequencyType:'month',frequencyValue:1},'a'))).status,200);
+ for(const table of ['maintenance_plans','audit_logs']){
+  const assets=sql.prepare('SELECT count(*) n FROM assets').get().n;
+  const plans=sql.prepare('SELECT count(*) n FROM maintenance_plans').get().n;
+  sql.exec(`CREATE TRIGGER fail_atomic BEFORE INSERT ON ${table} BEGIN SELECT RAISE(ABORT,'synthetic failure'); END`);
+  try { assert.equal((await api.assets.POST(req('owner','/api/assets','POST',{name:'Atomik test',category:'Test türü',autoPlan:true},'a'))).status,400);
+   assert.equal(sql.prepare('SELECT count(*) n FROM assets').get().n,assets);
+   assert.equal(sql.prepare('SELECT count(*) n FROM maintenance_plans').get().n,plans);
+  } finally { sql.exec('DROP TRIGGER fail_atomic'); }
+ }
+});
+
+await test('Eşzamanlı aynı tür başvurusu tek kayıt oluşturur; başarısız denetim yazımı türü de geri alır',async()=>{
+ const responses=await Promise.all(['Motor','motor'].map(name=>api.types.POST(req('owner','/api/asset-types','POST',{name},'a'))));
+ assert.deepEqual(responses.map(r=>r.status).sort(),[200,409]);
+ assert.equal(sql.prepare("SELECT count(*) n FROM asset_types WHERE name='motor' COLLATE NOCASE").get().n,1);
+ sql.exec("CREATE TRIGGER fail_type_audit BEFORE INSERT ON audit_logs WHEN NEW.entity_type='asset_type' BEGIN SELECT RAISE(ABORT,'synthetic failure'); END");
+ try { assert.equal((await api.types.POST(req('owner','/api/asset-types','POST',{name:'Geri alınacak'},'a'))).status,400);
+  assert.equal(sql.prepare("SELECT count(*) n FROM asset_types WHERE name='Geri alınacak'").get().n,0);
+ } finally {sql.exec('DROP TRIGGER fail_type_audit');}
+});
