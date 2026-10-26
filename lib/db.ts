@@ -694,17 +694,27 @@ export async function refreshOrganizationPeriodSummary(organizationId: string, p
     ).run();
 }
 
-export async function addAudit(
+/** Build an audit statement for the same D1 batch as its mutation.
+ * onlyIfChanged must immediately follow the mutation in that batch: changes()
+ * then describes that statement, not an unrelated request or earlier read.
+ */
+export function auditStatement(
   userId: string | null,
   action: string,
   entityType: string,
   entityId: string | null,
   details?: string,
   organizationId?: string | null,
+  onlyIfChanged = false,
 ) {
-  const database = getDb();
-  await database
-    .prepare("INSERT INTO audit_logs (id, user_id, action, entity_type, entity_id, details, organization_id) VALUES (?, ?, ?, ?, ?, ?, ?)")
-    .bind(createId("audit"), userId, action, entityType, entityId, details ?? null, organizationId ?? null)
-    .run();
+  return getDb()
+    .prepare("INSERT INTO audit_logs (id, user_id, action, entity_type, entity_id, details, organization_id) SELECT ?, ?, ?, ?, ?, ?, ?" + (onlyIfChanged ? " WHERE changes() > 0" : ""))
+    .bind(createId("audit"), userId, action, entityType, entityId, details ?? null, organizationId ?? null);
+}
+
+export async function addAudit(
+  userId: string | null, action: string, entityType: string, entityId: string | null,
+  details?: string, organizationId?: string | null,
+) {
+  await auditStatement(userId, action, entityType, entityId, details, organizationId).run();
 }

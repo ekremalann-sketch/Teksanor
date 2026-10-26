@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { errorStatus } from "@/lib/access";
 import { getCurrentUser } from "@/lib/auth";
-import { addAudit, createId, getDb } from "@/lib/db";
+import { auditStatement, createId, getDb } from "@/lib/db";
 import { requireOrganization } from "@/lib/tenancy";
 import { rejectCrossSiteMutation } from "@/lib/security";
 
@@ -39,12 +39,14 @@ export async function POST(request: Request, routeContext: { params: Promise<{ i
     const interactionType = TYPE.includes(text(body.interactionType)) ? text(body.interactionType) : "other";
     const interactionDate = text(body.interactionDate, 20) || new Date().toISOString().slice(0, 10);
     const interactionId = createId("cint");
-    await getDb().prepare(`INSERT INTO customer_interactions
+    await getDb().batch([
+      getDb().prepare(`INSERT INTO customer_interactions
       (id, organization_id, customer_id, interaction_type, summary, outcome, interaction_date, next_action, next_action_date, created_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .bind(interactionId, context.organization.id, id, interactionType, summary, text(body.outcome, 600) || null,
-        interactionDate, text(body.nextAction, 600) || null, text(body.nextActionDate, 20) || null, user.id).run();
-    await addAudit(user.id, "create", "customer_interaction", interactionId, `Müşteri etkileşimi kaydedildi.`, context.organization.id);
+        interactionDate, text(body.nextAction, 600) || null, text(body.nextActionDate, 20) || null, user.id),
+      auditStatement(user.id, "create", "customer_interaction", interactionId, `Müşteri etkileşimi kaydedildi.`, context.organization.id),
+    ]);
     return NextResponse.json({ ok: true, id: interactionId });
   } catch (error) {
     return NextResponse.json({ error: "Etkileşim eklenemedi." }, { status: errorStatus(error) });

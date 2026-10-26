@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { errorStatus } from "@/lib/access";
 import { getCurrentUser } from "@/lib/auth";
-import { addAudit, createId, getDb } from "@/lib/db";
+import { auditStatement, createId, getDb } from "@/lib/db";
 import { requireOrganization } from "@/lib/tenancy";
 import { parseLocalizedNumber } from "@/lib/finance";
 import { rejectCrossSiteMutation } from "@/lib/security";
@@ -43,14 +43,16 @@ export async function POST(request: Request) {
     const count = await getDb().prepare("SELECT COUNT(*) AS c FROM procurement_requests WHERE organization_id = ?").bind(context.organization.id).first<{ c: number }>();
     const requestNumber = `SA-${String((count?.c ?? 0) + 1).padStart(4, "0")}`;
     const id = createId("proc");
-    await getDb().prepare(`INSERT INTO procurement_requests
+    await getDb().batch([
+      getDb().prepare(`INSERT INTO procurement_requests
       (id, organization_id, request_number, title, description, department, requested_by, supplier_name, quantity, unit, unit_price, total_price, currency, status, priority, required_date, notes, created_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .bind(id, context.organization.id, requestNumber, title, text(body.description, 1200) || null, department,
         text(body.requestedBy) || user.full_name, text(body.supplierName) || null, quantity, text(body.unit, 20) || "adet",
         unitPrice, totalPrice, text(body.currency, 8) || "TRY", status, priority, text(body.requiredDate, 20) || null,
-        text(body.notes, 1200) || null, user.id).run();
-    await addAudit(user.id, "create", "procurement_request", id, `${requestNumber} satın alma talebi oluşturuldu.`, context.organization.id);
+        text(body.notes, 1200) || null, user.id),
+      auditStatement(user.id, "create", "procurement_request", id, `${requestNumber} satın alma talebi oluşturuldu.`, context.organization.id),
+    ]);
     return NextResponse.json({ ok: true, id, requestNumber });
   } catch (error) {
     return NextResponse.json({ error: "Satın alma talebi oluşturulamadı." }, { status: errorStatus(error) });

@@ -2,7 +2,7 @@ import {recordRead} from "@/lib/read-audit";
 import { NextResponse } from "next/server";
 import { errorStatus } from "@/lib/access";
 import { getCurrentUser } from "@/lib/auth";
-import { addAudit, getDb } from "@/lib/db";
+import { auditStatement, getDb } from "@/lib/db";
 import { requireOrganization } from "@/lib/tenancy";
 import { rejectCrossSiteMutation } from "@/lib/security";
 
@@ -40,7 +40,8 @@ export async function PUT(request: Request, routeContext: { params: Promise<{ id
       .bind(id, context.organization.id).first<Record<string, unknown>>();
     if (!existing) return NextResponse.json({ error: "Müşteri bulunamadı." }, { status: 404 });
     const status = STATUS.includes(text(body.status)) ? text(body.status) : String(existing.status);
-    await getDb().prepare(`UPDATE customers SET name = ?, company_name = ?, email = ?, phone = ?, address = ?, sector = ?,
+    await getDb().batch([
+      getDb().prepare(`UPDATE customers SET name = ?, company_name = ?, email = ?, phone = ?, address = ?, sector = ?,
       status = ?, total_value = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND organization_id = ?`)
       .bind(text(body.name) || String(existing.name),
         body.companyName !== undefined ? text(body.companyName) || null : existing.company_name,
@@ -49,8 +50,9 @@ export async function PUT(request: Request, routeContext: { params: Promise<{ id
         body.address !== undefined ? text(body.address, 400) || null : existing.address,
         body.sector !== undefined ? text(body.sector) || null : existing.sector,
         status, Number(body.totalValue ?? existing.total_value ?? 0),
-        body.notes !== undefined ? text(body.notes, 1200) || null : existing.notes, id, context.organization.id).run();
-    await addAudit(user.id, "update", "customer", id, `${existing.name} müşterisi güncellendi.`, context.organization.id);
+        body.notes !== undefined ? text(body.notes, 1200) || null : existing.notes, id, context.organization.id),
+      auditStatement(user.id, "update", "customer", id, `${existing.name} müşterisi güncellendi.`, context.organization.id),
+    ]);
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ error: "Müşteri güncellenemedi." }, { status: errorStatus(error) });
@@ -64,10 +66,12 @@ export async function DELETE(request: Request, routeContext: { params: Promise<{
   try {
     const context = await requireOrganization(request, user);
     const { id } = await routeContext.params;
-    const removed = await getDb().prepare("DELETE FROM customers WHERE id = ? AND organization_id = ?").bind(id, context.organization.id).run();
-    // Başka firmanın veya olmayan bir kaydın silinmesi başarı ve denetim kaydı üretmez.
+    const results = await getDb().batch([
+      getDb().prepare("DELETE FROM customers WHERE id = ? AND organization_id = ?").bind(id, context.organization.id),
+      auditStatement(user.id, "delete", "customer", id, undefined, context.organization.id, true),
+    ]);
+    const removed = results[0] as { meta?: { changes?: number } };
     if (!removed.meta?.changes) return NextResponse.json({ error: "Kayıt bulunamadı." }, { status: 404 });
-    await addAudit(user.id, "delete", "customer", id, undefined, context.organization.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ error: "Müşteri silinemedi." }, { status: errorStatus(error) });

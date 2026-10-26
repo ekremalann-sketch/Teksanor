@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { errorStatus } from "@/lib/access";
 import { getCurrentUser } from "@/lib/auth";
-import { addAudit, createId, getDb } from "@/lib/db";
+import { auditStatement, createId, getDb } from "@/lib/db";
 import { requireOrganization } from "@/lib/tenancy";
 import { rejectCrossSiteMutation } from "@/lib/security";
 
@@ -62,13 +62,15 @@ export async function POST(request: Request) {
     const progress = Math.min(100, Math.max(0, Number(body.progress || 0)));
     const budget = Math.max(0, Number(body.budget || 0));
     const id = createId("project");
-    await getDb().prepare(`INSERT INTO projects
+    await getDb().batch([
+      getDb().prepare(`INSERT INTO projects
       (id, organization_id, name, code, department, owner_name, status, priority, start_date, target_date, budget, progress, description, created_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .bind(id, context.organization.id, name, text(body.code, 40) || null, department, text(body.ownerName) || null,
         status, priority, text(body.startDate, 20) || null, text(body.targetDate, 20) || null, budget, progress,
-        text(body.description, 1200) || null, user.id).run();
-    await addAudit(user.id, "create", "project", id, `${name} projesi oluşturuldu.`, context.organization.id);
+        text(body.description, 1200) || null, user.id),
+      auditStatement(user.id, "create", "project", id, `${name} projesi oluşturuldu.`, context.organization.id),
+    ]);
     return NextResponse.json({ ok: true, id });
   } catch (error) {
     return NextResponse.json({ error: "Proje oluşturulamadı." }, { status: errorStatus(error) });

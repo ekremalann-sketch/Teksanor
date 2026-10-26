@@ -152,16 +152,22 @@ export async function getCurrentUser(request: Request): Promise<AppUser | null> 
   return user;
 }
 
-export async function createSession(userId: string) {
+/** Prepare a new session without writing it, for an atomic security change. */
+export async function prepareSession(userId: string) {
   const database = getDb();
   const token = randomHex(32);
   const tokenHash = await sha256(token);
   const expires = new Date(Date.now() + 1000 * 60 * 60 * 12).toISOString();
-  await database
+  const statement = database
     .prepare("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)")
-    .bind(tokenHash, userId, expires)
-    .run();
-  return token;
+    .bind(tokenHash, userId, expires);
+  return { token, statement };
+}
+
+export async function createSession(userId: string) {
+  const session = await prepareSession(userId);
+  await session.statement.run();
+  return session.token;
 }
 
 export function sessionCookie(token: string) {
