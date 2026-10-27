@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { errorStatus } from "@/lib/access";
 import { getCurrentUser } from "@/lib/auth";
-import { addAudit, createId, getDb } from "@/lib/db";
+import { auditStatement, createId, getDb } from "@/lib/db";
 import { rejectCrossSiteMutation } from "@/lib/security";
 import { requireOrganization } from "@/lib/tenancy";
 
@@ -66,8 +66,10 @@ export async function DELETE(request: Request) {
     const row = await getDb().prepare("SELECT name FROM asset_types WHERE id = ? AND organization_id = ?").bind(id, organization.id).first<{ name: string }>();
     if (!row) return NextResponse.json({ error: "Tür bulunamadı." }, { status: 404 });
     // Varlıklar silinmez; kategori adı kayıtlarda kalır.
-    await getDb().prepare("DELETE FROM asset_types WHERE id = ? AND organization_id = ?").bind(id, organization.id).run();
-    await addAudit(user.id, "delete", "asset_type", id, `${row.name} ekipman türü kaldırıldı (varlıklar korunur).`, organization.id);
+    await getDb().batch([
+      getDb().prepare("DELETE FROM asset_types WHERE id = ? AND organization_id = ?").bind(id, organization.id),
+      auditStatement(user.id, "delete", "asset_type", id, `${row.name} ekipman türü kaldırıldı (varlıklar korunur).`, organization.id, true),
+    ]);
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ error: "Tür kaldırılamadı." }, { status: errorStatus(error) });

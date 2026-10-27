@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { errorStatus } from "@/lib/access";
 import { getCurrentUser } from "@/lib/auth";
-import { addAudit, getDb } from "@/lib/db";
+import { auditStatement, getDb } from "@/lib/db";
 import { requireOrganization } from "@/lib/tenancy";
 import { rejectCrossSiteMutation } from "@/lib/security";
 
@@ -30,7 +30,8 @@ export async function PUT(request: Request, routeContext: { params: Promise<{ id
     if (!Number.isFinite(totalPrice)) return NextResponse.json({ error: "Toplam fiyat geçersiz." }, { status: 400 });
     const orderDate = status === "ordered" && !existing.order_date ? new Date().toISOString().slice(0, 10) : (existing.order_date ?? null);
     const deliveryDate = status === "delivered" && !existing.delivery_date ? new Date().toISOString().slice(0, 10) : (existing.delivery_date ?? null);
-    await getDb().prepare(`UPDATE procurement_requests SET title = ?, description = ?, department = ?, supplier_name = ?,
+    await getDb().batch([
+      getDb().prepare(`UPDATE procurement_requests SET title = ?, description = ?, department = ?, supplier_name = ?,
       quantity = ?, unit = ?, unit_price = ?, total_price = ?, currency = ?, status = ?, priority = ?, required_date = ?,
       order_date = ?, delivery_date = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND organization_id = ?`)
       .bind(text(body.title) || String(existing.title), body.description !== undefined ? text(body.description, 1200) : existing.description,
@@ -40,8 +41,9 @@ export async function PUT(request: Request, routeContext: { params: Promise<{ id
         text(body.currency, 8) || String(existing.currency ?? "TRY"), status, priority,
         body.requiredDate !== undefined ? text(body.requiredDate, 20) || null : existing.required_date,
         orderDate, deliveryDate,
-        body.notes !== undefined ? text(body.notes, 1200) || null : existing.notes, id, context.organization.id).run();
-    await addAudit(user.id, "update", "procurement_request", id, `${existing.request_number} talebi güncellendi (${status}).`, context.organization.id);
+        body.notes !== undefined ? text(body.notes, 1200) || null : existing.notes, id, context.organization.id),
+      auditStatement(user.id, "update", "procurement_request", id, `${existing.request_number} talebi güncellendi (${status}).`, context.organization.id),
+    ]);
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ error: "Satın alma talebi güncellenemedi." }, { status: errorStatus(error) });
@@ -55,10 +57,12 @@ export async function DELETE(request: Request, routeContext: { params: Promise<{
   try {
     const context = await requireOrganization(request, user);
     const { id } = await routeContext.params;
-    const removed = await getDb().prepare("DELETE FROM procurement_requests WHERE id = ? AND organization_id = ?").bind(id, context.organization.id).run();
-    // Başka firmanın veya olmayan bir kaydın silinmesi başarı ve denetim kaydı üretmez.
+    const results = await getDb().batch([
+      getDb().prepare("DELETE FROM procurement_requests WHERE id = ? AND organization_id = ?").bind(id, context.organization.id),
+      auditStatement(user.id, "delete", "procurement_request", id, undefined, context.organization.id, true),
+    ]);
+    const removed = results[0] as { meta?: { changes?: number } };
     if (!removed.meta?.changes) return NextResponse.json({ error: "Kayıt bulunamadı." }, { status: 404 });
-    await addAudit(user.id, "delete", "procurement_request", id, undefined, context.organization.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ error: "Satın alma talebi silinemedi." }, { status: errorStatus(error) });

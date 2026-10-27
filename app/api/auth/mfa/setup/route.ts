@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { hasRecentPasswordProof, getCurrentUser, verifyPassword, enforceAuthRateLimit, createSession, sessionCookie } from "@/lib/auth";
-import { addAudit, getDb } from "@/lib/db";
+import { hasRecentPasswordProof, getCurrentUser, verifyPassword, enforceAuthRateLimit, prepareSession, sessionCookie } from "@/lib/auth";
+import { auditStatement, getDb } from "@/lib/db";
 import { createOtpAuthUri, createRecoveryCodes, createTotpSecret, encryptTotpSecret, decryptTotpSecret, hashRecoveryCodes, mfaKeyConfigured, mfaMode, MFA_DEFER_DAYS, verifyTotp, normalizeRecovery, looksLikeRecoveryCode } from "@/lib/mfa";
 import { rejectCrossSiteMutation } from "@/lib/security";
 
@@ -60,9 +60,11 @@ export async function POST(request: Request) {
     if (user.mfa_enabled) return NextResponse.json({ error: "İki aşamalı doğrulama zaten etkin." }, { status: 409 });
     const used = await db.prepare("SELECT 1 FROM audit_logs WHERE user_id=? AND action='defer_mfa' LIMIT 1").bind(user.id).first();
     if (used) return NextResponse.json({ error: "Erteleme hakkı daha önce kullanıldı. Devam etmek için kurulumu tamamlayın." }, { status: 403 });
-    await db.prepare(`INSERT INTO user_security(user_id,mfa_deferred_until) VALUES (?,datetime('now','+${MFA_DEFER_DAYS} days'))
-      ON CONFLICT(user_id) DO UPDATE SET mfa_deferred_until=excluded.mfa_deferred_until`).bind(user.id).run();
-    await addAudit(user.id, "defer_mfa", "user_security", user.id, `İki aşamalı doğrulama kurulumu ${MFA_DEFER_DAYS} gün ertelendi.`);
+    await db.batch([
+      db.prepare(`INSERT INTO user_security(user_id,mfa_deferred_until) VALUES (?,datetime('now','+${MFA_DEFER_DAYS} days'))
+        ON CONFLICT(user_id) DO UPDATE SET mfa_deferred_until=excluded.mfa_deferred_until`).bind(user.id),
+      auditStatement(user.id, "defer_mfa", "user_security", user.id, `İki aşamalı doğrulama kurulumu ${MFA_DEFER_DAYS} gün ertelendi.`),
+    ]);
     return NextResponse.json({ ok: true, deferredDays: MFA_DEFER_DAYS }, { headers: noStore });
   }
 
@@ -81,13 +83,15 @@ export async function POST(request: Request) {
       try { secondOk = !!stored?.totp_secret && await verifyTotp(await decryptTotpSecret(stored.totp_secret), code); } catch { secondOk = false; }
     }
     if (!passwordOk || !secondOk) return NextResponse.json({ error: "Kapatmak için parolanızı ve uygulamadaki güncel 6 haneli kodu (veya bir kurtarma kodunu) girin." }, { status: 403 });
+    const session = await prepareSession(user.id);
     await db.batch([
       db.prepare("UPDATE user_security SET mfa_enabled=0,totp_secret=NULL,mfa_setup_secret=NULL,recovery_codes=NULL,last_totp_counter=-1 WHERE user_id=?").bind(user.id),
       db.prepare("DELETE FROM sessions WHERE user_id=?").bind(user.id),
       db.prepare("DELETE FROM mfa_challenges WHERE user_id=?").bind(user.id),
+      session.statement,
+      auditStatement(user.id, "disable_mfa", "user_security", user.id, "İki aşamalı doğrulama kullanıcı tarafından kapatıldı; tüm oturumlar kapatıldı."),
     ]);
-    await addAudit(user.id, "disable_mfa", "user_security", user.id, "İki aşamalı doğrulama kullanıcı tarafından kapatıldı; tüm oturumlar kapatıldı.");
-    const token = await createSession(user.id);
+    const token = session.token;
     return NextResponse.json({ ok: true }, { headers: { ...noStore, "Set-Cookie": sessionCookie(token) } });
   }
 
@@ -101,8 +105,10 @@ export async function POST(request: Request) {
     try { codeOk = !!stored?.totp_secret && !!body.code && await verifyTotp(await decryptTotpSecret(stored.totp_secret), body.code); } catch { codeOk = false; }
     if (!passwordOk && !codeOk) return NextResponse.json({ error: "Parolanızı veya uygulamadaki güncel 6 haneli kodu girin." }, { status: 403 });
     const codes = createRecoveryCodes();
-    await db.prepare("UPDATE user_security SET recovery_codes=? WHERE user_id=?").bind(await hashRecoveryCodes(codes), user.id).run();
-    await addAudit(user.id, "rotate_mfa_recovery_codes", "user_security", user.id);
+    await db.batch([
+      db.prepare("UPDATE user_security SET recovery_codes=? WHERE user_id=?").bind(await hashRecoveryCodes(codes), user.id),
+      auditStatement(user.id, "rotate_mfa_recovery_codes", "user_security", user.id),
+    ]);
     return NextResponse.json({ ok: true, recoveryCodes: codes }, { headers: noStore });
   }
 
@@ -128,12 +134,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Kod eşleşmedi. Telefonun saatinin otomatik olduğundan emin olun ve uygulamadaki en güncel kodu girin." }, { status: 400 });
     }
     const codes = createRecoveryCodes();
+    const session = await prepareSession(user.id);
     await db.batch([
       db.prepare("UPDATE user_security SET totp_secret=mfa_setup_secret,mfa_setup_secret=NULL,mfa_enabled=1,mfa_setup_expires_at=NULL,mfa_deferred_until=NULL,recovery_codes=?,last_totp_counter=-1 WHERE user_id=?").bind(await hashRecoveryCodes(codes), user.id),
       db.prepare("DELETE FROM sessions WHERE user_id=?").bind(user.id),
+      session.statement,
+      auditStatement(user.id, "enable_mfa", "user_security", user.id),
     ]);
-    const token = await createSession(user.id);
-    await addAudit(user.id, "enable_mfa", "user_security", user.id);
+    const token = session.token;
     // Kurtarma kodları yalnız bu yanıtta düz metin olarak döner; sunucuda özetleri tutulur.
     return NextResponse.json({ ok: true, recoveryCodes: codes }, { headers: { ...noStore, "Set-Cookie": sessionCookie(token) } });
   } catch {

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { errorStatus } from "@/lib/access";
 import { getCurrentUser } from "@/lib/auth";
-import { addAudit, createId, getDb } from "@/lib/db";
+import { auditStatement, createId, getDb } from "@/lib/db";
 import { requireOrganization } from "@/lib/tenancy";
 import { rejectCrossSiteMutation } from "@/lib/security";
 
@@ -39,12 +39,14 @@ export async function POST(request: Request) {
     const status = STATUS.includes(text(body.status)) ? text(body.status) : "open";
     const priority = PRIORITY.includes(text(body.priority)) ? text(body.priority) : "normal";
     const id = createId("task");
-    await getDb().prepare(`INSERT INTO tasks
+    await getDb().batch([
+      getDb().prepare(`INSERT INTO tasks
       (id, organization_id, title, description, department, assignee_name, status, priority, due_date, created_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .bind(id, context.organization.id, title, text(body.description, 1200) || null, department,
-        text(body.assigneeName) || null, status, priority, text(body.dueDate, 20) || null, user.id).run();
-    await addAudit(user.id, "create", "task", id, `${title} görevi oluşturuldu.`, context.organization.id);
+        text(body.assigneeName) || null, status, priority, text(body.dueDate, 20) || null, user.id),
+      auditStatement(user.id, "create", "task", id, `${title} görevi oluşturuldu.`, context.organization.id),
+    ]);
     return NextResponse.json({ ok: true, id });
   } catch (error) {
     return NextResponse.json({ error: "Görev oluşturulamadı." }, { status: errorStatus(error) });
