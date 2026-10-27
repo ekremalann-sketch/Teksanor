@@ -21,6 +21,7 @@ export function pageMeta(title: string, description: string, path: string, optio
 export const PUBLIC_PAGES: Array<{ path: string; title: string; description: string }> = [
   { path: "/", title: "Saha servis, bakım ve operasyon platformu", description: "Teknik servis, bakım ve mühendislik ekipleri için iş emri, teklif ve müşteri onayı, saha kaydı, tahsilat ve rol bazlı yönetim panelini tek çalışma alanında birleştiren ürün prototipi." },
 
+  { path: "/icerikler", title: "İçgörüler", description: "İş analizi, mühendislik, finansal görünürlük ve süreç tasarımına ilişkin Teksanor yazılarını inceleyin; ürünün çalışma yaklaşımını örneklerle keşfedin." },
   {path:"/gizlilik",title:"Gizlilik ve veri güvenliği",description:"Erişim rol ve birim görevleriyle sınırlandırılır. Operasyonel API yanıtları önbelleğe alınmaz. Gözetim ekranlarında içerik yerine işlem metadatas"},
   {path:"/aydinlatma",title:"Kişisel veriler hakkında bilgilendirme",description:"Firmaların servis, müşteri ve çalışan kayıtlarında veri sorumlusu Teksanor'u kullanan ilgili firmadır. Başvuru hakları ve veri işleyen ilişkisi hakkında bilgi."},
   {path:"/cerezler",title:"Çerezler ve cihazdaki kayıtlar",description:"Oturum ve güvenli giriş için gerekli çerezler kullanılır. Teksanor firma seçimi gibi arayüz tercihlerini tarayıcıda saklayabilir; reklam veya üçüncü taraf analitik çerezi yoktur."},

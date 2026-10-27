@@ -95,7 +95,7 @@ const navItems = [
   { id: "financial", label: "Finansal durum", icon: Landmark },
   { id: "payments", label: "Ödemeler ve borçlar", icon: CreditCard },
   { id: "expenses", label: "Gelir ve giderler", icon: WalletCards },
-  { id: "treasury", label: "Nakit ve elden borç", icon: HandCoins },
+  { id: "treasury", label: "Nakit ve borçlar", icon: HandCoins },
   { id: "reports", label: "Raporlar", icon: BarChart3 },
   { id: "files", label: "Belgeler", icon: Files },
   { id: "company", label: "Firma bilgileri", icon: Building2 },
@@ -613,7 +613,7 @@ export default function Dashboard() {
           })}
           {viewModules.includes("work-orders") && <a className="nav-link" href="/servis"><Wrench size={18} /><span>Servis masası</span></a>}
           <details className="nav-more" open={MORE_IDS.includes(active) || active === "admin"}>
-            <summary><MoreHorizontal size={18} /><span>Diğer</span></summary>
+            <summary><MoreHorizontal size={18} /><span>Diğer modüller</span></summary>
             {visibleNavigation.filter((item) => MORE_IDS.includes(item.id)).map(({ id, label, icon: Icon }) => (
               <button key={id} className={active === id ? "active" : ""} onClick={() => { navigate(id); setMobileNav(false); }}><Icon size={18} /><span>{label}</span></button>
             ))}
