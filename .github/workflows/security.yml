@@ -1,19 +1,65 @@
 name: Security checks
 on:
-  workflow_call:
-  pull_request:
   push:
+  pull_request:
     branches: [main]
+  schedule:
+    - cron: '43 3 * * 1'
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      production-only:
+        description: 'Only the existing deployment gate uses this scope; standalone scans stay full.'
+        required: false
+        type: boolean
+        default: false
+
 permissions:
   contents: read
+
+concurrency:
+  group: dependency-security-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   dependencies:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm audit --omit=dev --audit-level=high
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - name: Audit every tracked npm lockfile without installing or executing project code
+        id: audit
+        env:
+          AUDIT_PRODUCTION_ONLY: ${{ inputs.production-only || false }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          audit_flags=()
+          if [ "$AUDIT_PRODUCTION_ONLY" = "true" ]; then audit_flags+=(--omit=dev); fi
+          count=0
+          status=0
+          while IFS= read -r -d '' lock; do
+            count=$((count + 1))
+            folder="$(dirname "$lock")"
+            printf 'Auditing lockfile: %s\n' "$lock"
+            (cd "$folder" && npm audit --package-lock-only --ignore-scripts --audit-level=high "${audit_flags[@]}") || status=1
+          done < <(git ls-files -z -- '**/package-lock.json' 'package-lock.json')
+          if [ "$count" -eq 0 ]; then
+            echo "::error::No tracked npm lockfile was found; audit was not performed."
+            exit 1
+          fi
+          exit "$status"
+      - name: Record outcome
+        if: always()
+        env:
+          AUDIT_PRODUCTION_ONLY: ${{ inputs.production-only || false }}
+          AUDIT_OUTCOME: ${{ steps.audit.outcome }}
+        run: |
+          printf '## Bağımlılık güvenlik kontrolü\nSonuç: %s\n' "$AUDIT_OUTCOME" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Production-only scope: %s\n' "$AUDIT_PRODUCTION_ONLY" >> "$GITHUB_STEP_SUMMARY"
+          echo 'Bağımsız tarama dev dahil tamdır; çağıran yayın kapısı yalnız üretim bağımlılıklarını seçebilir. Dev etiketi zararsızlık kanıtı değildir. Bu kontrol yapay zekâ incelemesi değildir.' >> "$GITHUB_STEP_SUMMARY"
