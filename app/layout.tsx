@@ -1,8 +1,11 @@
 import type { Metadata, Viewport } from "next";
+import "./tokens.css";
 import "./globals.css";
 import "./public-navigation.css";
 import "./home.css";
+import "./home-design.css";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
+import IdleSessionGuard from "@/components/IdleSessionGuard";
 import { PUBLIC_PAGES, SITE_URL, pageMeta, structuredData } from "@/lib/seo";
 
 const home = PUBLIC_PAGES[0];
@@ -16,7 +19,7 @@ export const metadata: Metadata = {
   icons: { icon: [{ url: "/icon-192.png", sizes: "192x192", type: "image/png" }], apple: "/icon-192.png" },
 };
 
-export const viewport: Viewport = { themeColor: "#071729" };
+export const viewport: Viewport = { themeColor: "#071729", width: "device-width", initialScale: 1, viewportFit: "cover" };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
@@ -24,6 +27,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         {children}
         <ServiceWorkerRegister />
+        {/* Yalnız çalışma alanı sayfalarında etkinleşir; herkese açık sayfalarda hiçbir şey yapmaz. */}
+        <IdleSessionGuard />
         {/* Arama motorları için kuruluş/yazılım tanımı; çalıştırılabilir betik değildir. */}
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData()).replace(/</g, "\\u003c") }} />
       </body>

@@ -1,7 +1,8 @@
+import { recordRead } from "@/lib/read-audit";
 import { NextResponse } from "next/server";
 import { errorStatus } from "@/lib/access";
 import { getCurrentUser } from "@/lib/auth";
-import { addAudit, createId, getDb } from "@/lib/db";
+import { auditStatement, createId, getDb } from "@/lib/db";
 import { requireOrganization } from "@/lib/tenancy";
 import { rejectCrossSiteMutation } from "@/lib/security";
 
@@ -17,9 +18,10 @@ export async function GET(request: Request) {
     const result = await getDb().prepare(
       "SELECT * FROM employees WHERE organization_id = ? ORDER BY department, full_name")
       .bind(context.organization.id).all();
+    await recordRead(user.id,context.organization.id,"employees:list");
     return NextResponse.json({ employees: result.results });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Çalışanlar alınamadı." }, { status: 403 });
+    return NextResponse.json({ error: "Çalışanlar alınamadı." }, { status: 403 });
   }
 }
 
@@ -36,14 +38,16 @@ export async function POST(request: Request) {
     const status = STATUS.includes(text(body.status)) ? text(body.status) : "active";
     const employmentType = EMP_TYPE.includes(text(body.employmentType)) ? text(body.employmentType) : "full_time";
     const id = createId("emp");
-    await getDb().prepare(`INSERT INTO employees
+    await getDb().batch([
+      getDb().prepare(`INSERT INTO employees
       (id, organization_id, full_name, title, department, email, phone, start_date, status, employment_type, notes, created_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .bind(id, context.organization.id, fullName, text(body.title) || null, department, text(body.email) || null,
-        text(body.phone) || null, text(body.startDate, 20) || null, status, employmentType, text(body.notes, 1200) || null, user.id).run();
-    await addAudit(user.id, "create", "employee", id, `${fullName} çalışan kaydı eklendi.`, context.organization.id);
+        text(body.phone) || null, text(body.startDate, 20) || null, status, employmentType, text(body.notes, 1200) || null, user.id),
+      auditStatement(user.id, "create", "employee", id, `${fullName} çalışan kaydı eklendi.`, context.organization.id),
+    ]);
     return NextResponse.json({ ok: true, id });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Çalışan eklenemedi." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Çalışan eklenemedi." }, { status: errorStatus(error) });
   }
 }

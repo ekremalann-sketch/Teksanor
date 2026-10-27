@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { errorStatus } from "@/lib/access";
 import { getCurrentUser } from "@/lib/auth";
-import { addAudit, createId, getDb } from "@/lib/db";
+import { auditStatement, createId, getDb } from "@/lib/db";
 import { requireOrganization } from "@/lib/tenancy";
 import { rejectCrossSiteMutation } from "@/lib/security";
 
@@ -22,7 +22,7 @@ export async function GET(request: Request) {
       .bind(context.organization.id).all();
     return NextResponse.json({ risks: result.results });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Riskler alınamadı." }, { status: 403 });
+    return NextResponse.json({ error: "Riskler alınamadı." }, { status: 403 });
   }
 }
 
@@ -41,14 +41,16 @@ export async function POST(request: Request) {
     const impact = IMPACT.includes(text(body.impact)) ? text(body.impact) : "medium";
     const status = STATUS.includes(text(body.status)) ? text(body.status) : "identified";
     const id = createId("risk");
-    await getDb().prepare(`INSERT INTO risks
+    await getDb().batch([
+      getDb().prepare(`INSERT INTO risks
       (id, organization_id, title, description, department, category, likelihood, impact, status, owner_name, mitigation_plan, review_date, created_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .bind(id, context.organization.id, title, text(body.description, 1200) || null, department, category, likelihood, impact,
-        status, text(body.ownerName) || null, text(body.mitigationPlan, 1200) || null, text(body.reviewDate, 20) || null, user.id).run();
-    await addAudit(user.id, "create", "risk", id, `${title} riski kaydedildi.`, context.organization.id);
+        status, text(body.ownerName) || null, text(body.mitigationPlan, 1200) || null, text(body.reviewDate, 20) || null, user.id),
+      auditStatement(user.id, "create", "risk", id, `${title} riski kaydedildi.`, context.organization.id),
+    ]);
     return NextResponse.json({ ok: true, id });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Risk kaydedilemedi." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Risk kaydedilemedi." }, { status: errorStatus(error) });
   }
 }

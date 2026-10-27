@@ -11,7 +11,7 @@ export async function POST(request: Request) {
   if (!current) return NextResponse.json({ error: "Oturum gerekli." }, { status: 401 });
   let context;
   try { context = await requireOrganization(request, current); }
-  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Çalışma alanına erişim reddedildi." }, { status: 403 }); }
+  catch (error) { return NextResponse.json({ error: "Çalışma alanına erişim reddedildi." }, { status: 403 }); }
   if (!canManageOrganization(current, context.organization)) return NextResponse.json({ error: "Şirket yöneticisi yetkisi gerekli." }, { status: 403 });
   const body = (await request.json()) as { username?: string; fullName?: string; password?: string; role?: string; accessProfile?: string; department?: string; jobRole?: string };
   const username = body.username?.trim().toLowerCase() ?? "";
@@ -38,4 +38,12 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: "Bu kullanıcı adı zaten kayıtlı olabilir." }, { status: 409 });
   }
+}
+
+export async function GET(request:Request){
+ const user=await getCurrentUser(request);if(!user)return NextResponse.json({error:"Oturum gerekli."},{status:401});
+ try{const {organization}=await requireOrganization(request,user);if(!canManageOrganization(user,organization))throw new Error();
+ const rows=await getDb().prepare(`SELECT u.id,u.username,u.full_name,m.role,m.active,a.access_profile,a.job_role,a.department FROM organization_members m JOIN users u ON u.id=m.user_id LEFT JOIN organization_member_access a ON a.organization_id=m.organization_id AND a.user_id=m.user_id WHERE m.organization_id=? ORDER BY m.active DESC, u.full_name`).bind(organization.id).all();
+ return NextResponse.json({users:rows.results,currentUserId:user.id,organizationId:organization.id},{headers:{"Cache-Control":"no-store"}});
+ }catch{return NextResponse.json({error:"Firma yöneticisi yetkisi gerekli."},{status:403});}
 }

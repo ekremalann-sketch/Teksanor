@@ -7,7 +7,7 @@ export async function GET(request: Request) {
     const user = await getCurrentUser(request);
     return NextResponse.json({ ready: true, authenticated: Boolean(user) });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Portal hazırlanamadı.";
+    const message = "Portal hazırlanamadı.";
     return NextResponse.json({ ready: false, error: message }, { status: 503 });
   }
 }

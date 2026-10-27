@@ -110,6 +110,8 @@ export async function beginMfaChallenge(userId: string) {
 }
 
 export async function consumeMfaChallenge(token: string, code: string) {
+  code=code.replace(/\s/g, "");
+  if(!/^\d{6}$/.test(code))return null;
   const tokenHash = await digest(token);
   const db = getDb();
   const challenge = await db.prepare(`UPDATE mfa_challenges SET attempts=attempts+1
@@ -118,7 +120,7 @@ export async function consumeMfaChallenge(token: string, code: string) {
   if (!challenge) return null;
   const security=await db.prepare(`SELECT s.totp_secret,s.last_totp_counter FROM user_security s JOIN users u ON u.id=s.user_id
     WHERE s.user_id=? AND s.mfa_enabled=1 AND u.active=1`).bind(challenge.user_id).first<{totp_secret:string;last_totp_counter:number}>();
-  if(!security || !/^\d{6}$/.test(code)) return null;
+  if(!security?.totp_secret || !/^\d{6}$/.test(code)) return null;
   const secret=await decryptTotpSecret(security.totp_secret);
   const counter=Math.floor(Date.now()/30000);
   let match=-1;
@@ -129,4 +131,85 @@ export async function consumeMfaChallenge(token: string, code: string) {
   if(!accepted)return null;
   const consumed=await db.prepare("UPDATE mfa_challenges SET used_at=CURRENT_TIMESTAMP WHERE id=? AND used_at IS NULL RETURNING user_id").bind(challenge.id).first<{user_id:string}>();
   return consumed?.user_id ?? null;
+}
+
+/** MFA kurulumunda kullanılan şifreleme anahtarının geçerliliğini kontrol eder. */
+export function mfaKeyConfigured() {
+  const encoded = (env as unknown as { MFA_ENCRYPTION_KEY?: string }).MFA_ENCRYPTION_KEY;
+  if (!encoded) return false;
+  try { return fromBase64Url(encoded).length === 32; } catch { return false; }
+}
+
+export type MfaMode = "off" | "optional" | "required";
+
+/**
+ * MFA_MODE ortam değişkeni:
+ *  - "optional" (varsayılan): kimse kuruluma zorlanmaz; MFA'yı açmış kullanıcıya girişte kod sorulur.
+ *  - "required": firma sahibi/yöneticiler için kurulum zorunludur (erteleme hakkıyla); açık olana kod sorulur.
+ *  - "off": MFA ne zorlanır ne sorulur (önerilmez; yalnız acil durum için).
+ */
+export function mfaMode(): MfaMode {
+  const raw = String((env as unknown as { MFA_MODE?: string }).MFA_MODE ?? "").trim().toLowerCase();
+  return raw === "off" || raw === "required" ? raw : "optional";
+}
+
+/** Girişte parola sonrası TOTP/kurtarma kodu istenmeli mi? */
+export function mfaChallengeRequired(user: { mfa_enabled: number }) {
+  return mfaMode() !== "off" && Number(user.mfa_enabled) === 1;
+}
+
+/** Kurulum zorunluluğu yalnız "required" modda, yöneticiler için ve şifreleme anahtarı hazırsa uygulanır (anahtar yoksa kilitlenme olmasın). */
+export function mfaEnrollmentEnforced(user: { mfa_enabled: number; mfa_deferred?: number }, isManager: boolean) {
+  return mfaMode() === "required" && isManager && mfaKeyConfigured() && !Number(user.mfa_enabled) && !Number(user.mfa_deferred);
+}
+
+/** Firma gözünden görünüm yalnız açıkça required seçilmiş modda MFA kurulumu ister. */
+export function viewAsRequiresMfa(user: { mfa_enabled: number }) {
+  return mfaMode() === "required" && !Number(user.mfa_enabled);
+}
+
+export const MFA_DEFER_DAYS = 14;
+
+// Kurtarma kodları: 10 adet, "XXXX-XXXX" biçiminde, yalnız SHA-256 özetleri saklanır, her biri tek kullanımlık.
+const recoveryAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+export function createRecoveryCodes(count = 10) {
+  return Array.from({ length: count }, () => {
+    const bytes = randomBytes(8);
+    const chars = Array.from(bytes, (byte) => recoveryAlphabet[byte % recoveryAlphabet.length]).join("");
+    return `${chars.slice(0, 4)}-${chars.slice(4)}`;
+  });
+}
+export function normalizeRecovery(code: string) {
+  return code.toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+export function looksLikeRecoveryCode(code: string) {
+  return /^[A-Z0-9]{8}$/.test(normalizeRecovery(code)) && !/^\d+$/.test(normalizeRecovery(code));
+}
+export async function hashRecoveryCodes(codes: string[]) {
+  return JSON.stringify(await Promise.all(codes.map((code) => digest(`recovery:${normalizeRecovery(code)}`))));
+}
+
+/** Giriş denemesi + kurtarma kodu. Başarılıysa kod listeden düşer ve kullanıcı kimliği döner. */
+export async function consumeRecoveryChallenge(token: string, code: string) {
+  if (!looksLikeRecoveryCode(code)) return null;
+  const db = getDb();
+  const challenge = await db.prepare(`UPDATE mfa_challenges SET attempts=attempts+1
+    WHERE token_hash=? AND used_at IS NULL AND expires_at>CURRENT_TIMESTAMP AND attempts<5 RETURNING id,user_id`)
+    .bind(await digest(token)).first<{ id: string; user_id: string }>();
+  if (!challenge) return null;
+  const security = await db.prepare(`SELECT s.recovery_codes FROM user_security s JOIN users u ON u.id=s.user_id
+    WHERE s.user_id=? AND s.mfa_enabled=1 AND u.active=1`).bind(challenge.user_id).first<{ recovery_codes: string | null }>();
+  if (!security?.recovery_codes) return null;
+  let hashes: string[] = [];
+  try { hashes = JSON.parse(security.recovery_codes) as string[]; } catch { return null; }
+  const wanted = await digest(`recovery:${normalizeRecovery(code)}`);
+  if (!hashes.includes(wanted)) return null;
+  const remaining = JSON.stringify(hashes.filter((hash) => hash !== wanted));
+  // Eşzamanlı iki kullanım: yalnız liste değişmemişse güncelle.
+  const updated = await db.prepare("UPDATE user_security SET recovery_codes=? WHERE user_id=? AND recovery_codes=? RETURNING user_id")
+    .bind(remaining, challenge.user_id, security.recovery_codes).first();
+  if (!updated) return null;
+  const consumed = await db.prepare("UPDATE mfa_challenges SET used_at=CURRENT_TIMESTAMP WHERE id=? AND used_at IS NULL RETURNING user_id")
+    .bind(challenge.id).first<{ user_id: string }>();
+  return consumed ? { userId: consumed.user_id, remaining: hashes.length - 1 } : null;
 }

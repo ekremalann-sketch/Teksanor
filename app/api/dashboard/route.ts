@@ -9,7 +9,7 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ error: "Oturum gerekli." }, { status: 401 });
   let context;
   try { context = await requireOrganization(request, user); }
-  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Çalışma alanına erişim reddedildi." }, { status: 403 }); }
+  catch (error) { return NextResponse.json({ error: "Çalışma alanına erişim reddedildi." }, { status: error instanceof Error && error.message.includes("İki aşamalı") ? 428 : 403 }); }
   const organizationId = context.organization.id;
   const access = await getMemberAccess(user, context.organization);
   const database = getDb();

@@ -15,9 +15,9 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ error: "Oturum gerekli." }, { status: 401 });
   let context;
   try { context = await requireOrganization(request, user); }
-  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Çalışma alanına erişim reddedildi." }, { status: 403 }); }
+  catch (error) { return NextResponse.json({ error: "Çalışma alanına erişim reddedildi." }, { status: 403 }); }
   try { await requireModuleAccess(user, context.organization, "treasury", "view"); }
-  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Yetki reddedildi." }, { status: 403 }); }
+  catch (error) { return NextResponse.json({ error: "Yetki reddedildi." }, { status: 403 }); }
   const organizationId = context.organization.id;
   const database = getDb();
   const [balancesResult, debtsResult, referenceResult, latestExpense] = await Promise.all([
@@ -64,9 +64,9 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: "Oturum gerekli." }, { status: 401 });
   let context;
   try { context = await requireOrganization(request, user); }
-  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Çalışma alanına erişim reddedildi." }, { status: 403 }); }
+  catch (error) { return NextResponse.json({ error: "Çalışma alanına erişim reddedildi." }, { status: 403 }); }
   try { await requireModuleAccess(user, context.organization, "treasury", "edit"); }
-  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Yetki reddedildi." }, { status: 403 }); }
+  catch (error) { return NextResponse.json({ error: "Yetki reddedildi." }, { status: 403 }); }
   const organizationId = context.organization.id;
   const body = (await request.json()) as Record<string, unknown>;
   const action = String(body.action ?? "");

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { errorStatus } from "@/lib/access";
 import { getCurrentUser } from "@/lib/auth";
-import { addAudit, getDb } from "@/lib/db";
+import { auditStatement, getDb } from "@/lib/db";
 import { requireOrganization } from "@/lib/tenancy";
 import { rejectCrossSiteMutation } from "@/lib/security";
 
@@ -20,21 +20,24 @@ export async function PUT(request: Request, routeContext: { params: Promise<{ id
     const existing = await getDb().prepare("SELECT * FROM tasks WHERE id = ? AND organization_id = ?")
       .bind(id, context.organization.id).first<Record<string, unknown>>();
     if (!existing) return NextResponse.json({ error: "Görev bulunamadı." }, { status: 404 });
+    if (String(existing.description || "").startsWith("UNIT-WORKFLOW:") || String(body.description || "").startsWith("UNIT-WORKFLOW:")) return NextResponse.json({error:"Birim çalışma alanını kullanın."},{status:403});
     const status = STATUS.includes(text(body.status)) ? text(body.status) : String(existing.status);
     const priority = PRIORITY.includes(text(body.priority)) ? text(body.priority) : String(existing.priority);
     const title = text(body.title) || String(existing.title);
     const completedAt = status === "done" ? (existing.completed_at || new Date().toISOString()) : null;
-    await getDb().prepare(`UPDATE tasks SET title = ?, description = ?, department = ?, assignee_name = ?,
+    await getDb().batch([
+      getDb().prepare(`UPDATE tasks SET title = ?, description = ?, department = ?, assignee_name = ?,
       status = ?, priority = ?, due_date = ?, completed_at = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND organization_id = ?`)
-      .bind(title, text(body.description, 1200) ?? existing.description, text(body.department) || String(existing.department),
+      .bind(title, body.description !== undefined ? text(body.description, 1200) : existing.description, text(body.department) || String(existing.department),
         body.assigneeName !== undefined ? text(body.assigneeName) || null : existing.assignee_name,
         status, priority, body.dueDate !== undefined ? text(body.dueDate, 20) || null : existing.due_date,
-        completedAt, id, context.organization.id).run();
-    await addAudit(user.id, "update", "task", id, `${title} görevi güncellendi.`, context.organization.id);
+        completedAt, id, context.organization.id),
+      auditStatement(user.id, "update", "task", id, `${title} görevi güncellendi.`, context.organization.id),
+    ]);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Görev güncellenemedi." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Görev güncellenemedi." }, { status: errorStatus(error) });
   }
 }
 
@@ -45,12 +48,14 @@ export async function DELETE(request: Request, routeContext: { params: Promise<{
   try {
     const context = await requireOrganization(request, user);
     const { id } = await routeContext.params;
-    const removed = await getDb().prepare("DELETE FROM tasks WHERE id = ? AND organization_id = ?").bind(id, context.organization.id).run();
-    // Başka firmanın veya olmayan bir kaydın silinmesi başarı ve denetim kaydı üretmez.
+    const results = await getDb().batch([
+      getDb().prepare("DELETE FROM tasks WHERE id = ? AND organization_id = ? AND (description IS NULL OR description NOT LIKE 'UNIT-WORKFLOW:%')").bind(id, context.organization.id),
+      auditStatement(user.id, "delete", "task", id, undefined, context.organization.id, true),
+    ]);
+    const removed = results[0] as { meta?: { changes?: number } };
     if (!removed.meta?.changes) return NextResponse.json({ error: "Kayıt bulunamadı." }, { status: 404 });
-    await addAudit(user.id, "delete", "task", id, undefined, context.organization.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Görev silinemedi." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Görev silinemedi." }, { status: errorStatus(error) });
   }
 }

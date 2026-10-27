@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createSession, enforceAuthRateLimit, ensureDefaultAdminAccounts, hashPassword, sessionCookie } from "@/lib/auth";
+import { createSession, enforceAuthRateLimit, ensureDefaultAdminAccounts, hashPassword, sessionCookie, RATE_LIMIT_MESSAGE, RateLimitError } from "@/lib/auth";
 import { addAudit, createId, getDb } from "@/lib/db";
 import { rejectCrossSiteMutation } from "@/lib/security";
 
@@ -12,11 +12,14 @@ function slugify(value: string) {
 export async function POST(request: Request) {
   const rejected = rejectCrossSiteMutation(request); if (rejected) return rejected;
   try {
+    // Önce hız sınırı: kötüye kullanımda veritabanına yazan hazırlık adımları çalışmasın.
+    try { await enforceAuthRateLimit(request, "register"); }
+    catch { return NextResponse.json({ error: RATE_LIMIT_MESSAGE }, { status: 429, headers: { "Retry-After": "900" } }); }
     await ensureDefaultAdminAccounts();
-    await enforceAuthRateLimit(request, "register");
     const body = (await request.json()) as {
-      accountType?: string; companyName?: string; username?: string; email?: string; fullName?: string; password?: string;
+      noticeVersion?:string; accountType?: string; companyName?: string; username?: string; email?: string; fullName?: string; password?: string;
     };
+    if(body.noticeVersion!=="2026-10-10")return NextResponse.json({error:"Aydınlatma metnini okuyup doğrulayın."},{status:422});
     const username = body.username?.trim().toLowerCase() ?? "";
     const email = body.email?.trim().toLowerCase() ?? "";
     const fullName = body.fullName?.trim() ?? "";
@@ -36,6 +39,7 @@ export async function POST(request: Request) {
     await database.batch([
       database.prepare("INSERT INTO users (id, username, email, full_name, password_hash, password_salt, role) VALUES (?, ?, ?, ?, ?, ?, 'user')")
         .bind(userId, username, email, fullName, credentials.hash, credentials.salt),
+      database.prepare("INSERT INTO privacy_notice_receipts(user_id,notice_version) VALUES(?,?)").bind(userId,"2026-10-10"),
       database.prepare(`INSERT INTO organizations
         (id, name, slug, kind, plan, subscription_status, trial_ends_at, created_by)
         VALUES (?, ?, ?, ?, 'trial', 'trialing', ?, ?)`)
@@ -57,9 +61,10 @@ export async function POST(request: Request) {
     response.headers.set("Set-Cookie", sessionCookie(token));
     return response;
   } catch (error) {
+    if (error instanceof RateLimitError) return NextResponse.json({ error: RATE_LIMIT_MESSAGE }, { status: 429 });
     const message = error instanceof Error && /UNIQUE|constraint/i.test(error.message)
       ? "Bu kullanıcı adı veya e-posta zaten kullanılıyor."
-      : error instanceof Error ? error.message : "Kayıt oluşturulamadı.";
-    return NextResponse.json({ error: message }, { status: message.startsWith("Çok fazla deneme") ? 429 : 409 });
+      : "Kayıt oluşturulamadı.";
+    return NextResponse.json({ error: message }, { status: 409 });
   }
 }

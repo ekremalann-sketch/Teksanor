@@ -14,7 +14,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (typeof body.active !== "boolean") return NextResponse.json({ error: "Aktiflik durumu gereklidir." }, { status: 400 });
   const organization = await getDb().prepare("SELECT id, name FROM organizations WHERE id = ?").bind(id).first<{ id: string; name: string }>();
   if (!organization) return NextResponse.json({ error: "Çalışma alanı bulunamadı." }, { status: 404 });
-  await getDb().prepare("UPDATE organizations SET active = ? WHERE id = ?").bind(body.active ? 1 : 0, id).run();
+  await getDb().batch([
+    getDb().prepare("UPDATE organizations SET active = ? WHERE id = ?").bind(body.active ? 1 : 0,id),
+    getDb().prepare("DELETE FROM sessions WHERE user_id IN (SELECT user_id FROM organization_members WHERE organization_id=?)").bind(id),
+  ]);
   await addAudit(user.id, body.active ? "activate" : "deactivate", "organization", id, `${organization.name} çalışma alanı ${body.active ? "etkinleştirildi" : "devre dışı bırakıldı"}.`, id);
   return NextResponse.json({ ok: true, active: body.active });
 }

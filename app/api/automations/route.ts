@@ -3,7 +3,8 @@ import { errorStatus } from "@/lib/access";
 import { isRuleCheck } from "@/lib/automation-rules";
 import { getCurrentUser } from "@/lib/auth";
 import { addAudit, createId, getDb } from "@/lib/db";
-import { requireOrganization } from "@/lib/tenancy";
+import { canManageOrganization, requireOrganization } from "@/lib/tenancy";
+import { isAutomationPaused, setAutomationPaused } from "@/lib/automation-control";
 import { rejectCrossSiteMutation } from "@/lib/security";
 
 function text(value: unknown, max = 300) { return String(value ?? "").trim().slice(0, max); }
@@ -31,13 +32,15 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ error: "Oturum gerekli." }, { status: 401 });
   try {
     const context = await requireOrganization(request, user);
+    const paused = await isAutomationPaused(context.organization.id);
+    if (new URL(request.url).searchParams.get("control") === "1") return NextResponse.json({ paused, canControl: canManageOrganization(user, context.organization) });
     await seedTemplates(context.organization.id, user.id);
     const result = await getDb().prepare(
       "SELECT * FROM automation_rules WHERE organization_id = ? ORDER BY is_active DESC, created_at DESC")
       .bind(context.organization.id).all();
-    return NextResponse.json({ automations: result.results });
+    return NextResponse.json({ automations: result.results, paused });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Otomasyonlar alınamadı." }, { status: 403 });
+    return NextResponse.json({ error: "Otomasyonlar alınamadı." }, { status: 403 });
   }
 }
 
@@ -63,7 +66,7 @@ export async function POST(request: Request) {
     await addAudit(user.id, "create", "automation_rule", id, `${name} otomasyon kuralı oluşturuldu.`, context.organization.id);
     return NextResponse.json({ ok: true, id });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Otomasyon oluşturulamadı." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Otomasyon oluşturulamadı." }, { status: errorStatus(error) });
   }
 }
 
@@ -74,6 +77,12 @@ export async function PATCH(request: Request) {
   try {
     const context = await requireOrganization(request, user);
     const body = await request.json() as Record<string, unknown>;
+    if (body.action === "emergency-stop" || body.action === "resume") {
+      if (!canManageOrganization(user, context.organization)) return NextResponse.json({ error: "Acil durdurma için firma sahibi veya yöneticisi yetkisi gerekir." }, { status: 403 });
+      const paused = body.action === "emergency-stop";
+      await setAutomationPaused(context.organization.id, paused, user.id);
+      return NextResponse.json({ ok: true, paused });
+    }
     const id = text(body.id, 80);
     if (!id) return NextResponse.json({ error: "Kural kimliği gereklidir." }, { status: 400 });
     const existing = await getDb().prepare("SELECT is_active FROM automation_rules WHERE id = ? AND organization_id = ?")
@@ -85,6 +94,6 @@ export async function PATCH(request: Request) {
     await addAudit(user.id, "update", "automation_rule", id, `Otomasyon durumu ${next ? "aktif" : "pasif"} yapıldı.`, context.organization.id);
     return NextResponse.json({ ok: true, isActive: next });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Otomasyon güncellenemedi." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Otomasyon güncellenemedi." }, { status: errorStatus(error) });
   }
 }

@@ -9,6 +9,8 @@ export type AppUser = {
   role: "admin" | "user";
   active: number;
   mfa_enabled: number;
+  /** 1 = kullanıcı MFA kurulumunu geçerli bir erteleme süresi içinde ertelemiş. */
+  mfa_deferred?: number;
 };
 
 const encoder = new TextEncoder();
@@ -36,20 +38,70 @@ function constantTimeTextEqual(left: string, right: string) {
   return diff === 0;
 }
 
-export async function enforceAuthRateLimit(request: Request, action: "login" | "register", identity = "") {
+function clientIp(request: Request) {
+  return (request.headers.get("cf-connecting-ip") || request.headers.get("x-forwarded-for")?.split(",")[0] || "unknown").trim();
+}
+
+export const RATE_LIMIT_MESSAGE = "Çok fazla deneme yapıldı. Güvenliğiniz için 15 dakika sonra tekrar deneyin.";
+export class RateLimitError extends Error {
+  readonly status = 429;
+  constructor() { super(RATE_LIMIT_MESSAGE); }
+}
+
+export async function enforceAuthRateLimit(request: Request, action: "login" | "register" | "mfa" | "recovery", identity = "") {
   await ensureSchema();
   const database = getDb();
-  const forwarded = request.headers.get("cf-connecting-ip") || request.headers.get("x-forwarded-for")?.split(",")[0] || "unknown";
+  const forwarded = clientIp(request);
 
-  const fingerprint = await sha256(identity ? `account:${identity.trim().toLowerCase()}` : `ip:${forwarded.trim()}`);
-  const limit = action === "login" ? 15 : 8;
+  // auth_attempts.action CHECK yalnız login/register kabul eder; MFA ve kurtarma ayrı parmak izi önekiyle "login" olarak saklanır.
+  const scope = action === "mfa" ? "mfa:" : action === "recovery" ? "recovery:" : "";
+  const fingerprint = await sha256(scope + (identity ? `account:${identity.trim().toLowerCase()}` : `ip:${forwarded}`));
+  const storedAction = action === "register" ? "register" : "login";
+  // MFA kodları ve kurtarma ayrı kovada sayılır: yanlış parola denemeleri doğrulama/kurtarma adımını kilitlemez.
+  const limit = action === "login" ? 15 : action === "mfa" ? 20 : action === "recovery" ? 20 : 8;
   const recent = await database.prepare(`SELECT COUNT(*) AS count FROM auth_attempts
     WHERE fingerprint_hash = ? AND action = ? AND created_at > datetime('now', '-15 minutes')`)
-    .bind(fingerprint, action).first<{ count: number }>();
-  if ((recent?.count ?? 0) >= limit) throw new Error("Çok fazla deneme yapıldı. Güvenliğiniz için 15 dakika sonra tekrar deneyin.");
+    .bind(fingerprint, storedAction).first<{ count: number }>();
+  if ((recent?.count ?? 0) >= limit) throw new RateLimitError();
   await database.prepare("INSERT INTO auth_attempts (id, fingerprint_hash, action) VALUES (?, ?, ?)")
-    .bind(createId("attempt"), fingerprint, action).run();
+    .bind(createId("attempt"), fingerprint, storedAction).run();
   if (Math.random() < 0.02) await database.prepare("DELETE FROM auth_attempts WHERE created_at < datetime('now', '-1 day')").run();
+}
+
+/**
+ * Giriş kovaları yalnız BAŞARISIZ denemeleri sayar:
+ *  - IP başına 60 başarısız / 15 dk (aynı NAT arkasındaki saha ekibi sabah girişinde kilitlenmesin),
+ *  - hesap başına 10 başarısız / 15 dk (IP değiştirerek parola denemesi yapılamasın).
+ * Başarılı giriş IP kovasını tüketmez; hesabın başarısız sayacını sıfırlar.
+ */
+export const LOGIN_IP_FAILURE_LIMIT = 60;
+export const LOGIN_ACCOUNT_FAILURE_LIMIT = 10;
+async function loginFingerprints(request: Request, username: string) {
+  return {
+    ip: await sha256(`login-fail:ip:${clientIp(request)}`),
+    account: await sha256(`login-fail:account:${username.trim().toLowerCase()}`),
+  };
+}
+export async function checkLoginRateLimit(request: Request, username: string) {
+  await ensureSchema();
+  const { ip, account } = await loginFingerprints(request, username);
+  const count = (fingerprint: string) => getDb().prepare(`SELECT COUNT(*) AS count FROM auth_attempts
+    WHERE fingerprint_hash = ? AND action = 'login' AND created_at > datetime('now', '-15 minutes')`).bind(fingerprint).first<{ count: number }>();
+  const [byIp, byAccount] = await Promise.all([count(ip), count(account)]);
+  if ((byIp?.count ?? 0) >= LOGIN_IP_FAILURE_LIMIT || (byAccount?.count ?? 0) >= LOGIN_ACCOUNT_FAILURE_LIMIT) throw new RateLimitError();
+}
+export async function recordLoginFailure(request: Request, username: string) {
+  const { ip, account } = await loginFingerprints(request, username);
+  const database = getDb();
+  await database.batch([
+    database.prepare("INSERT INTO auth_attempts (id, fingerprint_hash, action) VALUES (?, ?, 'login')").bind(createId("attempt"), ip),
+    database.prepare("INSERT INTO auth_attempts (id, fingerprint_hash, action) VALUES (?, ?, 'login')").bind(createId("attempt"), account),
+  ]);
+  if (Math.random() < 0.02) await database.prepare("DELETE FROM auth_attempts WHERE created_at < datetime('now', '-1 day')").run();
+}
+export async function clearLoginFailures(username: string) {
+  const account = await sha256(`login-fail:account:${username.trim().toLowerCase()}`);
+  await getDb().prepare("DELETE FROM auth_attempts WHERE fingerprint_hash = ? AND action = 'login'").bind(account).run();
 }
 
 export async function hashPassword(password: string, salt = randomHex(16)) {
@@ -82,29 +134,44 @@ export async function getCurrentUser(request: Request): Promise<AppUser | null> 
   if (!token) return null;
   const tokenHash = await sha256(token);
   const database = getDb();
-  return database
-    .prepare(`SELECT u.id, u.username, u.email, u.full_name, u.role, u.active, COALESCE(sec.mfa_enabled, 0) AS mfa_enabled
+  const user = await database
+    .prepare(`SELECT u.id, u.username, u.email, u.full_name, u.role, u.active, COALESCE(sec.mfa_enabled, 0) AS mfa_enabled,
+      CASE WHEN sec.mfa_deferred_until IS NOT NULL AND datetime(sec.mfa_deferred_until) > CURRENT_TIMESTAMP THEN 1 ELSE 0 END AS mfa_deferred
       FROM sessions s JOIN users u ON u.id = s.user_id
       LEFT JOIN user_security sec ON sec.user_id = u.id
-      WHERE s.token_hash = ? AND datetime(s.expires_at) > CURRENT_TIMESTAMP AND u.active = 1`)
+      WHERE s.token_hash = ? AND datetime(s.expires_at) > CURRENT_TIMESTAMP AND u.active = 1
+      AND datetime(s.created_at) > datetime('now', '-12 hours')
+      AND datetime(COALESCE((SELECT last_seen_at FROM session_activity WHERE token_hash = s.token_hash),s.created_at)) > datetime('now','-30 minutes')`)
     .bind(tokenHash)
     .first<AppUser>();
+  // Arka plan yoklamaları (ör. 60 sn'lik dikkat şeridi) oturumu canlı tutmaz: gözetimsiz açık sekme 30 dk boşta kalınca oturum kapanır.
+  // Başlık yalnız etkinliği tazelememeyi seçer; erişim kontrolünü gevşetmez (sahte başlık yalnız kendi oturumunu kısaltır).
+  const background = request.headers.get("x-teksanor-background") === "1";
+  if (user && !background) await database.prepare(`INSERT INTO session_activity(token_hash,last_seen_at) VALUES(?,CURRENT_TIMESTAMP)
+    ON CONFLICT(token_hash) DO UPDATE SET last_seen_at=CURRENT_TIMESTAMP WHERE datetime(session_activity.last_seen_at) < datetime('now','-1 minute')`).bind(tokenHash).run();
+  return user;
 }
 
-export async function createSession(userId: string) {
+/** Prepare a new session without writing it, for an atomic security change. */
+export async function prepareSession(userId: string) {
   const database = getDb();
   const token = randomHex(32);
   const tokenHash = await sha256(token);
-  const expires = new Date(Date.now() + 1000 * 60 * 60 * 24 * 14).toISOString();
-  await database
+  const expires = new Date(Date.now() + 1000 * 60 * 60 * 12).toISOString();
+  const statement = database
     .prepare("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)")
-    .bind(tokenHash, userId, expires)
-    .run();
-  return token;
+    .bind(tokenHash, userId, expires);
+  return { token, statement };
+}
+
+export async function createSession(userId: string) {
+  const session = await prepareSession(userId);
+  await session.statement.run();
+  return session.token;
 }
 
 export function sessionCookie(token: string) {
-  return `teksanor_session=${encodeURIComponent(token)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=1209600`;
+  return `teksanor_session=${encodeURIComponent(token)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=43200`;
 }
 
 export function clearSessionCookie() {
@@ -160,19 +227,69 @@ export async function loginWithUsername(input: { username: string; password: str
   if (!passwordValid && (username === "admin1" || username === "admin2")) {
     const secrets = env as unknown as { ADMIN1_PASSWORD?: string; ADMIN2_PASSWORD?: string };
     const recoveryPassword = username === "admin1" ? secrets.ADMIN1_PASSWORD : secrets.ADMIN2_PASSWORD;
-    if (recoveryPassword && recoveryPassword.length >= 10 && constantTimeTextEqual(input.password, recoveryPassword)) {
+    const recoveryDigest = recoveryPassword ? await sha256(recoveryPassword) : null;
+    const used = await database.prepare("SELECT value FROM app_metadata WHERE key = ?").bind(`bootstrap_recovery_used:${user.id}`).first<{ value: string }>();
+    if (recoveryPassword && recoveryDigest !== used?.value && recoveryPassword.length >= 10 && constantTimeTextEqual(input.password, recoveryPassword)) {
       const credentials = await hashPassword(input.password);
       await database.batch([
         database.prepare("UPDATE users SET password_hash = ?, password_salt = ? WHERE id = ?")
           .bind(credentials.hash, credentials.salt, user.id),
         database.prepare("DELETE FROM sessions WHERE user_id = ?").bind(user.id),
         database.prepare("DELETE FROM mfa_challenges WHERE user_id = ?").bind(user.id),
+        database.prepare("INSERT INTO app_metadata(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP").bind(`bootstrap_recovery_used:${user.id}`, recoveryDigest),
       ]);
-      await addAudit(user.id, "bootstrap_password_rotated", "user", user.id, "Yönetici parolası runtime secret ile güvenli biçimde yenilendi.");
+      await addAudit(user.id, "bootstrap_password_rotated", "user", user.id, "Yönetici parolası runtime secret ile yenilendi; iki aşamalı doğrulama korundu.");
       passwordValid = true;
     }
   }
   if (!passwordValid) throw new Error("Kullanıcı adı veya parola hatalı.");
-  await addAudit(user.id, "login", "session", null);
+  await addAudit(user.id, "login_password_ok", "session", null);
   return user;
+}
+
+function deviceLabel(userAgent: string) {
+  const browser = /Edg\//.test(userAgent) ? "Edge" : /Chrome\//.test(userAgent) ? "Chrome" : /Firefox\//.test(userAgent) ? "Firefox" : /Safari\//.test(userAgent) ? "Safari" : "Tarayıcı";
+  const os = /Android/.test(userAgent) ? "Android" : /iPhone|iPad/.test(userAgent) ? "iOS" : /Windows/.test(userAgent) ? "Windows" : /Mac OS/.test(userAgent) ? "macOS" : /Linux/.test(userAgent) ? "Linux" : "bilinmeyen sistem";
+  return `${browser} / ${os}`;
+}
+
+/**
+ * Oturum açıldığında denetim kaydı yazar. Cihaz özeti (tarayıcı + sistem + IP özeti) daha önce görülmemişse
+ * ayrıca "new_device_login" kaydı düşer. Ham IP veya tam user-agent saklanmaz; yalnız kısa özet.
+ */
+export async function auditNewLogin(request: Request, userId: string, method: "password" | "mfa" | "recovery_code") {
+  try {
+    const label = deviceLabel(request.headers.get("user-agent") ?? "");
+    const deviceHash = (await sha256(`${label}|${clientIp(request)}`)).slice(0, 16);
+    const seen = await getDb().prepare("SELECT 1 FROM audit_logs WHERE user_id = ? AND action IN ('login','new_device_login') AND details LIKE ? AND created_at > datetime('now','-90 days') LIMIT 1")
+      .bind(userId, `%cihaz:${deviceHash}%`).first();
+    await addAudit(userId, seen ? "login" : "new_device_login", "session", null, `Oturum açıldı (${method === "password" ? "parola" : method === "mfa" ? "parola + doğrulama kodu" : "parola + kurtarma kodu"}); ${label}; cihaz:${deviceHash}`);
+  } catch { /* denetim kaydı yazılamasa da giriş engellenmez */ }
+}
+
+// Password proof is bound to one opaque session, expires after five minutes,
+// and never substitutes for the required TOTP enrollment or challenge.
+async function passwordProofTable(){
+ await getDb().prepare("CREATE TABLE IF NOT EXISTS session_password_proofs(token_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL,verified_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
+}
+export async function recordSessionPasswordProof(token:string,userId:string){
+ await passwordProofTable();
+ await getDb().prepare("INSERT INTO session_password_proofs(token_hash,user_id) VALUES(?,?) ON CONFLICT(token_hash) DO UPDATE SET user_id=excluded.user_id,verified_at=CURRENT_TIMESTAMP").bind(await sha256(token),userId).run();
+}
+/**
+ * Hassas işlemler (üye erişimi, rol, parola sıfırlama) için yakın zamanlı parola kanıtı:
+ * son 5 dk içinde bu oturumda parola doğrulanmışsa geçer; değilse istekteki parola doğrulanır ve kanıt tazelenir.
+ */
+export async function confirmRecentPassword(request:Request,userId:string,password?:string|null){
+ if(await hasRecentPasswordProof(request,userId))return true;
+ if(!password)return false;
+ const stored=await getDb().prepare("SELECT password_hash,password_salt FROM users WHERE id=? AND active=1").bind(userId).first<{password_hash:string;password_salt:string}>();
+ if(!stored||!await verifyPassword(password,stored.password_salt,stored.password_hash))return false;
+ const token=readCookie(request,"teksanor_session");if(token)await recordSessionPasswordProof(token,userId);
+ return true;
+}
+export async function hasRecentPasswordProof(request:Request,userId:string){
+ const token=readCookie(request,"teksanor_session");if(!token)return false;
+ await passwordProofTable();
+ return !!await getDb().prepare("SELECT 1 FROM session_password_proofs WHERE token_hash=? AND user_id=? AND verified_at>datetime('now','-5 minutes')").bind(await sha256(token),userId).first();
 }

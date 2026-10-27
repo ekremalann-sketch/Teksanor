@@ -19,7 +19,7 @@ export async function GET(request: Request) {
       COALESCE(mp.next_due_date,'9999-12-31'), mp.created_at DESC`).bind(organization.id).all();
     return NextResponse.json({ maintenancePlans: result.results });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Bakım planları alınamadı." }, { status: 403 });
+    return NextResponse.json({ error: "Bakım planları alınamadı." }, { status: 403 });
   }
 }
 
@@ -44,6 +44,6 @@ export async function POST(request: Request) {
     await addAudit(user.id, "create", "maintenance_plan", id, `${title} bakım planı oluşturuldu.`, organization.id);
     return NextResponse.json({ ok: true, id });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Bakım planı oluşturulamadı." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Bakım planı oluşturulamadı." }, { status: errorStatus(error) });
   }
 }

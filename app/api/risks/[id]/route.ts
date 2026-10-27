@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { errorStatus } from "@/lib/access";
 import { getCurrentUser } from "@/lib/auth";
-import { addAudit, getDb } from "@/lib/db";
+import { auditStatement, getDb } from "@/lib/db";
 import { requireOrganization } from "@/lib/tenancy";
 import { rejectCrossSiteMutation } from "@/lib/security";
 
@@ -26,17 +26,19 @@ export async function PUT(request: Request, routeContext: { params: Promise<{ id
     const likelihood = LIKELIHOOD.includes(text(body.likelihood)) ? text(body.likelihood) : String(existing.likelihood);
     const impact = IMPACT.includes(text(body.impact)) ? text(body.impact) : String(existing.impact);
     const status = STATUS.includes(text(body.status)) ? text(body.status) : String(existing.status);
-    await getDb().prepare(`UPDATE risks SET title = ?, description = ?, department = ?, category = ?, likelihood = ?, impact = ?,
+    await getDb().batch([
+      getDb().prepare(`UPDATE risks SET title = ?, description = ?, department = ?, category = ?, likelihood = ?, impact = ?,
       status = ?, owner_name = ?, mitigation_plan = ?, review_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND organization_id = ?`)
-      .bind(text(body.title) || String(existing.title), text(body.description, 1200) ?? existing.description,
+      .bind(text(body.title) || String(existing.title), body.description !== undefined ? text(body.description, 1200) : existing.description,
         text(body.department) || String(existing.department), category, likelihood, impact, status,
         body.ownerName !== undefined ? text(body.ownerName) || null : existing.owner_name,
         body.mitigationPlan !== undefined ? text(body.mitigationPlan, 1200) || null : existing.mitigation_plan,
-        body.reviewDate !== undefined ? text(body.reviewDate, 20) || null : existing.review_date, id, context.organization.id).run();
-    await addAudit(user.id, "update", "risk", id, `${existing.title} riski güncellendi (${status}).`, context.organization.id);
+        body.reviewDate !== undefined ? text(body.reviewDate, 20) || null : existing.review_date, id, context.organization.id),
+      auditStatement(user.id, "update", "risk", id, `${existing.title} riski güncellendi (${status}).`, context.organization.id),
+    ]);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Risk güncellenemedi." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Risk güncellenemedi." }, { status: errorStatus(error) });
   }
 }
 
@@ -47,12 +49,14 @@ export async function DELETE(request: Request, routeContext: { params: Promise<{
   try {
     const context = await requireOrganization(request, user);
     const { id } = await routeContext.params;
-    const removed = await getDb().prepare("DELETE FROM risks WHERE id = ? AND organization_id = ?").bind(id, context.organization.id).run();
-    // Başka firmanın veya olmayan bir kaydın silinmesi başarı ve denetim kaydı üretmez.
+    const results = await getDb().batch([
+      getDb().prepare("DELETE FROM risks WHERE id = ? AND organization_id = ?").bind(id, context.organization.id),
+      auditStatement(user.id, "delete", "risk", id, undefined, context.organization.id, true),
+    ]);
+    const removed = results[0] as { meta?: { changes?: number } };
     if (!removed.meta?.changes) return NextResponse.json({ error: "Kayıt bulunamadı." }, { status: 404 });
-    await addAudit(user.id, "delete", "risk", id, undefined, context.organization.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Risk silinemedi." }, { status: errorStatus(error) });
+    return NextResponse.json({ error: "Risk silinemedi." }, { status: errorStatus(error) });
   }
 }

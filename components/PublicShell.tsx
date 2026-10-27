@@ -6,7 +6,7 @@ export function PublicHeader() {
   return (
     <header className="enterprise-header">
       <Link href="/" className="enterprise-brand" aria-label="Teksanor ana sayfa">
-        <img src="/assets/teksanor-logo.png" alt="Teksanor" />
+        <img src="/assets/teksanor-logo-dark.webp" alt="Teksanor" width={400} height={160} />
       </Link>
       <nav aria-label="Kurumsal menü">
         <Link href="/platform">Platform</Link>
@@ -28,7 +28,7 @@ export function PublicFooter() {
   return (
     <footer className="enterprise-footer">
       <div className="enterprise-footer-lead">
-        <img src="/assets/teksanor-logo.png" alt="Teksanor" />
+        <img src="/assets/teksanor-logo.webp" alt="Teksanor" />
         <p>Teknik hizmet, mühendislik ve saha operasyonlarını ölçülebilir bir çalışma düzeninde birleştiren kurumsal operasyon platformu.</p>
         <span><MapPin size={16} /> Türkiye</span>
       </div>

@@ -21,7 +21,7 @@ export async function POST(request:Request){const r=rejectCrossSiteMutation(requ
 async function handle(request:Request){
  const user=await getCurrentUser(request);if(!user)return json({error:"Oturum gerekli."},401);
  let organization;
- try{({organization}=await requireOrganization(request,user));}catch(e){return json({error:e instanceof Error?e.message:"Erişim reddedildi."},403);}
+ try{({organization}=await requireOrganization(request,user));}catch(e){return json({error:"Erişim reddedildi."},403);}
  try{
   await ensureServiceColumns();
   const db=getDb();const access=await getMemberAccess(user,organization);
@@ -35,7 +35,7 @@ async function handle(request:Request){
   if(request.method==="GET"){
    const jobId=new URL(request.url).searchParams.get("jobId");
    if(jobId){const job=await jobFor(jobId);if(!job)return json({error:"Servis kaydı bulunamadı."},404);return json({templates:await templates(),checklists:await jobLists(jobId),locked:LOCKED.includes(String(job.stage)),manage,canWrite});}
-   return json({templates:await templates(),starters:manage?STARTER_TEMPLATES:[],manage,canWrite});
+   return json({organizationId:organization.id,templates:await templates(),starters:manage?STARTER_TEMPLATES:[],manage,canWrite});
   }
 
   const b=await request.json() as Record<string,unknown>;
@@ -79,5 +79,5 @@ async function handle(request:Request){
    return json({ok:true,checklists:await jobLists(jobId)});
   }
   return json({error:"Geçersiz işlem."},400);
- }catch(e){return json({error:e instanceof Error?e.message:"Form işlemi tamamlanamadı."},e instanceof ChecklistError||e instanceof SyntaxError?400:500);}
+ }catch(e){return json({error:"Form işlemi tamamlanamadı."},e instanceof ChecklistError||e instanceof SyntaxError?400:500);}
 }

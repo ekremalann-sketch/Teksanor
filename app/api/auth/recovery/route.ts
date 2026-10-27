@@ -1,19 +1,22 @@
 import { env } from "cloudflare:workers";
 import { NextResponse } from "next/server";
-import { getCurrentUser,enforceAuthRateLimit,hashPassword,verifyPassword } from "@/lib/auth";
+import { getCurrentUser,enforceAuthRateLimit,hashPassword,verifyPassword,RATE_LIMIT_MESSAGE } from "@/lib/auth";
+import { mfaMode } from "@/lib/mfa";
 import { getDb,ensureSchema,addAudit } from "@/lib/db";
 import { ensureAccountTokens,sendAccountLink,tokenDigest } from "@/lib/account-tokens";
 import { rejectCrossSiteMutation } from "@/lib/security";
 export async function POST(request:Request){
  const rejected=rejectCrossSiteMutation(request);if(rejected)return rejected;
  try{
-  await ensureSchema();await ensureAccountTokens();await enforceAuthRateLimit(request,"login");
+  await ensureSchema();await ensureAccountTokens();
+  // Kurtarma kendi kovasını kullanır: giriş denemeleri kurtarmayı, kurtarma denemeleri girişi kilitlemez.
+  try{await enforceAuthRateLimit(request,"recovery");}catch{return NextResponse.json({error:RATE_LIMIT_MESSAGE},{status:429});}
   const b=await request.json() as Record<string,string>;const db=getDb();
   if(b.action==="request"){
    const config=env as unknown as {RESEND_API_KEY?:string;MAIL_FROM?:string;APP_ORIGIN?:string};
    if(!config.RESEND_API_KEY||!config.MAIL_FROM||!config.APP_ORIGIN)return NextResponse.json({error:"E-posta hizmeti henüz etkinleştirilmedi. Firma yöneticisine başvurun."},{status:503});
    const email=String(b.email||"").trim().toLowerCase();
-   await enforceAuthRateLimit(request,"login",`recovery:${email}`);
+   try{await enforceAuthRateLimit(request,"recovery",email);}catch{return NextResponse.json({error:RATE_LIMIT_MESSAGE},{status:429});}
    const user=await db.prepare(`SELECT u.id,u.email FROM users u JOIN user_security s ON s.user_id=u.id WHERE lower(u.email)=? AND u.active=1 AND s.email_verified_at IS NOT NULL`).bind(email).first<{id:string;email:string}>();
    if(user) await sendAccountLink(user,"reset");
    return NextResponse.json({ok:true,message:"Doğrulanmış bir hesap varsa yenileme bağlantısı gönderildi."});
@@ -51,6 +54,6 @@ export async function POST(request:Request){
    db.prepare("DELETE FROM account_tokens WHERE user_id=?").bind(token.user_id),
   ]);
   await addAudit(token.user_id,purpose==="reset"?"password_reset":"email_verified","user",token.user_id);
-  return NextResponse.json({ok:true,message:purpose==="reset"?"Parolanız yenilendi. İki aşamalı doğrulama açıksa girişte yine istenir.":"E-posta adresiniz doğrulandı."});
+  return NextResponse.json({ok:true,message:purpose==="reset"?(mfaMode()==="off"?"Parolanız yenilendi; tüm açık oturumlar kapatıldı.":"Parolanız yenilendi; tüm açık oturumlar kapatıldı. Hesabınızda iki aşamalı doğrulama açıksa girişte doğrulama kodu da istenir."):"E-posta adresiniz doğrulandı."});
  }catch{return NextResponse.json({error:"İşlem tamamlanamadı. Bağlantıyı ve e-posta yapılandırmasını kontrol edin; çok sayıda denemede 15 dakika bekleyin."},{status:400});}
 }

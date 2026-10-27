@@ -7,7 +7,7 @@ export const readinessSnapshot = {
   summary: "Finans, proje, servis ve saha akışları çalışıyor. Kurumsal kullanımdan önce erişim, geri yükleme ve veri koruma süreçleri gerçek ortamda doğrulanmalı. Dosya yükleme bu demoda kapalıdır.",
   stats: [
     { label: "Çalışan çekirdek", value: "13+ akış", note: "Finans, proje, görev, saha, varlık, bakım, satın alma, CRM, İK, risk, otomasyon ve ajan sohbeti" },
-    { label: "Departman gerçekliği", value: "Kayıt düzeyi", note: "Birçok departman artık veri modeli + API + panel ekranı seviyesine çıkarıldı" },
+    { label: "Departman gerçekliği", value: "Kayıt düzeyi", note: "Birçok departman veri modeli + API + panel ekranı seviyesine çıkarıldı" },
     { label: "Güvenlik uygulandı", value: "Başlık + Origin", note: "CSP/HSTS, cross-site mutation kontrolü ve dosya imza kontrolü eklendi" },
     { label: "Canlı satış kararı", value: "Pilot sonrası", note: "Kurtarma ve MFA gerçek hesapla; yedek, depolama ve sözleşme seti kontrollü pilotta doğrulanır" },
   ],

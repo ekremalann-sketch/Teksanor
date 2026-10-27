@@ -22,7 +22,7 @@ for(const u of USERS)await h.user(...u);
 const ownerOf={a:'boss',b:'outsider'};
 function seed(org){
   const tables=sql.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r=>r.name).filter(t=>!['organization_members','organization_member_access','organization_profiles','organization_reference_rates','service_approvals','service_jobs','service_job_checklists'].includes(t));
-  for(const t of ['assets','customers',...tables.filter(x=>!['assets','customers'].includes(x))]){
+  for(const t of ['assets','customers',...tables.filter(x=>!['assets','customers','department_process_events'].includes(x)),'department_process_events']){
     const cols=sql.prepare(`PRAGMA table_info(${t})`).all();if(!cols.some(c=>c.name==='organization_id'))continue;
     const values={};
     for(const c of cols){
@@ -37,6 +37,7 @@ function seed(org){
     if(t==='attachments'){values.record_type='employee';values.record_id=`employees-${org}`;values.file_name=`SECRET-${org}-bordro.pdf`;}
     if(t==='agent_chats'){values.agent_name='Yönetim';values.access_scope=api.access.accessRules.owner.view.slice().sort().join(',');}
     if(t==='notifications')values.is_read=0;
+    if(t==='department_process_events')values.process_id=`department_processes-${org}`;
     const keys=Object.keys(values);
     sql.prepare(`INSERT INTO ${t}(${keys.join(',')}) VALUES(${keys.map(()=>'?').join(',')})`).run(...keys.map(k=>values[k]));
   }
@@ -82,10 +83,16 @@ for(const [user,org] of USERS){
       else assert.equal(response.status,403,`${name} yetkisiz olmalı`);
     }
   });
-  await test(`${user}: başka firma kimliğiyle istek her uçta reddedilir`,async()=>{
-    for(const [name,path,handler] of ENDPOINTS){
+  // Eski/başka firma kimliğiyle okuma isteği kullanıcının kendi firmasına düşer (kalıcı kilitlenme olmasın);
+  // başka firmanın verisi asla dönmez, yetkisiz modül yine 403'tür. Üyeliği olmayan "outsider" b firmasına düşer.
+  await test(`${user}: başka firma kimliğiyle istek başka firmanın verisini asla döndürmez`,async()=>{
+    for(const [name,path,handler,module] of ENDPOINTS){
       const response=await handler()(req(user,path,'GET',undefined,other));
-      assert.equal(response.status,403,`${name}`);
+      const text=await response.text();
+      assert.ok(!text.includes(`SECRET-${other}`),`${name}: başka firmanın verisi sızdı`);
+      assert.ok(!text.includes(`svc-private-${other}`),`${name}: başka firmanın servis işi sızdı`);
+      if(canView(user,module))assert.equal(response.status,200,`${name} kendi firmasına düşmeli`);
+      else assert.equal(response.status,403,`${name} yetkisiz olmalı`);
     }
   });
 }

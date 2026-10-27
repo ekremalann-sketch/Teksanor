@@ -1,3 +1,5 @@
+import {recordRead} from "@/lib/read-audit";
+class RequiredChecklistError extends Error {}
 import {NextResponse} from "next/server";
 import {getCurrentUser} from "@/lib/auth";
 import {requireOrganization} from "@/lib/tenancy";
@@ -14,11 +16,19 @@ async function handle(request:Request){
  const user=await getCurrentUser(request);if(!user)return NextResponse.json({error:"Oturum gerekli."},{status:401});
  let organization;
  // Yetki reddi 400 değil 403 döner; istemci hatayı doğru yorumlar.
- try{({organization}=await requireOrganization(request,user));}catch(e){return NextResponse.json({error:e instanceof Error?e.message:"Erişim reddedildi."},{status:403});}
+ try{({organization}=await requireOrganization(request,user));}catch(e){return NextResponse.json({error:"Erişim reddedildi."},{status:403});}
  try{
   await ensureServiceColumns();const access=await getMemberAccess(user,organization);const db=getDb();
   const manage=["owner","company_admin","ceo","manager"].includes(access.profile);const canWrite=access.editModules.includes("work-orders");
   if(request.method==="GET"){
+   if(new URL(request.url).searchParams.get("summary")==="1"){
+    const stages=await db.prepare("SELECT stage,count(*) count,MAX(0,AVG((julianday('now')-julianday(updated_at))*24)) waitHours FROM service_jobs WHERE organization_id=? AND (?=1 OR assigned_user_id=?) AND stage NOT IN ('collected','cancelled') GROUP BY stage").bind(organization.id,manage?1:0,user.id).all<{stage:string;count:number;waitHours:number}>();
+    const late=await db.prepare("SELECT s.id,w.title,w.order_number,w.scheduled_date,s.stage FROM service_jobs s JOIN work_orders w ON w.id=s.id AND w.organization_id=s.organization_id WHERE s.organization_id=? AND (?=1 OR s.assigned_user_id=?) AND s.stage IN ('requested','quoted','quote_approved','in_progress') AND date(w.scheduled_date)<date('now') ORDER BY w.scheduled_date LIMIT 5").bind(organization.id,manage?1:0,user.id).all();
+    const bottleneck=stages.results.reduce<{stage:string;weight:number}|null>((best,row)=>{const weight=row.count*row.waitHours;return !best||weight>best.weight?{stage:row.stage,weight}:best;},null);
+    await recordRead(user.id,organization.id,"service-jobs:summary");
+    return NextResponse.json({stages:stages.results,late:late.results,bottleneck,approximate:true},{headers:{"Cache-Control":"private, no-store"}});
+   }
+
    const lastApproval=(column:string)=>`(SELECT x.${column} FROM service_approvals x WHERE x.job_id=s.id AND x.organization_id=s.organization_id AND x.approved_at IS NOT NULL ORDER BY x.approved_at DESC,x.created_at DESC,x.rowid DESC LIMIT 1)`;
    const jobs=await db.prepare(`SELECT w.title,w.description,w.customer_name,w.location,w.scheduled_date,w.order_number,w.assigned_to,s.*,a.asset_code,a.name AS asset_name,
     ${lastApproval("purpose")} AS approval_purpose,${lastApproval("approved_by")} AS approved_by,${lastApproval("approved_at")} AS approved_at,${lastApproval("signature_path")} AS signature_path
@@ -27,7 +37,8 @@ async function handle(request:Request){
     WHERE s.organization_id=? AND (?=1 OR s.assigned_user_id=?) ORDER BY s.updated_at DESC LIMIT 200`).bind(organization.id,manage?1:0,user.id).all<Record<string,unknown>>();
    for(const j of jobs.results){if(!isSafeSignaturePath(j.signature_path))j.signature_path=null;if(manage)Object.assign(j,totals(j as never));else for(const key of ["labor_cents","parts_cents","travel_cents","paid_cents"])delete j[key];}
    const assets=access.viewModules.includes("assets")?await db.prepare("SELECT id,name,asset_code FROM assets WHERE organization_id=? ORDER BY name LIMIT 500").bind(organization.id).all():{results:[]};
-   const members=manage?await db.prepare("SELECT u.id,u.full_name FROM users u JOIN organization_members m ON m.user_id=u.id WHERE m.organization_id=? AND m.active=1 AND u.active=1").bind(organization.id).all():{results:[]};
+   const members=manage?await db.prepare("SELECT u.id,u.username,u.full_name FROM users u JOIN organization_members m ON m.user_id=u.id WHERE m.organization_id=? AND m.active=1 AND u.active=1").bind(organization.id).all():{results:[]};
+   await recordRead(user.id,organization.id,"service-jobs:list");
    return NextResponse.json({jobs:jobs.results,assets:assets.results,members:members.results,manage,canWrite,userId:user.id,organization:{id:organization.id,name:organization.name}});
   }
   const b=await request.json() as Record<string,unknown>;
@@ -57,13 +68,14 @@ async function handle(request:Request){
   if(!job||(!manage&&job.assigned_user_id!==user.id))return NextResponse.json({error:"Servis kaydı bulunamadı."},{status:404});
   if(Number(b.version)!==Number(job.version))return NextResponse.json({error:"Kayıt başka bir işlemle güncellendi. Yenileyin."},{status:409});
   if(b.action==="share"){
-   if(!manage)return NextResponse.json({error:"Müşteri onayını yönetici başlatabilir."},{status:403});
    const purpose=b.purpose==="completion"?"completion":"quote";
+   if(!manage && purpose!=="completion")return NextResponse.json({error:"Teklif onayını yönetici başlatabilir."},{status:403});
+   const validity=manage?"+7 days":"+1 hour";
    if(job.stage!==(purpose==="quote"?"quoted":"completed"))throw new Error("Önce teklif veya tamamlanan iş durumunu kaydedin.");
    const token=Array.from(crypto.getRandomValues(new Uint8Array(32)),v=>v.toString(16).padStart(2,"0")).join("");
    await db.batch([
     db.prepare("UPDATE service_approvals SET revoked_at=CURRENT_TIMESTAMP WHERE job_id=? AND organization_id=? AND approved_at IS NULL").bind(id,organization.id),
-    db.prepare(`INSERT INTO service_approvals(id,organization_id,job_id,token_hash,purpose,job_version,expires_at,created_by) VALUES(?,?,?,?,?,?,datetime('now','+7 days'),?)`).bind(createId("approval"),organization.id,id,await tokenDigest(token),purpose,job.version,user.id),
+    db.prepare(`INSERT INTO service_approvals(id,organization_id,job_id,token_hash,purpose,job_version,expires_at,created_by) VALUES(?,?,?,?,?,?,datetime('now',?),?)`).bind(createId("approval"),organization.id,id,await tokenDigest(token),purpose,job.version,validity,user.id),
    ]);return NextResponse.json({ok:true,path:`/servis/onay#token=${token}`},{headers:{"Cache-Control":"no-store"}});
   }
   if(b.action==="schedule"){
@@ -91,7 +103,7 @@ async function handle(request:Request){
   if(stage==="completed"&&!outcome)throw new Error("Yapılan işlemi yazın.");
   if(stage==="completed"&&job.stage!=="completed"){
    const open=await db.prepare("SELECT name FROM service_job_checklists WHERE job_id=? AND organization_id=? AND completed_at IS NULL").bind(id,organization.id).all<{name:string}>();
-   if(open.results.length)throw new Error(`Zorunlu kontrol maddeleri tamamlanmadı: ${open.results.map(r=>r.name).join(", ")}.`);
+   if(open.results.length)throw new RequiredChecklistError("Zorunlu kontrol maddeleri tamamlanmadı. Saha formundaki zorunlu alanları doldurun.");
   }
   const moneyFields=["quote","labor","parts","travel","paid"] as const;
   const values=moneyFields.map(k=>manage&&b[k]!==undefined?cents(b[k]):Number(job[`${k}_cents`]));
@@ -107,5 +119,5 @@ async function handle(request:Request){
    db.prepare("UPDATE work_orders SET status=?,notes=?,completed_date=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=?").bind(["completed","accepted","collected"].includes(stage)?"completed":stage==="cancelled"?"cancelled":stage==="in_progress"?"in_progress":"open",outcome,["completed","accepted","collected"].includes(stage)?new Date().toISOString().slice(0,10):null,id,organization.id),
   ]);
   await addAudit(user.id,"update","service_job",id,`Servis durumu: ${stage}`,organization.id);return NextResponse.json({ok:true});
- }catch(e){return NextResponse.json({error:e instanceof Error?e.message:"Servis işlemi tamamlanamadı."},{status:400});}
+ }catch(e){return NextResponse.json({error:e instanceof RequiredChecklistError?e.message:"Servis işlemi tamamlanamadı."},{status:400});}
 }

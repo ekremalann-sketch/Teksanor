@@ -5,7 +5,7 @@ import { AlertTriangle, ArrowLeft, RefreshCw } from "lucide-react";
 export default function ErrorPage({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
   return <main className="app-error-page">
     <section>
-      <img src="/assets/teksanor-logo.png" alt="Teksanor" />
+      <img src="/assets/teksanor-logo.webp" alt="Teksanor" />
       <div className="app-error-icon"><AlertTriangle size={28} /></div>
       <span>GÜVENLİ KURTARMA EKRANI</span>
       <h1>Sayfa yüklenirken geçici bir sorun oluştu.</h1>
