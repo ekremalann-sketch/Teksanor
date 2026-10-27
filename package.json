@@ -47,7 +47,7 @@
     "lint": "tsc --noEmit && npm run lint:styles",
     "ci": "npm run lint:styles && npm run typecheck && npm test && npm run build:pages",
     "drill:restore": "node --experimental-strip-types scripts/restore-drill.mjs",
-    "lint:styles": "stylelint app/home-design.css app/tokens.css"
+    "lint:styles": "stylelint app/home-design.css app/tokens.css app/pwa-update.css"
   },
   "overrides": {
     "@esbuild-kit/core-utils": {

@@ -4,6 +4,7 @@ import "./globals.css";
 import "./public-navigation.css";
 import "./home.css";
 import "./home-design.css";
+import "./pwa-update.css";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import IdleSessionGuard from "@/components/IdleSessionGuard";
 import { PUBLIC_PAGES, SITE_URL, pageMeta, structuredData } from "@/lib/seo";
