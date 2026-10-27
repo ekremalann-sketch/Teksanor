@@ -47,4 +47,8 @@ await build({
   external: ["node:*", "cloudflare:*", ...builtinModules],
 });
 
+// The Vite plugin redirects Wrangler to its Workers config. Pages must instead
+// read the root Pages config, including nodejs_compat, for its final bundling step.
+await rm(join(root, ".wrangler", "deploy", "config.json"), { force: true });
+
 console.log("Cloudflare Pages output prepared in dist/pages");

@@ -1,0 +1,28 @@
+:root {
+  --ui-brand: #0a172a;
+  --ui-surface: #f4f7fb;
+  --ui-paper: #ffffff;
+  --ui-text: #102035;
+  --ui-muted: #4f6178;
+  --ui-action: #0b5aa0;
+  --ui-gold-on-light: #8a6420;
+  --ui-gold-on-dark: #e3bf76;
+  --ui-line: #d5dfea;
+  --ui-shadow: #00000022;
+  --ui-font-label: 0.75rem;
+  --ui-font-small: 0.875rem;
+  --ui-font-body: 1rem;
+  --ui-font-20: 1.25rem;
+  --ui-font-24: 1.5rem;
+  --ui-font-32: 2rem;
+  --ui-font-48: 3rem;
+  --ui-space-1: 4px;
+  --ui-space-2: 8px;
+  --ui-space-3: 12px;
+  --ui-space-4: 16px;
+  --ui-space-5: 24px;
+  --ui-space-6: 32px;
+  --ui-space-7: 48px;
+  --ui-space-8: 64px;
+  --ui-radius: 10px;
+}
