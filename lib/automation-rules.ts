@@ -1,6 +1,6 @@
 import { isAutomationPaused } from "./automation-control";
 import { canView, type MemberAccess, type ModuleId } from "./access";
-import { createId, getDb } from "./db";
+import { auditStatement, createId, getDb } from "./db";
 import { requestSafeInitializer } from "./request-safe-initializer";
 
 // Otomasyon kuralının neyi kontrol edeceği artık kural adından tahmin edilmez; kullanıcı
@@ -112,12 +112,6 @@ export async function runRule(input: {
     return { runId, check, scanned: 0, matched: 0, status: "skipped" as const, detail: "Bu kuralın kontrol ettiği modülü görme yetkiniz yok.", sample: [] as string[] };
   }
 
-  const claimed = await db.prepare(`INSERT OR IGNORE INTO automation_runs (id, organization_id, rule_id, source, status, check_id, run_by)
-    VALUES (?, ?, ?, ?, 'clear', ?, ?)`).bind(runId, input.organizationId, input.rule.id, input.source, check, input.userId).run();
-  if (!claimed.meta?.changes) {
-    return { runId, check, scanned: 0, matched: 0, status: "skipped" as const, detail: "Bu kural bugün zaten zamanlayıcıyla çalıştı.", sample: [] as string[] };
-  }
-
   const [count, total, sample] = await Promise.all([
     db.prepare(spec.count).bind(input.organizationId).first<{ c: number }>(),
     db.prepare(spec.total).bind(input.organizationId).first<{ c: number }>(),
@@ -131,14 +125,31 @@ export async function runRule(input: {
     : `${spec.label}: eşleşen kayıt yok.`;
   const status = matched ? "matched" : "clear";
 
-  await db.prepare("UPDATE automation_runs SET status = ?, scanned = ?, matched = ?, detail = ? WHERE id = ?")
-    .bind(status, scanned, matched, detail.slice(0, 1000), runId).run();
+  // A unique marker binds all writes to this batch's claim. A duplicate scheduled
+  // run cannot increment counters or send another notification. Marker is replaced
+  // by the public detail before commit; audit failure rolls back the claim too.
+  const claim = createId("claim");
+  const writes = [db.prepare(`INSERT OR IGNORE INTO automation_runs (id, organization_id, rule_id, source, status, check_id, detail, run_by)
+    SELECT ?, ?, ?, ?, 'clear', ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM app_metadata WHERE key=? AND value='1')`)
+    .bind(runId, input.organizationId, input.rule.id, input.source, check, claim, input.userId, `automation_paused:${input.organizationId}`)];
   if (matched) {
-    await db.prepare(`INSERT INTO notifications (id, organization_id, user_id, title, body, type, entity_type, entity_id)
-      VALUES (?, ?, ?, ?, ?, 'warning', 'automation', ?)`)
-      .bind(createId("notif"), input.organizationId, input.userId, `Otomasyon: ${input.rule.name}`, detail.slice(0, 1000), input.rule.id).run();
+    writes.push(db.prepare(`INSERT INTO notifications (id, organization_id, user_id, title, body, type, entity_type, entity_id)
+      SELECT ?, ?, ?, ?, ?, 'warning', 'automation', ? WHERE EXISTS (SELECT 1 FROM automation_runs WHERE id=? AND detail=?)`)
+      .bind(createId("notif"), input.organizationId, input.userId, `Otomasyon: ${input.rule.name}`, detail.slice(0, 1000), input.rule.id, runId, claim));
   }
-  await db.prepare("UPDATE automation_rules SET last_run_at = CURRENT_TIMESTAMP, run_count = run_count + 1 WHERE id = ? AND organization_id = ?")
-    .bind(input.rule.id, input.organizationId).run();
+  writes.push(db.prepare(`UPDATE automation_rules SET last_run_at = CURRENT_TIMESTAMP, run_count = run_count + 1
+    WHERE id = ? AND organization_id = ? AND EXISTS (SELECT 1 FROM automation_runs WHERE id=? AND detail=?)`)
+    .bind(input.rule.id, input.organizationId, runId, claim));
+  if (input.source === "manual") writes.push(auditStatement(input.userId, "trigger", "automation_rule", input.rule.id,
+    `${input.rule.name} elle çalıştırıldı: ${matched} eşleşme.`, input.organizationId, true));
+  writes.push(db.prepare("UPDATE automation_runs SET status = ?, scanned = ?, matched = ?, detail = ? WHERE id = ? AND detail = ?")
+    .bind(status, scanned, matched, detail.slice(0, 1000), runId, claim));
+  const [claimed] = await db.batch(writes);
+  if (!claimed.meta?.changes) {
+    const stopped = await isAutomationPaused(input.organizationId);
+    return { runId, check, scanned: 0, matched: 0, status: "skipped" as const, detail: stopped
+      ? "Otomasyonlar acil durdurma ile durduruldu."
+      : "Bu kural bugün zaten zamanlayıcıyla çalıştı.", sample: [] as string[] };
+  }
   return { runId, check, scanned, matched, status, detail, sample: labels };
 }

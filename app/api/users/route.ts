@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, hashPassword } from "@/lib/auth";
-import { addAudit, createId, getDb } from "@/lib/db";
+import { auditStatement, createId, getDb } from "@/lib/db";
 import { canManageOrganization, requireOrganization } from "@/lib/tenancy";
 import { rejectCrossSiteMutation } from "@/lib/security";
 import { accessRules, type AccessProfile } from "@/lib/access";
@@ -32,8 +32,9 @@ export async function POST(request: Request) {
       getDb().prepare(`INSERT INTO organization_member_access
         (organization_id, user_id, job_role, department, access_profile) VALUES (?, ?, ?, ?, ?)`)
         .bind(context.organization.id, id, body.jobRole?.trim() || accessProfile, body.department?.trim() || null, accessProfile),
+      auditStatement(current.id, "create", "user", id, `${body.fullName} kullanıcısı oluşturuldu.`, context.organization.id),
     ]);
-    await addAudit(current.id, "create", "user", id, `${body.fullName} kullanıcısı oluşturuldu.`, context.organization.id);
+
     return NextResponse.json({ id }, { status: 201 });
   } catch {
     return NextResponse.json({ error: "Bu kullanıcı adı zaten kayıtlı olabilir." }, { status: 409 });

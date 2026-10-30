@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { errorStatus } from "@/lib/access";
 import { getCurrentUser } from "@/lib/auth";
-import { addAudit, createId, getDb } from "@/lib/db";
+import { auditStatement, createId, getDb } from "@/lib/db";
 import { requireOrganization } from "@/lib/tenancy";
 import { rejectCrossSiteMutation } from "@/lib/security";
 
@@ -40,13 +40,15 @@ export async function POST(request: Request) {
     const visitNumber = `SZ-${crypto.randomUUID().slice(0, 12).toUpperCase()}`;
     if(body.workOrderId && !await getDb().prepare("SELECT id FROM work_orders WHERE id=? AND organization_id=?").bind(text(body.workOrderId),context.organization.id).first()) return NextResponse.json({error:"İş emri bu firmaya ait değil."},{status:404});
     const id = createId("fv");
-    await getDb().prepare(`INSERT INTO field_visits
+    await getDb().batch([
+      getDb().prepare(`INSERT INTO field_visits
       (id, organization_id, visit_number, work_order_id, visitor_name, customer_name, location, visit_date, visit_type, status, duration_hours, findings, actions_taken, next_visit_date, created_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .bind(id, context.organization.id, visitNumber, text(body.workOrderId) || null, visitorName, text(body.customerName) || null,
         location, visitDate, visitType, status, Math.max(0, Number(body.durationHours || 0)), text(body.findings, 1200) || null,
-        text(body.actionsTaken, 1200) || null, text(body.nextVisitDate, 20) || null, user.id).run();
-    await addAudit(user.id, "create", "field_visit", id, `${visitNumber} saha ziyareti oluşturuldu.`, context.organization.id);
+        text(body.actionsTaken, 1200) || null, text(body.nextVisitDate, 20) || null, user.id),
+      auditStatement(user.id, "create", "field_visit", id, `${visitNumber} saha ziyareti oluşturuldu.`, context.organization.id, true),
+    ]);
     return NextResponse.json({ ok: true, id, visitNumber });
   } catch (error) {
     return NextResponse.json({ error: "Saha ziyareti oluşturulamadı." }, { status: errorStatus(error) });

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { confirmRecentPassword, enforceAuthRateLimit, getCurrentUser, hashPassword, RATE_LIMIT_MESSAGE } from "@/lib/auth";
-import { addAudit, getDb, createId } from "@/lib/db";
+import { auditStatement, getDb, createId } from "@/lib/db";
 import { requireOrganization, canManageOrganization } from "@/lib/tenancy";
 import { rejectCrossSiteMutation } from "@/lib/security";
 
@@ -58,8 +58,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       db.prepare("UPDATE users SET password_hash = ?, password_salt = ? WHERE id = ?").bind(credentials.hash, credentials.salt, target.id),
       db.prepare("DELETE FROM sessions WHERE user_id = ?").bind(target.id),
       db.prepare("DELETE FROM mfa_challenges WHERE user_id = ?").bind(target.id),
+      auditStatement(user.id, "member.password_reset", "user", target.id, `${target.full_name} için geçici parola atandı; açık oturumları kapatıldı. (Parola kaydedilmez.)`, organization.id),
     ]);
-    await addAudit(user.id, "member.password_reset", "user", target.id, `${target.full_name} için geçici parola atandı; açık oturumları kapatıldı. (Parola kaydedilmez.)`, organization.id);
+
     // Geçici parola yalnız bu yanıtta döner; sunucuda yalnız özeti tutulur ve günlüklere yazılmaz.
     return NextResponse.json({ ok: true, temporaryPassword }, { headers: noStore });
   }

@@ -2,7 +2,7 @@ import { publicErrorMessage } from "@/lib/security";
 import { optionalCalendarDate } from "@/lib/dates";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { addAudit, createId, getDb, refreshOrganizationPeriodSummary } from "@/lib/db";
+import { auditStatement, createId, getDb, organizationPeriodSummaryStatements } from "@/lib/db";
 import { canManageOrganization, requireOrganization } from "@/lib/tenancy";
 import { rejectCrossSiteMutation } from "@/lib/security";
 import { parseOptionalLocalizedNumber, paymentFieldLabels, resolvePaymentStatus } from "@/lib/finance";
@@ -68,17 +68,19 @@ export async function POST(request: Request) {
           requestedStatus,
           paidAt, JSON.stringify(missingFields), workflow, user.id, existing.id, context.organization.id, canManageOrganization(user,context.organization)?1:0,
         );
-      const [, updated] = await getDb().batch([history, update]);
+      const [, updated] = await getDb().batch([
+        history, update,
+        auditStatement(user.id, "update", "payment_record", existing.id, `${body.bankName} aktarım kaydı güncellendi.`, context.organization.id, true),
+        ...organizationPeriodSummaryStatements(context.organization.id, String(body.period)),
+      ]);
       if (!(updated as { meta?: { changes?: number } }).meta?.changes) return NextResponse.json({ error: "Kayıt başka bir işlemle değişti veya onaylandı; yenileyin." }, { status: 409 });
-      await refreshOrganizationPeriodSummary(context.organization.id, String(body.period));
-      await addAudit(user.id, "update", "payment_record", existing.id, `${body.bankName} aktarım kaydı güncellendi.`, context.organization.id);
       return NextResponse.json({ id: existing.id, workflowStatus: workflow, updated: true });
     }
   }
   const id = createId("pay");
   // Çift tıklama / yeniden gönderim koruması: aynı kullanıcının 60 sn içindeki birebir
   // aynı kaydı tek SQL adımında engellenir (şema değişikliği gerektirmez).
-  const inserted = await getDb().prepare(`INSERT INTO payment_records
+  const [inserted] = await getDb().batch([getDb().prepare(`INSERT INTO payment_records
     (id, period, owner_name, bank_name, account_name, total_limit, total_debt, restructuring, monthly_payment,
      next_installment, overdraft_debt, overdraft_limit, interest_rate, interest_debt, minimum_payment, due_date,
      important_note, workflow_status, created_by, updated_by, organization_id, paid_amount, payment_status, paid_at, missing_fields)
@@ -96,7 +98,10 @@ export async function POST(request: Request) {
       paidAt, JSON.stringify(missingFields),
       context.organization.id, String(body.period), String(body.ownerName), String(body.bankName), String(body.accountName),
       stored.totalDebt, stored.paidAmount, user.id,
-    ).run();
+    ),
+    auditStatement(user.id, "create", "payment_record", id, `${body.bankName} kaydı eklendi.`, context.organization.id, true),
+    ...organizationPeriodSummaryStatements(context.organization.id, String(body.period)),
+  ]);
   if (!inserted.meta?.changes) {
     const duplicate = await getDb().prepare(`SELECT id, workflow_status FROM payment_records WHERE organization_id = ? AND period = ? AND owner_name = ?
       AND bank_name = ? AND account_name = ? AND created_by = ? ORDER BY created_at DESC LIMIT 1`)
@@ -104,7 +109,5 @@ export async function POST(request: Request) {
       .first<{ id: string; workflow_status: string }>();
     return NextResponse.json({ id: duplicate?.id, workflowStatus: duplicate?.workflow_status, duplicate: true });
   }
-  await refreshOrganizationPeriodSummary(context.organization.id, String(body.period));
-  await addAudit(user.id, "create", "payment_record", id, `${body.bankName} kaydı eklendi.`, context.organization.id);
   return NextResponse.json({ id, workflowStatus: workflow }, { status: 201 });
 }

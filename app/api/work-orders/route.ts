@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { addAudit, createId, getDb } from "@/lib/db";
+import { auditStatement, createId, getDb } from "@/lib/db";
 import { requireOrganization } from "@/lib/tenancy";
 import { rejectCrossSiteMutation } from "@/lib/security";
 import { getMemberAccess, errorStatus } from "@/lib/access";
@@ -48,14 +48,16 @@ export async function POST(request: Request) {
     const count = await getDb().prepare("SELECT COUNT(*) AS c FROM work_orders WHERE organization_id = ?").bind(context.organization.id).first<{ c: number }>();
     const orderNumber = `IE-${crypto.randomUUID().slice(0, 12).toUpperCase()}`;
     const id = createId("wo");
-    await getDb().prepare(`INSERT INTO work_orders
+    await getDb().batch([
+      getDb().prepare(`INSERT INTO work_orders
       (id, organization_id, order_number, title, description, customer_name, location, department, order_type, status, priority, assigned_to, scheduled_date, estimated_hours, notes, created_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .bind(id, context.organization.id, orderNumber, title, text(body.description, 1200) || null, text(body.customerName) || null,
         text(body.location) || null, text(body.department) || "Operasyon yönetimi", orderType, status, priority,
         text(body.assignedTo) || null, text(body.scheduledDate, 20) || null, Math.max(0, Number(body.estimatedHours || 0)),
-        text(body.notes, 1200) || null, user.id).run();
-    await addAudit(user.id, "create", "work_order", id, `${orderNumber} iş emri oluşturuldu.`, context.organization.id);
+        text(body.notes, 1200) || null, user.id),
+      auditStatement(user.id, "create", "work_order", id, `${orderNumber} iş emri oluşturuldu.`, context.organization.id, true),
+    ]);
     return NextResponse.json({ ok: true, id, orderNumber });
   } catch (error) {
     return NextResponse.json({ error: "İş emri oluşturulamadı." }, { status: errorStatus(error) });

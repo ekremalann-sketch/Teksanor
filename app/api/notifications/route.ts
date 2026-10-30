@@ -2,7 +2,7 @@ import { getMemberAccess, errorStatus } from "@/lib/access";
 import { createDueNotifications } from "@/lib/reminders";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { addAudit, createId, getDb } from "@/lib/db";
+import { auditStatement, createId, getDb } from "@/lib/db";
 import { requireOrganization } from "@/lib/tenancy";
 import { rejectCrossSiteMutation } from "@/lib/security";
 
@@ -39,11 +39,13 @@ export async function POST(request: Request) {
     const type = TYPE.includes(text(body.type)) ? text(body.type) : "info";
     const id = createId("notif");
     if(!body.userId || !await getDb().prepare("SELECT user_id FROM organization_members WHERE organization_id=? AND user_id=? AND active=1").bind(context.organization.id,text(body.userId)).first()) return NextResponse.json({error:"Geçerli bir alıcı seçin."},{status:400});
-    await getDb().prepare(`INSERT INTO notifications
+    await getDb().batch([getDb().prepare(`INSERT INTO notifications
       (id, organization_id, user_id, title, body, type, entity_type, entity_id)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
       .bind(id, context.organization.id, body.userId ? text(body.userId) : null, title, text(body.body, 800) || null, type,
-        text(body.entityType, 60) || null, text(body.entityId, 80) || null).run();
+        text(body.entityType, 60) || null, text(body.entityId, 80) || null),
+      auditStatement(user.id, "create", "notification", id, "Uygulama içi bildirim oluşturuldu.", context.organization.id, true),
+    ]);
     return NextResponse.json({ ok: true, id });
   } catch (error) {
     return NextResponse.json({ error: "Bildirim oluşturulamadı." }, { status: errorStatus(error) });
@@ -56,10 +58,12 @@ export async function PATCH(request: Request) {
   if (!user) return NextResponse.json({ error: "Oturum gerekli." }, { status: 401 });
   try {
     const context = await requireOrganization(request, user);
-    await getDb().prepare(
+    await getDb().batch([
+      getDb().prepare(
       "UPDATE notifications SET is_read = 1 WHERE organization_id = ? AND user_id = ?")
-      .bind(context.organization.id, user.id).run();
-    await addAudit(user.id, "update", "notification", null, "Bildirimler okundu olarak işaretlendi.", context.organization.id);
+      .bind(context.organization.id, user.id),
+      auditStatement(user.id, "update", "notification", null, "Bildirimler okundu olarak işaretlendi.", context.organization.id, true),
+    ]);
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ error: "Bildirimler güncellenemedi." }, { status: errorStatus(error) });

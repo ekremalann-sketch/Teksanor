@@ -2,7 +2,7 @@ import { publicErrorMessage } from "@/lib/security";
 import { optionalCalendarDate } from "@/lib/dates";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { addAudit, createId, getDb, refreshOrganizationPeriodSummary } from "@/lib/db";
+import { auditStatement, createId, getDb, organizationPeriodSummaryStatements } from "@/lib/db";
 import { canManageOrganization, requireOrganization } from "@/lib/tenancy";
 import { rejectCrossSiteMutation } from "@/lib/security";
 import { parseRequiredPositiveAmount } from "@/lib/finance";
@@ -32,16 +32,17 @@ export async function POST(request: Request) {
   const id = createId("expense");
   const workflow = canManageOrganization(user, context.organization) ? "approved" : "submitted";
   // Aynı kullanıcının 60 sn içindeki birebir aynı gideri tek SQL adımında engellenir.
-  const inserted = await getDb().prepare(`INSERT INTO expenses
+  const [inserted] = await getDb().batch([getDb().prepare(`INSERT INTO expenses
     (id, period, owner_name, category, description, amount, due_date, workflow_status, created_by, organization_id)
     SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
     WHERE NOT EXISTS (SELECT 1 FROM expenses WHERE organization_id = ? AND period = ? AND owner_name = ? AND category = ?
       AND description = ? AND amount = ? AND created_by = ? AND created_at > datetime('now', '-60 seconds'))`)
     .bind(id, body.period, body.ownerName, body.category, body.description, amount, dueDate, workflow, user.id, context.organization.id,
       context.organization.id, body.period, body.ownerName, body.category, body.description, amount, user.id)
-    .run();
+    ,
+    auditStatement(user.id, "create", "expense", id, `${body.description} gideri eklendi.`, context.organization.id, true),
+    ...organizationPeriodSummaryStatements(context.organization.id, body.period),
+  ]);
   if (!inserted.meta?.changes) return NextResponse.json({ workflowStatus: workflow, duplicate: true });
-  await refreshOrganizationPeriodSummary(context.organization.id, body.period);
-  await addAudit(user.id, "create", "expense", id, `${body.description} gideri eklendi.`, context.organization.id);
   return NextResponse.json({ id, workflowStatus: workflow }, { status: 201 });
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { errorStatus } from "@/lib/access";
 import { getCurrentUser } from "@/lib/auth";
-import { addAudit, getDb } from "@/lib/db";
+import { auditStatement, getDb } from "@/lib/db";
 import { requireOrganization } from "@/lib/tenancy";
 import { rejectCrossSiteMutation } from "@/lib/security";
 
@@ -26,7 +26,8 @@ export async function PUT(request: Request, routeContext: { params: Promise<{ id
     const orderType = TYPE.includes(text(body.orderType)) ? text(body.orderType) : String(existing.order_type);
     const priority = PRIORITY.includes(text(body.priority)) ? text(body.priority) : String(existing.priority);
     const completedDate = status === "completed" ? (existing.completed_date || new Date().toISOString().slice(0, 10)) : null;
-    await getDb().prepare(`UPDATE work_orders SET title = ?, description = ?, customer_name = ?, location = ?, department = ?,
+    await getDb().batch([
+      getDb().prepare(`UPDATE work_orders SET title = ?, description = ?, customer_name = ?, location = ?, department = ?,
       order_type = ?, status = ?, priority = ?, assigned_to = ?, scheduled_date = ?, completed_date = ?, estimated_hours = ?,
       actual_hours = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND organization_id = ?`)
       .bind(text(body.title) || String(existing.title), body.description !== undefined ? text(body.description, 1200) : existing.description,
@@ -36,8 +37,9 @@ export async function PUT(request: Request, routeContext: { params: Promise<{ id
         body.assignedTo !== undefined ? text(body.assignedTo) || null : existing.assigned_to,
         body.scheduledDate !== undefined ? text(body.scheduledDate, 20) || null : existing.scheduled_date,
         completedDate, Number(body.estimatedHours ?? existing.estimated_hours ?? 0), Number(body.actualHours ?? existing.actual_hours ?? 0),
-        body.notes !== undefined ? text(body.notes, 1200) || null : existing.notes, id, context.organization.id).run();
-    await addAudit(user.id, "update", "work_order", id, `${existing.order_number} iş emri güncellendi.`, context.organization.id);
+        body.notes !== undefined ? text(body.notes, 1200) || null : existing.notes, id, context.organization.id),
+      auditStatement(user.id, "update", "work_order", id, `${existing.order_number} iş emri güncellendi.`, context.organization.id, true),
+    ]);
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ error: "İş emri güncellenemedi." }, { status: errorStatus(error) });
@@ -52,10 +54,12 @@ export async function DELETE(request: Request, routeContext: { params: Promise<{
     const context = await requireOrganization(request, user);
     const { id } = await routeContext.params;
     if(await getDb().prepare("SELECT id FROM service_jobs WHERE id=? AND organization_id=?").bind(id,context.organization.id).first())return NextResponse.json({error:"Bu kaydı Servis masası üzerinden yönetin."},{status:409});
-    const removed = await getDb().prepare("DELETE FROM work_orders WHERE id = ? AND organization_id = ?").bind(id, context.organization.id).run();
+    const [removed] = await getDb().batch([
+      getDb().prepare("DELETE FROM work_orders WHERE id = ? AND organization_id = ?").bind(id, context.organization.id),
+      auditStatement(user.id, "delete", "work_order", id, undefined, context.organization.id, true),
+    ]);
     // Başka firmanın veya olmayan bir kaydın silinmesi başarı ve denetim kaydı üretmez.
     if (!removed.meta?.changes) return NextResponse.json({ error: "Kayıt bulunamadı." }, { status: 404 });
-    await addAudit(user.id, "delete", "work_order", id, undefined, context.organization.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ error: "İş emri silinemedi." }, { status: errorStatus(error) });

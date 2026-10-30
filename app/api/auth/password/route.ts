@@ -1,12 +1,7 @@
 import { NextResponse } from "next/server";
-import { createSession, getCurrentUser, hashPassword, readCookie, sessionCookie, verifyPassword } from "@/lib/auth";
-import { addAudit, getDb } from "@/lib/db";
+import { prepareSession, getCurrentUser, hashPassword, sessionCookie, verifyPassword } from "@/lib/auth";
+import { auditStatement, getDb } from "@/lib/db";
 import { rejectCrossSiteMutation } from "@/lib/security";
-
-async function sha256(value: string) {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
 
 export async function POST(request: Request) {
   const rejected = rejectCrossSiteMutation(request); if (rejected) return rejected;
@@ -23,13 +18,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Mevcut parola hatalı." }, { status: 403 });
   }
   const credentials = await hashPassword(body.newPassword);
-  const currentToken = readCookie(request, "teksanor_session");
-  await database.prepare("UPDATE users SET password_hash = ?, password_salt = ? WHERE id = ?")
-    .bind(credentials.hash, credentials.salt, user.id).run();
-  await database.prepare("DELETE FROM sessions WHERE user_id = ?").bind(user.id).run();
-  if (currentToken) await database.prepare("DELETE FROM sessions WHERE token_hash = ?").bind(await sha256(currentToken)).run();
-  const token = await createSession(user.id);
-  await addAudit(user.id, "password_change", "user", user.id, "Parola değiştirildi.");
+  const session = await prepareSession(user.id);
+  await database.batch([
+    database.prepare("UPDATE users SET password_hash = ?, password_salt = ? WHERE id = ?").bind(credentials.hash, credentials.salt, user.id),
+    database.prepare("DELETE FROM sessions WHERE user_id = ?").bind(user.id),
+    session.statement,
+    auditStatement(user.id, "password_change", "user", user.id, "Parola değiştirildi."),
+  ]);
+  const token = session.token;
   const response = NextResponse.json({ ok: true });
   response.headers.set("Set-Cookie", sessionCookie(token));
   return response;

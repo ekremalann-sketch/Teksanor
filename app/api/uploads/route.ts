@@ -4,12 +4,12 @@ import { requireAttachmentRecord } from "@/lib/upload-access";
 import { env } from "cloudflare:workers";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { addAudit, createId, getDb } from "@/lib/db";
+import { auditStatement, createId, getDb } from "@/lib/db";
 import { requireOrganization } from "@/lib/tenancy";
 import { rejectCrossSiteMutation } from "@/lib/security";
 import { inspectUpload } from "@/lib/file-security";
 
-type Bucket = { put: (key: string, value: ArrayBuffer, options?: unknown) => Promise<unknown> };
+type Bucket = { put: (key: string, value: ArrayBuffer, options?: unknown) => Promise<unknown>; delete: (key: string) => Promise<unknown> };
 
 export async function GET(request: Request) {
   const user = await getCurrentUser(request);
@@ -57,12 +57,21 @@ export async function POST(request: Request) {
   const id = createId("file");
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-").slice(-120);
   const objectKey = `${context.organization.id}/${new Date().getUTCFullYear()}/${id}-${safeName}`;
-  await bucket.put(objectKey, buffer, { httpMetadata: { contentType: file.type } });
-  await getDb().prepare(`INSERT INTO attachments
+  // The object has no downloadable application reference until metadata + audit commit.
+  // R2 is outside the database transaction: compensate a failed write explicitly.
+  try {
+    await bucket.put(objectKey, buffer, { httpMetadata: { contentType: file.type } });
+    await getDb().batch([
+      getDb().prepare(`INSERT INTO attachments
     (id, object_key, file_name, content_type, size_bytes, record_type, record_id, uploaded_by, organization_id, scan_status, scan_details)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .bind(id, objectKey, file.name, file.type, file.size, form.get("recordType") || null, form.get("recordId") || null, user.id, context.organization.id, scanStatus, inspection.scanMode)
-    .run();
-  await addAudit(user.id, "upload_scanned", "attachment", id, `${file.name} · imza ve içerik politikası kontrolü geçti`, context.organization.id);
+    .bind(id, objectKey, file.name, file.type, file.size, form.get("recordType") || null, form.get("recordId") || null, user.id, context.organization.id, scanStatus, inspection.scanMode),
+      auditStatement(user.id, "upload_scanned", "attachment", id, `${file.name} · imza ve içerik politikası kontrolü geçti`, context.organization.id, true),
+    ]);
+  } catch {
+    try { await bucket.delete(objectKey); }
+    catch { console.error("Unreferenced upload cleanup required", id); }
+    return NextResponse.json({ error: "Dosya kaydı tamamlanamadı." }, { status: 503 });
+  }
   return NextResponse.json({ id, fileName: file.name }, { status: 201 });
 }

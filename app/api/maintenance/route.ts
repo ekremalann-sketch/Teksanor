@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { errorStatus } from "@/lib/access";
 import { getCurrentUser } from "@/lib/auth";
-import { addAudit, createId, getDb } from "@/lib/db";
+import { auditStatement, createId, getDb } from "@/lib/db";
 import { rejectCrossSiteMutation } from "@/lib/security";
 import { requireOrganization } from "@/lib/tenancy";
 
@@ -36,12 +36,14 @@ export async function POST(request: Request) {
     if (!asset) return NextResponse.json({ error: "Seçilen varlık bu firmaya ait değil." }, { status: 404 });
     const frequencyType = frequencies.has(text(body.frequencyType, 20)) ? text(body.frequencyType, 20) : "month";
     const id = createId("maint");
-    await getDb().prepare(`INSERT INTO maintenance_plans
+    await getDb().batch([
+      getDb().prepare(`INSERT INTO maintenance_plans
       (id,organization_id,asset_id,title,frequency_type,frequency_value,next_due_date,assigned_to,checklist_text,status,created_by)
       VALUES (?,?,?,?,?,?,?,?,?,'active',?)`).bind(id, organization.id, assetId, title, frequencyType,
         Math.max(1, Math.floor(Number(body.frequencyValue || 1))), text(body.nextDueDate, 20) || null,
-        text(body.assignedTo, 240) || null, text(body.checklistText, 3000) || null, user.id).run();
-    await addAudit(user.id, "create", "maintenance_plan", id, `${title} bakım planı oluşturuldu.`, organization.id);
+        text(body.assignedTo, 240) || null, text(body.checklistText, 3000) || null, user.id),
+      auditStatement(user.id, "create", "maintenance_plan", id, `${title} bakım planı oluşturuldu.`, organization.id, true),
+    ]);
     return NextResponse.json({ ok: true, id });
   } catch (error) {
     return NextResponse.json({ error: "Bakım planı oluşturulamadı." }, { status: errorStatus(error) });

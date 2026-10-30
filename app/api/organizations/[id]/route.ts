@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { addAudit, DEFAULT_ORGANIZATION_ID, getDb } from "@/lib/db";
+import { auditStatement, DEFAULT_ORGANIZATION_ID, getDb } from "@/lib/db";
 import { rejectCrossSiteMutation } from "@/lib/security";
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -17,7 +17,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   await getDb().batch([
     getDb().prepare("UPDATE organizations SET active = ? WHERE id = ?").bind(body.active ? 1 : 0,id),
     getDb().prepare("DELETE FROM sessions WHERE user_id IN (SELECT user_id FROM organization_members WHERE organization_id=?)").bind(id),
-  ]);
-  await addAudit(user.id, body.active ? "activate" : "deactivate", "organization", id, `${organization.name} çalışma alanı ${body.active ? "etkinleştirildi" : "devre dışı bırakıldı"}.`, id);
+    auditStatement(user.id, body.active ? "activate" : "deactivate", "organization", id, `${organization.name} çalışma alanı ${body.active ? "etkinleştirildi" : "devre dışı bırakıldı"}.`, id),
+    ]);
+
   return NextResponse.json({ ok: true, active: body.active });
 }
