@@ -4,12 +4,14 @@ import {readdir,readFile} from 'node:fs/promises';
 import {DatabaseSync} from 'node:sqlite';
 import {build} from 'esbuild';
 import {mkdir} from 'node:fs/promises';
+import {assertSqlBindings} from './sql-bindings.mjs';
 
 export async function createHarness(name, modules, options={}){
   const sql=new DatabaseSync(options.file??':memory:');
   sql.exec('PRAGMA foreign_keys=ON');
-  const statement=(query,values=[])=>({query,values,bind(...v){return statement(query,v)},async first(){return sql.prepare(query).get(...values)??null},async all(){return {results:sql.prepare(query).all(...values)}},async run(){const r=sql.prepare(query).run(...values);return {success:true,meta:{changes:Number(r.changes)}}}});
-  const db={prepare:statement,async exec(q){sql.exec(q)},async batch(list){sql.exec('BEGIN');try{const out=list.map(s=>{const st=sql.prepare(s.query);return st.columns().length?{results:st.all(...s.values),success:true}:{success:true,meta:{changes:Number(st.run(...s.values).changes)}}});sql.exec('COMMIT');return out}catch(e){sql.exec('ROLLBACK');throw e}}};
+  const check=(query,values)=>{if(options.strictBindings)assertSqlBindings(query,values);};
+  const statement=(query,values=[])=>({query,values,bind(...v){return statement(query,v)},async first(){check(query,values);return sql.prepare(query).get(...values)??null},async all(){check(query,values);return {results:sql.prepare(query).all(...values)}},async run(){check(query,values);const r=sql.prepare(query).run(...values);return {success:true,meta:{changes:Number(r.changes)}}}});
+  const db={prepare:statement,async exec(q){sql.exec(q)},async batch(list){sql.exec('BEGIN');try{const out=list.map(s=>{check(s.query,s.values);const st=sql.prepare(s.query);return st.columns().length?{results:st.all(...s.values),success:true}:{success:true,meta:{changes:Number(st.run(...s.values).changes)}}});sql.exec('COMMIT');return out}catch(e){sql.exec('ROLLBACK');throw e}}};
   globalThis.__teksanorTestEnv={DB:db,UPLOADS:{head:async()=>null}};
   await mkdir('tests/.tmp',{recursive:true});
   const contents=Object.entries({auth:'./lib/auth.ts',database:'./lib/db.ts',...modules}).map(([k,p])=>`export * as ${k} from '${p}';`).join('\n');

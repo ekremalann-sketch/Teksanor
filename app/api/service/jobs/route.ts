@@ -92,7 +92,7 @@ async function handle(request:Request){
     db.prepare("UPDATE service_jobs SET assigned_user_id=?,version=version+1,updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=? AND version=? RETURNING version").bind(assigned,id,organization.id,job.version),
     auditStatement(user.id,"schedule","service_job",id,`Plan: ${date||"tarihsiz"} → ${assigned}`,organization.id,true),
     db.prepare("UPDATE work_orders SET scheduled_date=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=? AND changes()>0").bind(date,id,organization.id),
-    db.prepare("UPDATE service_approvals SET revoked_at=CURRENT_TIMESTAMP WHERE job_id=? AND organization_id=? AND approved_at IS NULL AND EXISTS(SELECT 1 FROM service_jobs WHERE id=? AND version=? AND assigned_user_id=?)").bind(id,organization.id),
+    db.prepare("UPDATE service_approvals SET revoked_at=CURRENT_TIMESTAMP WHERE job_id=? AND organization_id=? AND approved_at IS NULL AND changes()>0 AND EXISTS(SELECT 1 FROM service_jobs WHERE id=? AND version=? AND assigned_user_id=?)").bind(id,organization.id,id,Number(job.version)+1,assigned),
    ]);
    if(!moved.results?.length)return NextResponse.json({error:"Kayıt değişti. Yenileyin."},{status:409});
    return NextResponse.json({ok:true});
