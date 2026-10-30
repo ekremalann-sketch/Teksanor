@@ -157,3 +157,4 @@
 
 .service-next button,.service-upload,.service-grid>button{min-height:48px}
 .service-upload{display:flex;align-items:center;justify-content:center;cursor:pointer}
+.service-asset-banner{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 16px;padding:16px;border:1px solid var(--sv-line);border-radius:12px;background:var(--ui-paper)} .service-asset-banner h2{margin:0;flex:1 1 100%;font-size:18px} .service-asset-banner a{min-height:44px;display:inline-flex;align-items:center}

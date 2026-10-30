@@ -1,0 +1,4 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {createHarness} from './helpers/harness.mjs';
+const {api}=await createHarness('upload-capability',{health:'./app/api/health/route.ts'});
+await test('health reports missing scanner without exposing configuration values',async()=>{const r=await api.health.GET(),d=await r.json();assert.equal(r.status,200);assert.equal(d.capabilities.fileUploads,'disabled');assert.ok(d.warnings.some(s=>s.includes('tarama')));});
+await test('configured scanner is not a claim that an actual file scan succeeded',async()=>{const e=globalThis.__teksanorTestEnv;e.FILE_SCAN_URL='https://scanner.example.invalid';e.FILE_SCAN_TOKEN='synthetic-only';const r=await api.health.GET(),s=await r.text();assert.equal(JSON.parse(s).capabilities.fileUploads,'configured');assert.ok(!s.includes('synthetic-only'));assert.ok(!s.includes('scanner.example.invalid'));});
