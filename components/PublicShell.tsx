@@ -18,7 +18,7 @@ export function PublicHeader() {
       <div className="enterprise-actions">
         <Link href="/en" lang="en" hrefLang="en">English</Link>
         <Link href="/fiyatlandirma">Paketler</Link>
-        <Link className="enterprise-login" href="/giris">Portala giriş <ArrowRight size={16} /></Link>
+        <Link className="enterprise-login" href="/giris">Giriş yap <ArrowRight size={16} /></Link>
       </div>
     </header>
   );
@@ -34,7 +34,7 @@ export function PublicFooter() {
       </div>
       <div><b>Platform</b><Link href="/platform">Modüller</Link><Link href="/entegrasyonlar">Entegrasyonlar</Link><Link href="/guven">Güven merkezi</Link><Link href="/kurumsal-durum">Ürün durumu</Link></div>
       <div><b>Çözümler</b><Link href="/sektorler/teknik-servis">Teknik servis</Link><Link href="/sektorler/bakim-onarim">Bakım ve onarım</Link><Link href="/sektorler/muhendislik-taahhut">Mühendislik ve taahhüt</Link></div>
-      <div><b>Başlangıç</b><Link href="/pilot">Ücretli pilot</Link><Link href="/fiyatlandirma">Paketler</Link><Link href="/yardim">Yardım merkezi</Link><Link href="/en" hrefLang="en">English</Link><a href="mailto:bilgi@teksanor.com"><Mail size={14} /> İletişim</a></div>
+      <div><b>Başlangıç</b><Link href="/pilot">Pilot programı</Link><Link href="/fiyatlandirma">Paketler</Link><Link href="/yardim">Yardım merkezi</Link><Link href="/en" hrefLang="en">English</Link><a href="mailto:bilgi@teksanor.com"><Mail size={14} /> İletişim</a></div>
       <div className="enterprise-footer-bottom">
         <span>© {new Date().getFullYear()} Teksanor</span>
         <span><ShieldCheck size={15} /> Operasyon ve karar destek sistemi</span>

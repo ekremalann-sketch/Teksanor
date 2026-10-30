@@ -1,3 +1,4 @@
+import { clearDrafts } from "./service-draft";
 // Tarayıcı tarafı firma seçimi yardımcıları. Seçili firma localStorage'da "teksanor_organization" anahtarında tutulur.
 // Eski/başka kullanıcıya ait bir değer kalıcı kilitlenmeye yol açmasın diye 403'te temizlenir ve istek bir kez başlıksız tekrarlanır.
 export const ORGANIZATION_KEY = "teksanor_organization";
@@ -38,5 +39,7 @@ export async function signOut(redirect = "/giris") {
   try { await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }); } catch { /* ağ hatasında da yerel iz temizlenir */ }
   forgetOrganization();
   try { sessionStorage.removeItem("teksanor_home_applied"); localStorage.removeItem("teksanor_last_activity"); } catch { /* yoksay */ }
+  try { clearDrafts(localStorage); } catch { /* storage unavailable */ }
   location.replace(redirect);
 }
+

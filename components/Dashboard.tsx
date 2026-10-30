@@ -83,7 +83,7 @@ const navItems = [
   { id: "projects", label: "Projeler", icon: BriefcaseBusiness },
   { id: "tasks", label: "Görevler", icon: CheckSquare },
   { id: "work-orders", label: "İş emirleri", icon: Wrench },
-  { id: "assets", label: "Varlıklar ve ekipman", icon: Factory },
+  { id: "assets", label: "Ekipmanlar", icon: Factory },
   { id: "maintenance", label: "Bakım planları", icon: CalendarCheck2 },
   { id: "field-visits", label: "Saha ziyaretleri", icon: MapPin },
   { id: "procurement", label: "Satın alma", icon: ShoppingCart },
@@ -650,7 +650,7 @@ export default function Dashboard() {
               <div className="popover-head"><div><span>Bildirim merkezi</span><b>Güncel durum</b></div><button type="button" onClick={() => setTopbarPanel(null)} aria-label="Bildirimleri kapat"><X size={17} /></button></div>
               <div className="notification-summary"><ShieldCheck size={19} /><span><b>Güvenli oturum açık</b><small>Buradaki durum sistem sağlığı değil, yalnızca mevcut oturum bilgisidir.</small></span></div>
               {dueNotifications.map(n=><a href={n.entity_type === "maintenance_plan" ? "/panel#panel=maintenance" : n.entity_id ? `/servis?job=${encodeURIComponent(n.entity_id)}` : "/servis"} className="notification-row" key={n.id}><span className="notification-mark warning"/><span><b>{n.title}</b><small>{n.body}</small></span></a>)}
-              {data.attentionCount > 0 ? <button type="button" className="notification-row" onClick={() => { navigate("payments"); setTopbarPanel(null); }}><span className="notification-mark warning" /><span><b>{data.attentionCount} finansal kayıt takip bekliyor</b><small>Ödemeler ve borçlar bölümünü açın.</small></span><ArrowRight size={16} /></button> : <div className="notification-empty"><Check size={20} /><span><b>Bekleyen önemli bildirim yok</b><small>Yeni gelişmeler burada gösterilecek.</small></span></div>}
+              {data.attentionCount > 0 ? <button type="button" className="notification-row" onClick={() => { navigate("payments"); setTopbarPanel(null); }}><span className="notification-mark warning" /><span><b>{data.attentionCount} finansal kayıt takip bekliyor</b><small>Ödemeler ve borçlar bölümünü açın.</small></span><ArrowRight size={16} /></button> : dueNotifications.length===0 ? <div className="notification-empty"><Check size={20} /><span><b>Bekleyen önemli bildirim yok</b><small>Yeni gelişmeler burada gösterilecek.</small></span></div> : null}
               {data.activity.slice(0, 2).map((item) => <div className="notification-row static" key={item.id}><span className="notification-mark" /><span><b>{item.details || "Çalışma alanında işlem yapıldı"}</b><small>{new Date(item.created_at).toLocaleString("tr-TR")}</small></span></div>)}
             </div>}
             {topbarPanel === "settings" && <div className="topbar-popover settings-popover">
@@ -749,7 +749,7 @@ function PageHeader({ active, period, organization, onBack, onNew, onImport, onE
     projects: ["Proje portföyü", "Planlanan ve devam eden çalışmaları sorumlu, bütçe, tarih ve ilerleme bilgisiyle yönetin."],
     tasks: ["Görevler", "Departman görevlerini sorumlu, öncelik ve son tarihle takip edin."],
     "work-orders": ["İş emirleri", "Saha ve bakım iş emirlerini durum akışıyla yönetin."],
-    assets: ["Varlıklar ve ekipman", "Makine, araç ve cihazları kod, konum, sorumlu ve bakım geçmişiyle yönetin."],
+    assets: ["Ekipmanlar", "Makine, araç ve cihazları kod, konum, sorumlu ve bakım geçmişiyle yönetin."],
     maintenance: ["Bakım planları", "Periyodik bakımları planlayın; tamamlanan işlemden sonra yeni tarihi otomatik oluşturun."],
     "field-visits": ["Saha ziyaretleri", "Kontrol, kurulum ve bakım ziyaretlerini bulgularla kaydedin."],
     procurement: ["Satın alma", "Talep, onay, sipariş ve teslim sürecini tek akışta izleyin."],

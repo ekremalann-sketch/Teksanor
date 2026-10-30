@@ -1,0 +1,7 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {draftKey,readDraft,writeDraft,clearDrafts} from '../lib/service-draft.ts';
+const store=()=>{const m=new Map();return{get length(){return m.size},key:i=>[...m.keys()][i],getItem:k=>m.get(k)??null,setItem:(k,v)=>m.set(k,v),removeItem:k=>m.delete(k)}};
+test('drafts isolate user, organization and job and restore current version',()=>{const s=store(),key=draftKey('u','a','j');writeDraft(s,key,'SIM note',1,100);assert.equal(readDraft(s,key,1,200),'SIM note');assert.equal(readDraft(s,draftKey('other','a','j'),1,200),null);assert.equal(readDraft(s,draftKey('u','b','j'),1,200),null);assert.equal(readDraft(s,draftKey('u','a','other'),1,200),null);});
+test('changed report and expired draft never overwrite server note',()=>{const s=store(),key=draftKey('u','a','j');writeDraft(s,key,'SIM old',1,100);assert.equal(readDraft(s,key,2,200),null);writeDraft(s,key,'SIM old',1,100);assert.equal(readDraft(s,key,1,86400200),null);});
+test('signout cleanup removes only draft namespace',()=>{const s=store();s.setItem('other','keep');writeDraft(s,draftKey('u','a','j'),'SIM',1);clearDrafts(s);assert.equal(s.length,1);assert.equal(s.getItem('other'),'keep');});

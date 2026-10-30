@@ -154,3 +154,6 @@
 .share-wa:hover{background:#0c5a31!important}
 /* Liste kaydırılabilir olduğunda kartlar sıkışıp durum etiketleri kesilmesin */
 .service-list>*{flex-shrink:0}
+
+.service-next button,.service-upload,.service-grid>button{min-height:48px}
+.service-upload{display:flex;align-items:center;justify-content:center;cursor:pointer}

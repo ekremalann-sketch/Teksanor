@@ -97,7 +97,7 @@ export default function LoginPage() {
           <div className="auth-mode-tabs"><button type="button" className={mode === "login" ? "active" : ""} onClick={() => changeMode("login")}>Giriş yap</button><button type="button" className={mode === "register" ? "active" : ""} onClick={() => changeMode("register")}>Kayıt ol</button></div>
           <div className="login-lock">{mode === "login" ? <LockKeyhole size={21} /> : accountType === "business" ? <Building2 size={21} /> : <UserRound size={21} />}</div>
           <span className="form-kicker">TEKSANOR KURUMSAL PORTAL</span>
-          <h2>{challengeToken ? "Güvenlik doğrulaması" : mode === "login" ? "Portala giriş" : "Özel çalışma alanınızı oluşturun"}</h2>
+          <h2>{challengeToken ? "Güvenlik doğrulaması" : mode === "login" ? "Giriş yap" : "Özel çalışma alanınızı oluşturun"}</h2>
           <p>{challengeToken ? "Kimlik doğrulama uygulamanızda görünen 6 haneli kodu girin." : mode === "login" ? "Kullanıcı adınız ve parolanızla devam edin." : "14 günlük deneme alanınız yalnızca size ve yetkilendirdiğiniz kişilere açık olur."}</p>
 
           {!challengeToken && mode === "register" && <>
