@@ -7,8 +7,8 @@ export function readDraft(storage: Storage, key: string, version: number, now = 
   try {
     const raw = storage.getItem(key); if (!raw) return null;
     let data;
-    try { data = JSON.parse(raw); } catch { storage.setItem(key+":previous",raw); return null; }
-    if (data.version !== version) { storage.setItem(key+":previous",raw); return null; }
+    try { data = JSON.parse(raw); } catch { storage.setItem(key+":previous",JSON.stringify({note:raw,at:now})); return null; }
+    if (data.version !== version) { storage.setItem(key+":previous",JSON.stringify({note:String(data.note??data.text??"").slice(0,6000),at:now})); return null; }
     if (!Number.isFinite(data.at) || now - data.at > 86400000 || data.at > now || typeof data.note !== "string" || data.note.length > 6000) {
       storage.removeItem(key); return null;
     }
@@ -16,7 +16,7 @@ export function readDraft(storage: Storage, key: string, version: number, now = 
   } catch { return null; }
 }
 export function previousDraft(storage: Storage, key: string): string {
-  try { const raw=storage.getItem(key+":previous"); if(!raw)return "";try {const parsed=JSON.parse(raw);return String(parsed.note??parsed.text??"").slice(0,6000);}catch{return raw.slice(0,6000);} }catch{return "";}
+  try { const raw=storage.getItem(key+":previous"); if(!raw)return "";try {const parsed=JSON.parse(raw);if(!Number.isFinite(parsed.at)||Date.now()-parsed.at>86400000){storage.removeItem(key+":previous");return "";}return String(parsed.note??parsed.text??"").slice(0,6000);}catch{return raw.slice(0,6000);} }catch{return "";}
 }
 export function writeDraft(storage: Storage, key: string, note: string, version: number, now = Date.now()) {
   storage.setItem(key, JSON.stringify({note:note.slice(0,6000),version,at:now}));
@@ -24,3 +24,4 @@ export function writeDraft(storage: Storage, key: string, note: string, version:
 export function clearDrafts(storage: Storage) {
   for (let i=storage.length-1;i>=0;i--) { const key=storage.key(i); if(key?.startsWith(draftPrefix)) storage.removeItem(key); }
 }
+
