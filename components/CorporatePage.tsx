@@ -23,7 +23,7 @@ export default function CorporatePage({ type }: { type: keyof typeof content }) 
   const page = content[type];
   const icons = [BarChart3, Database, Workflow, ShieldCheck];
   return <main className="corporate-page">
-    <header className="corporate-header"><Link href="/"><img src="/assets/teksanor-logo-dark.webp" alt="Teksanor" width={400} height={160} /></Link><nav><Link href="/cozumler">Çözümler</Link><Link href="/muhendislik">Mühendislik</Link><Link href="/yapay-zeka">Yapay Zekâ</Link><Link href="/hakkimizda">Hakkımızda</Link></nav><Link className="corporate-login" href="/giris">Portala giriş <ArrowRight size={16} /></Link></header>
+    <header className="corporate-header"><Link href="/"><img src="/assets/teksanor-logo-dark.webp" alt="Teksanor" width={400} height={160} /></Link><nav><Link href="/cozumler">Çözümler</Link><Link href="/muhendislik">Mühendislik</Link><Link href="/yapay-zeka">Yapay Zekâ</Link><Link href="/hakkimizda">Hakkımızda</Link></nav><Link className="corporate-login" href="/giris">Giriş yap <ArrowRight size={16} /></Link></header>
     <section className="corporate-hero"><img src="/assets/teksanor-engineering-lab.webp" alt="Teksanor mühendislik ve akıllı üretim laboratuvarı" /><div><span>{page.kicker}</span><h1>{page.title}</h1><p>{page.text}</p><Link href="/giris#kayit">Ücretsiz deneyin <ArrowRight size={17} /></Link></div></section>
     {type === "muhendislik" && <SectorDemo slug="muhendislik-taahhut" />}
     <section className="corporate-values">{page.cards.map(([title, text], index) => { const Icon = icons[index]; return <article key={title}><Icon size={24} /><span>0{index + 1}</span><h2>{title}</h2><p>{text}</p></article>; })}</section>

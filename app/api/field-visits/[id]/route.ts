@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { errorStatus } from "@/lib/access";
 import { getCurrentUser } from "@/lib/auth";
-import { addAudit, getDb } from "@/lib/db";
+import { auditStatement, getDb } from "@/lib/db";
 import { requireOrganization } from "@/lib/tenancy";
 import { rejectCrossSiteMutation } from "@/lib/security";
 
@@ -22,7 +22,8 @@ export async function PUT(request: Request, routeContext: { params: Promise<{ id
     if (!existing) return NextResponse.json({ error: "Saha ziyareti bulunamadı." }, { status: 404 });
     const status = STATUS.includes(text(body.status)) ? text(body.status) : String(existing.status);
     const visitType = TYPE.includes(text(body.visitType)) ? text(body.visitType) : String(existing.visit_type);
-    await getDb().prepare(`UPDATE field_visits SET visitor_name = ?, customer_name = ?, location = ?, visit_date = ?,
+    await getDb().batch([
+      getDb().prepare(`UPDATE field_visits SET visitor_name = ?, customer_name = ?, location = ?, visit_date = ?,
       visit_type = ?, status = ?, duration_hours = ?, findings = ?, actions_taken = ?, next_visit_date = ?
       WHERE id = ? AND organization_id = ?`)
       .bind(text(body.visitorName) || String(existing.visitor_name),
@@ -32,8 +33,9 @@ export async function PUT(request: Request, routeContext: { params: Promise<{ id
         body.findings !== undefined ? text(body.findings, 1200) || null : existing.findings,
         body.actionsTaken !== undefined ? text(body.actionsTaken, 1200) || null : existing.actions_taken,
         body.nextVisitDate !== undefined ? text(body.nextVisitDate, 20) || null : existing.next_visit_date,
-        id, context.organization.id).run();
-    await addAudit(user.id, "update", "field_visit", id, `${existing.visit_number} saha ziyareti güncellendi.`, context.organization.id);
+        id, context.organization.id),
+      auditStatement(user.id, "update", "field_visit", id, `${existing.visit_number} saha ziyareti güncellendi.`, context.organization.id, true),
+    ]);
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ error: "Saha ziyareti güncellenemedi." }, { status: errorStatus(error) });
@@ -47,10 +49,12 @@ export async function DELETE(request: Request, routeContext: { params: Promise<{
   try {
     const context = await requireOrganization(request, user);
     const { id } = await routeContext.params;
-    const removed = await getDb().prepare("DELETE FROM field_visits WHERE id = ? AND organization_id = ?").bind(id, context.organization.id).run();
+    const [removed] = await getDb().batch([
+      getDb().prepare("DELETE FROM field_visits WHERE id = ? AND organization_id = ?").bind(id, context.organization.id),
+      auditStatement(user.id, "delete", "field_visit", id, undefined, context.organization.id, true),
+    ]);
     // Başka firmanın veya olmayan bir kaydın silinmesi başarı ve denetim kaydı üretmez.
     if (!removed.meta?.changes) return NextResponse.json({ error: "Kayıt bulunamadı." }, { status: 404 });
-    await addAudit(user.id, "delete", "field_visit", id, undefined, context.organization.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ error: "Saha ziyareti silinemedi." }, { status: errorStatus(error) });

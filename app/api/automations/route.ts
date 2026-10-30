@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { errorStatus } from "@/lib/access";
 import { isRuleCheck } from "@/lib/automation-rules";
 import { getCurrentUser } from "@/lib/auth";
-import { addAudit, createId, getDb } from "@/lib/db";
+import { auditStatement, createId, getDb } from "@/lib/db";
 import { canManageOrganization, requireOrganization } from "@/lib/tenancy";
 import { isAutomationPaused, setAutomationPaused } from "@/lib/automation-control";
 import { rejectCrossSiteMutation } from "@/lib/security";
@@ -58,12 +58,14 @@ export async function POST(request: Request) {
     const triggerType = text(body.triggerType) === "manual" ? "manual" : "schedule";
     const actionType = "notify";
     const id = createId("auto");
-    await getDb().prepare(`INSERT INTO automation_rules
+    await getDb().batch([
+      getDb().prepare(`INSERT INTO automation_rules
       (id, organization_id, name, description, trigger_type, trigger_config, action_type, is_active, created_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .bind(id, context.organization.id, name, text(body.description, 800) || null, triggerType, JSON.stringify({ check: body.check }), actionType,
-        body.isActive === false ? 0 : 1, user.id).run();
-    await addAudit(user.id, "create", "automation_rule", id, `${name} otomasyon kuralı oluşturuldu.`, context.organization.id);
+        body.isActive === false ? 0 : 1, user.id),
+      auditStatement(user.id, "create", "automation_rule", id, `${name} otomasyon kuralı oluşturuldu.`, context.organization.id, true),
+    ]);
     return NextResponse.json({ ok: true, id });
   } catch (error) {
     return NextResponse.json({ error: "Otomasyon oluşturulamadı." }, { status: errorStatus(error) });
@@ -89,9 +91,11 @@ export async function PATCH(request: Request) {
       .bind(id, context.organization.id).first<{ is_active: number }>();
     if (!existing) return NextResponse.json({ error: "Kural bulunamadı." }, { status: 404 });
     const next = body.isActive !== undefined ? (body.isActive ? 1 : 0) : (existing.is_active ? 0 : 1);
-    await getDb().prepare("UPDATE automation_rules SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND organization_id = ?")
-      .bind(next, id, context.organization.id).run();
-    await addAudit(user.id, "update", "automation_rule", id, `Otomasyon durumu ${next ? "aktif" : "pasif"} yapıldı.`, context.organization.id);
+    await getDb().batch([
+      getDb().prepare("UPDATE automation_rules SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND organization_id = ?")
+      .bind(next, id, context.organization.id),
+      auditStatement(user.id, "update", "automation_rule", id, `Otomasyon durumu ${next ? "aktif" : "pasif"} yapıldı.`, context.organization.id, true),
+    ]);
     return NextResponse.json({ ok: true, isActive: next });
   } catch (error) {
     return NextResponse.json({ error: "Otomasyon güncellenemedi." }, { status: errorStatus(error) });

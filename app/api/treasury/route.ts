@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { addAudit, createId, getDb } from "@/lib/db";
+import { auditStatement, createId, getDb } from "@/lib/db";
 import { FIAT_CURRENCIES, GOLD_UNITS, getFxRates } from "@/lib/fx";
 import { canManageOrganization, requireOrganization } from "@/lib/tenancy";
 import { rejectCrossSiteMutation } from "@/lib/security";
@@ -81,9 +81,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Hesap adı, para birimi ve sıfırdan büyük tutar gereklidir." }, { status: 400 });
     }
     const id = createId("cash");
-    await database.prepare("INSERT INTO cash_balances (id, account_name, currency, amount, manual_rate, note, created_by, organization_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-      .bind(id, String(body.accountName).trim(), currency, amount, manualRate > 0 ? manualRate : null, body.note ? String(body.note) : null, user.id, organizationId).run();
-    await addAudit(user.id, "create", "cash_balance", id, `${body.accountName} nakit kaydı eklendi.`, organizationId);
+    await database.batch([
+      database.prepare("INSERT INTO cash_balances (id, account_name, currency, amount, manual_rate, note, created_by, organization_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+      .bind(id, String(body.accountName).trim(), currency, amount, manualRate > 0 ? manualRate : null, body.note ? String(body.note) : null, user.id, organizationId),
+      auditStatement(user.id, "create", "cash_balance", id, `${body.accountName} nakit kaydı eklendi.`, organizationId, true),
+    ]);
     return NextResponse.json({ id }, { status: 201 });
   }
 
@@ -96,13 +98,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Borç alınan kişi/kurum, tür ve sıfırdan büyük miktar gereklidir." }, { status: 400 });
     }
     const id = createId("debt");
-    await database.prepare(`INSERT INTO manual_debts
+    await database.batch([
+      database.prepare(`INSERT INTO manual_debts
       (id, lender_name, debt_type, currency, amount, manual_rate, due_date, note, status, created_by, organization_id)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)`)
       .bind(id, String(body.lenderName).trim(), String(body.debtType ?? "cash"), currency, amount,
         manualRate > 0 ? manualRate : null, body.dueDate ? String(body.dueDate) : null,
-        body.note ? String(body.note) : null, user.id, organizationId).run();
-    await addAudit(user.id, "create", "manual_debt", id, `${body.lenderName} elden borç kaydı eklendi.`, organizationId);
+        body.note ? String(body.note) : null, user.id, organizationId),
+      auditStatement(user.id, "create", "manual_debt", id, `${body.lenderName} elden borç kaydı eklendi.`, organizationId, true),
+    ]);
     return NextResponse.json({ id }, { status: 201 });
   }
 
@@ -120,10 +124,11 @@ export async function POST(request: Request) {
     if (rates.some(([, value]) => !Number.isFinite(value) || value < 0)) {
       return NextResponse.json({ error: "Referans fiyatlar geçersiz." }, { status: 400 });
     }
-    await database.batch(rates.filter(([, value]) => value > 0).map(([code, value]) => database.prepare(`INSERT INTO organization_reference_rates (organization_id, code, rate_try, updated_by)
+    await database.batch([...rates.filter(([, value]) => value > 0).map(([code, value]) => database.prepare(`INSERT INTO organization_reference_rates (organization_id, code, rate_try, updated_by)
       VALUES (?, ?, ?, ?) ON CONFLICT(organization_id, code) DO UPDATE SET rate_try = excluded.rate_try, updated_by = excluded.updated_by, updated_at = CURRENT_TIMESTAMP`)
-      .bind(organizationId, code, value, user.id)));
-    await addAudit(user.id, "update", "reference_rates", null, "Altın referans fiyatları güncellendi.", organizationId);
+      .bind(organizationId, code, value, user.id)),
+      auditStatement(user.id, "update", "reference_rates", null, "Altın referans fiyatları güncellendi.", organizationId),
+    ]);
     return NextResponse.json({ ok: true });
   }
 

@@ -24,9 +24,11 @@ export async function GET(){
   dependency="storage";
   const bucket=(env as unknown as {UPLOADS?:{head:(key:string)=>Promise<unknown>}}).UPLOADS;
   if(bucket)await bucket.head("__teksanor_health_probe__");
+  const scan=env as unknown as {FILE_SCAN_URL?:string;FILE_SCAN_TOKEN?:string};
+  const fileUploads=!!bucket&&!!scan.FILE_SCAN_URL&&!!scan.FILE_SCAN_TOKEN;
 
   return NextResponse.json(
-   {ok:true,version:__TEKSANOR_COMMIT__,checkedAt:new Date().toISOString(),capabilities:{storage:bucket?"available":"disabled"},warnings:bucket?[]:["Dosya yükleme kapalı: UPLOADS bağlantısı yapılandırılmadı."]},
+   {ok:true,version:__TEKSANOR_COMMIT__,checkedAt:new Date().toISOString(),capabilities:{storage:bucket?"available":"disabled",fileUploads:fileUploads?"configured":"disabled"},warnings:!bucket?["Dosya yükleme kapalı: UPLOADS bağlantısı yapılandırılmadı."]:!fileUploads?["Dosya yükleme kapalı: güvenli tarama hizmeti yapılandırılmadı."]:[]},
    {headers:{"Cache-Control":"no-store"}},
   );
  }catch(error){

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { addAudit, getDb } from "@/lib/db";
+import { auditStatement, getDb } from "@/lib/db";
 import { canManageOrganization, requireOrganization } from "@/lib/tenancy";
 import { rejectCrossSiteMutation } from "@/lib/security";
 
@@ -27,7 +27,8 @@ export async function POST(request: Request) {
   const email = values[7];
   if (email && !/^\S+@\S+\.\S+$/.test(email)) return NextResponse.json({ error: "Geçerli bir e-posta adresi girin." }, { status: 400 });
 
-  await getDb().prepare(`INSERT INTO organization_profiles
+  await getDb().batch([
+      getDb().prepare(`INSERT INTO organization_profiles
     (organization_id, legal_name, tax_office, tax_number, mersis_number, trade_registry_number, sector, phone, email, website, address, about, updated_by)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(organization_id) DO UPDATE SET
@@ -35,7 +36,8 @@ export async function POST(request: Request) {
       mersis_number = excluded.mersis_number, trade_registry_number = excluded.trade_registry_number,
       sector = excluded.sector, phone = excluded.phone, email = excluded.email, website = excluded.website,
       address = excluded.address, about = excluded.about, updated_by = excluded.updated_by, updated_at = CURRENT_TIMESTAMP`)
-    .bind(context.organization.id, ...values, user.id).run();
-  await addAudit(user.id, "update", "organization_profile", context.organization.id, "Firma profil bilgileri güncellendi.", context.organization.id);
+    .bind(context.organization.id, ...values, user.id),
+      auditStatement(user.id, "update", "organization_profile", context.organization.id, "Firma profil bilgileri güncellendi.", context.organization.id, true),
+    ]);
   return NextResponse.json({ ok: true });
 }

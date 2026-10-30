@@ -1,5 +1,5 @@
 import {NextResponse} from "next/server";
-import {ensureSchema,getDb,addAudit} from "@/lib/db";
+import {ensureSchema,getDb,auditStatement} from "@/lib/db";
 import {tokenDigest} from "@/lib/account-tokens";
 import {rejectCrossSiteMutation} from "@/lib/security";
 import {signaturePath,SignatureError} from "@/lib/signature";
@@ -29,8 +29,10 @@ async function handle(request:Request){
  AND EXISTS(SELECT 1 FROM service_jobs s WHERE s.id=job_id AND s.version=job_version AND s.stage=?) RETURNING id`).bind(name,signature,hash,previous),
  db.prepare(`UPDATE service_jobs SET stage=?,version=version+1,updated_at=CURRENT_TIMESTAMP WHERE id=? AND version=? AND stage=?
  AND EXISTS(SELECT 1 FROM service_approvals WHERE token_hash=? AND approved_at IS NOT NULL AND revoked_at IS NULL) RETURNING id`).bind(stage,a.job_id,a.job_version,previous,hash),
+ auditStatement(null,"customer_approval","service_job",String(a.job_id),`${a.purpose} müşteri onayı kaydedildi${signature?" (imzalı)":""}.`,String(a.organization_id),true),
  ]);
  const changed=results[1] as {results?:unknown[]};if(!changed?.results?.length)return NextResponse.json({error:"Kayıt değişti. Yeni bağlantı isteyin."},{status:409});
- await addAudit(null,"customer_approval","service_job",String(a.job_id),`${a.purpose} müşteri onayı kaydedildi${signature?" (imzalı)":""}.`,String(a.organization_id));
+
  return NextResponse.json({ok:true});
 }
+

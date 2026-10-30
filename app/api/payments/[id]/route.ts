@@ -2,7 +2,7 @@ import { publicErrorMessage } from "@/lib/security";
 import { optionalCalendarDate } from "@/lib/dates";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { addAudit, getDb, refreshOrganizationPeriodSummary } from "@/lib/db";
+import { auditStatement, getDb, organizationPeriodSummaryStatements } from "@/lib/db";
 import { canManageOrganization, requireOrganization } from "@/lib/tenancy";
 import { rejectCrossSiteMutation } from "@/lib/security";
 import { parseOptionalLocalizedNumber, paymentFieldLabels, resolvePaymentStatus } from "@/lib/finance";
@@ -18,11 +18,15 @@ export async function PATCH(request: Request, routeContext: { params: Promise<{ 
   const { id } = await routeContext.params;
   const body = (await request.json()) as Record<string, unknown>;
   if (body.action === "approve") {
-    const approved = await getDb().prepare("UPDATE payment_records SET workflow_status = 'approved', updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND organization_id = ? RETURNING id, period")
-      .bind(user.id, id, orgContext.organization.id).first<{ id: string; period: string }>();
+    const approved = await getDb().prepare("SELECT period FROM payment_records WHERE id = ? AND organization_id = ?")
+      .bind(id, orgContext.organization.id).first<{ period: string }>();
     if (!approved) return NextResponse.json({ error: "Kayıt bulunamadı." }, { status: 404 });
-    await refreshOrganizationPeriodSummary(orgContext.organization.id, approved.period);
-    await addAudit(user.id, "approve", "payment_record", id, undefined, orgContext.organization.id);
+    const [changed] = await getDb().batch([
+      getDb().prepare("UPDATE payment_records SET workflow_status = 'approved', updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND organization_id = ? RETURNING id").bind(user.id, id, orgContext.organization.id),
+      auditStatement(user.id, "approve", "payment_record", id, undefined, orgContext.organization.id, true),
+      ...organizationPeriodSummaryStatements(orgContext.organization.id, approved.period),
+    ]);
+    if (!changed.results?.length) return NextResponse.json({ error: "Kayıt bulunamadı." }, { status: 404 });
     return NextResponse.json({ ok: true });
   }
   if (!body.period || !body.ownerName || !body.bankName || !body.accountName) {
@@ -44,7 +48,7 @@ export async function PATCH(request: Request, routeContext: { params: Promise<{ 
   let paymentStatus: string;
   try { paymentStatus = resolvePaymentStatus({ totalDebt: values.totalDebt, paidAmount: values.paidAmount, status: body.paymentStatus }); }
   catch (error) { return NextResponse.json({ error: publicErrorMessage(error,"Tutarlar geçersiz.") }, { status: 400 }); }
-  await getDb().prepare(`UPDATE payment_records SET
+  await getDb().batch([getDb().prepare(`UPDATE payment_records SET
     period = ?, owner_name = ?, bank_name = ?, account_name = ?, total_limit = ?, total_debt = ?, restructuring = ?,
     monthly_payment = ?, next_installment = ?, overdraft_debt = ?, overdraft_limit = ?, interest_rate = ?, interest_debt = ?, minimum_payment = ?,
     paid_amount = ?, payment_status = ?, paid_at = ?, missing_fields = ?, due_date = ?, important_note = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP
@@ -56,10 +60,11 @@ export async function PATCH(request: Request, routeContext: { params: Promise<{ 
       stored.paidAmount, paymentStatus, paidAt, JSON.stringify(missingFields),
       dueDate, body.importantNote ? String(body.importantNote) : null,
       user.id, id, orgContext.organization.id,
-    ).run();
-  await refreshOrganizationPeriodSummary(orgContext.organization.id, previous.period);
-  if (String(body.period) !== previous.period) await refreshOrganizationPeriodSummary(orgContext.organization.id, String(body.period));
-  await addAudit(user.id, "update", "payment_record", id, `${body.bankName} kaydı güncellendi.`, orgContext.organization.id);
+    ),
+    auditStatement(user.id, "update", "payment_record", id, `${body.bankName} kaydı güncellendi.`, orgContext.organization.id, true),
+    ...organizationPeriodSummaryStatements(orgContext.organization.id, previous.period),
+    ...(String(body.period) !== previous.period ? organizationPeriodSummaryStatements(orgContext.organization.id, String(body.period)) : []),
+  ]);
   return NextResponse.json({ ok: true });
 }
 
@@ -75,8 +80,10 @@ export async function DELETE(request: Request, routeContext: { params: Promise<{
   const record = await getDb().prepare("SELECT period FROM payment_records WHERE id = ? AND organization_id = ?")
     .bind(id, orgContext.organization.id).first<{ period: string }>();
   if (!record) return NextResponse.json({ error: "Kayıt bulunamadı." }, { status: 404 });
-  await getDb().prepare("DELETE FROM payment_records WHERE id = ? AND organization_id = ?").bind(id, orgContext.organization.id).run();
-  await refreshOrganizationPeriodSummary(orgContext.organization.id, record.period);
-  await addAudit(user.id, "delete", "payment_record", id, undefined, orgContext.organization.id);
+  await getDb().batch([
+    getDb().prepare("DELETE FROM payment_records WHERE id = ? AND organization_id = ?").bind(id, orgContext.organization.id),
+    auditStatement(user.id, "delete", "payment_record", id, undefined, orgContext.organization.id, true),
+    ...organizationPeriodSummaryStatements(orgContext.organization.id, record.period),
+  ]);
   return NextResponse.json({ ok: true });
 }

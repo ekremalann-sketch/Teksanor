@@ -2,7 +2,7 @@ import { canView, errorStatus, getMemberAccess } from "@/lib/access";
 import { ensureRunsTable, isRuleCheck, runRule, resolveCheck, RULE_CHECKS } from "@/lib/automation-rules";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { addAudit, getDb } from "@/lib/db";
+import { auditStatement, getDb } from "@/lib/db";
 import { requireOrganization } from "@/lib/tenancy";
 import { rejectCrossSiteMutation } from "@/lib/security";
 
@@ -24,14 +24,16 @@ export async function PUT(request: Request, routeContext: { params: Promise<{ id
     const triggerType = TRIGGER.includes(text(body.triggerType)) ? text(body.triggerType) : String(existing.trigger_type);
     const actionType = ACTION.includes(text(body.actionType)) ? text(body.actionType) : String(existing.action_type);
     const triggerConfig = isRuleCheck(body.check) ? JSON.stringify({ check: body.check }) : existing.trigger_config ?? null;
-    await getDb().prepare(`UPDATE automation_rules SET name = ?, description = ?, trigger_type = ?, action_type = ?, is_active = ?,
+    await getDb().batch([
+      getDb().prepare(`UPDATE automation_rules SET name = ?, description = ?, trigger_type = ?, action_type = ?, is_active = ?,
       trigger_config = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND organization_id = ?`)
       .bind(text(body.name) || String(existing.name),
         body.description !== undefined ? text(body.description, 800) || null : existing.description,
         triggerType, actionType, body.isActive !== undefined ? (body.isActive ? 1 : 0) : existing.is_active,
         triggerConfig,
-        id, context.organization.id).run();
-    await addAudit(user.id, "update", "automation_rule", id, `${existing.name} kuralı güncellendi.`, context.organization.id);
+        id, context.organization.id),
+      auditStatement(user.id, "update", "automation_rule", id, `${existing.name} kuralı güncellendi.`, context.organization.id, true),
+    ]);
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ error: "Otomasyon güncellenemedi." }, { status: errorStatus(error) });
@@ -45,10 +47,12 @@ export async function DELETE(request: Request, routeContext: { params: Promise<{
   try {
     const context = await requireOrganization(request, user);
     const { id } = await routeContext.params;
-    const removed = await getDb().prepare("DELETE FROM automation_rules WHERE id = ? AND organization_id = ?").bind(id, context.organization.id).run();
+    const [removed] = await getDb().batch([
+      getDb().prepare("DELETE FROM automation_rules WHERE id = ? AND organization_id = ?").bind(id, context.organization.id),
+      auditStatement(user.id, "delete", "automation_rule", id, undefined, context.organization.id, true),
+    ]);
     // Başka firmanın veya olmayan bir kaydın silinmesi başarı ve denetim kaydı üretmez.
     if (!removed.meta?.changes) return NextResponse.json({ error: "Kayıt bulunamadı." }, { status: 404 });
-    await addAudit(user.id, "delete", "automation_rule", id, undefined, context.organization.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ error: "Otomasyon silinemedi." }, { status: errorStatus(error) });
@@ -70,7 +74,6 @@ export async function POST(request: Request, routeContext: { params: Promise<{ i
     if (!rule) return NextResponse.json({ error: "Kural bulunamadı." }, { status: 404 });
     const access = await getMemberAccess(user, context.organization);
     const result = await runRule({ organizationId: orgId, rule, userId: user.id, access, source: "manual" });
-    if (result.status !== "skipped") await addAudit(user.id, "trigger", "automation_rule", id, `${rule.name} elle çalıştırıldı: ${result.matched} eşleşme.`, orgId);
     const message = result.status === "skipped"
       ? result.detail
       : `${result.scanned} kayıt incelendi, ${result.matched} eşleşme. ${result.matched ? "Bildirim oluşturuldu." : "Bildirim gerekmedi."}`;

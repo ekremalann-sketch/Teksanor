@@ -2,7 +2,7 @@ import {NextResponse} from "next/server";
 import {getCurrentUser} from "@/lib/auth";
 import {requireOrganization} from "@/lib/tenancy";
 import {getMemberAccess} from "@/lib/access";
-import {getDb,createId,addAudit} from "@/lib/db";
+import {getDb,createId,auditStatement} from "@/lib/db";
 import {ensureServiceColumns,serviceJob} from "@/lib/service";
 import {rejectCrossSiteMutation} from "@/lib/security";
 import {ChecklistError,missingRequired,parseAnswers,parseTemplateItems,STARTER_TEMPLATES,type ChecklistItem} from "@/lib/checklist";
@@ -43,15 +43,19 @@ async function handle(request:Request){
    if(!manage)return json({error:"Form şablonunu yönetici oluşturur."},403);
    const name=String(b.name??"").trim().slice(0,120);if(name.length<2)throw new ChecklistError("Şablon adı yazın.");
    const items=parseTemplateItems(b.items);const id=createId("chk");
-   await db.prepare("INSERT INTO service_checklist_templates(id,organization_id,name,items,created_by) VALUES(?,?,?,?,?)").bind(id,organization.id,name,JSON.stringify(items),user.id).run();
-   await addAudit(user.id,"create","checklist_template",id,`Form şablonu: ${name} (${items.length} madde)`,organization.id);
+   await db.batch([
+      db.prepare("INSERT INTO service_checklist_templates(id,organization_id,name,items,created_by) VALUES(?,?,?,?,?)").bind(id,organization.id,name,JSON.stringify(items),user.id),
+      auditStatement(user.id, "create", "checklist_template", id, `Form şablonu: ${name} (${items.length} madde)`, organization.id, true),
+    ]);
    return json({ok:true,id,templates:await templates()},201);
   }
   if(b.action==="template.archive"){
    if(!manage)return json({error:"Form şablonunu yönetici arşivler."},403);
-   const r=await db.prepare("UPDATE service_checklist_templates SET active=0 WHERE id=? AND organization_id=? AND active=1").bind(String(b.id??""),organization.id).run();
+   const [r]=await db.batch([
+    db.prepare("UPDATE service_checklist_templates SET active=0 WHERE id=? AND organization_id=? AND active=1").bind(String(b.id??""),organization.id),
+    auditStatement(user.id,"archive","checklist_template",String(b.id),"Form şablonu arşivlendi.",organization.id,true),
+   ]);
    if(!r.meta?.changes)return json({error:"Şablon bulunamadı."},404);
-   await addAudit(user.id,"archive","checklist_template",String(b.id),"Form şablonu arşivlendi.",organization.id);
    return json({ok:true,templates:await templates()});
   }
 
@@ -64,7 +68,11 @@ async function handle(request:Request){
    const t=await db.prepare("SELECT id,name,items FROM service_checklist_templates WHERE id=? AND organization_id=? AND active=1").bind(String(b.templateId??""),organization.id).first<{id:string;name:string;items:string}>();
    if(!t)return json({error:"Şablon bulunamadı."},404);
    // Aynı şablon aynı işe iki kez eklenmez (benzersiz kısıt); çift tıklama tek form bırakır.
-   await db.prepare("INSERT OR IGNORE INTO service_job_checklists(id,organization_id,job_id,template_id,name,items,updated_by) VALUES(?,?,?,?,?,?,?)").bind(createId("jchk"),organization.id,jobId,t.id,t.name,t.items,user.id).run();
+   const id=createId("jchk");
+   await db.batch([
+    db.prepare("INSERT OR IGNORE INTO service_job_checklists(id,organization_id,job_id,template_id,name,items,updated_by) VALUES(?,?,?,?,?,?,?)").bind(id,organization.id,jobId,t.id,t.name,t.items,user.id),
+    auditStatement(user.id,"create","job_checklist",id,"Kontrol listesi işe eklendi.",organization.id,true),
+   ]);
    return json({ok:true,checklists:await jobLists(jobId)},201);
   }
   if(b.action==="answer"){
@@ -72,10 +80,12 @@ async function handle(request:Request){
    if(!row)return json({error:"Form bulunamadı."},404);
    const items=JSON.parse(row.items) as ChecklistItem[];const answers=parseAnswers(items,b.answers);
    const done=missingRequired(items,answers).length===0;
-   const updated=await db.prepare(`UPDATE service_job_checklists SET answers=?,version=version+1,completed_at=CASE WHEN ? THEN COALESCE(completed_at,CURRENT_TIMESTAMP) ELSE NULL END,updated_by=?,updated_at=CURRENT_TIMESTAMP
-    WHERE id=? AND version=? AND EXISTS(SELECT 1 FROM service_jobs s WHERE s.id=? AND s.stage NOT IN ('accepted','collected','cancelled')) RETURNING version`).bind(JSON.stringify(answers),done?1:0,user.id,row.id,Number(b.version),jobId).first();
-   if(!updated)return json({error:"Form başka bir işlemle güncellendi veya iş kilitlendi. Yenileyin."},409);
-   await addAudit(user.id,"update","job_checklist",row.id,done?"Kontrol listesi tamamlandı.":"Kontrol listesi kaydedildi.",organization.id);
+   const [updated]=await db.batch([
+    db.prepare(`UPDATE service_job_checklists SET answers=?,version=version+1,completed_at=CASE WHEN ? THEN COALESCE(completed_at,CURRENT_TIMESTAMP) ELSE NULL END,updated_by=?,updated_at=CURRENT_TIMESTAMP
+    WHERE id=? AND version=? AND EXISTS(SELECT 1 FROM service_jobs s WHERE s.id=? AND s.stage NOT IN ('accepted','collected','cancelled')) RETURNING version`).bind(JSON.stringify(answers),done?1:0,user.id,row.id,Number(b.version),jobId),
+    auditStatement(user.id,"update","job_checklist",row.id,done?"Kontrol listesi tamamlandı.":"Kontrol listesi kaydedildi.",organization.id,true),
+   ]);
+   if(!updated.results?.length)return json({error:"Form başka bir işlemle güncellendi veya iş kilitlendi. Yenileyin."},409);
    return json({ok:true,checklists:await jobLists(jobId)});
   }
   return json({error:"Geçersiz işlem."},400);

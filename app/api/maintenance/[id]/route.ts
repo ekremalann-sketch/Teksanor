@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { errorStatus } from "@/lib/access";
 import { getCurrentUser } from "@/lib/auth";
-import { addAudit, getDb } from "@/lib/db";
+import { auditStatement, getDb } from "@/lib/db";
 import { rejectCrossSiteMutation } from "@/lib/security";
 import { requireOrganization } from "@/lib/tenancy";
 
@@ -28,14 +28,18 @@ export async function PUT(request: Request, routeContext: { params: Promise<{ id
     if (action === "complete") {
       const completed = new Date().toISOString().slice(0, 10);
       const next = current.frequency_type === "usage" ? current.next_due_date : nextDate(completed, String(current.frequency_type), Number(current.frequency_value || 1));
-      await getDb().prepare("UPDATE maintenance_plans SET last_completed_at=?, next_due_date=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=?")
-        .bind(completed, next, id, organization.id).run();
-      await addAudit(user.id, "complete", "maintenance_plan", id, "Bakım tamamlandı ve sonraki tarih hesaplandı.", organization.id);
+      await getDb().batch([
+      getDb().prepare("UPDATE maintenance_plans SET last_completed_at=?, next_due_date=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=?")
+        .bind(completed, next, id, organization.id),
+      auditStatement(user.id, "complete", "maintenance_plan", id, "Bakım tamamlandı ve sonraki tarih hesaplandı.", organization.id, true),
+    ]);
     } else {
       const status = ["active", "paused", "completed"].includes(String(body.status)) ? String(body.status) : String(current.status);
-      await getDb().prepare("UPDATE maintenance_plans SET status=?, next_due_date=?, assigned_to=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=?")
-        .bind(status, body.nextDueDate ?? current.next_due_date, body.assignedTo ?? current.assigned_to, id, organization.id).run();
-      await addAudit(user.id, "update", "maintenance_plan", id, "Bakım planı güncellendi.", organization.id);
+      await getDb().batch([
+      getDb().prepare("UPDATE maintenance_plans SET status=?, next_due_date=?, assigned_to=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=?")
+        .bind(status, body.nextDueDate ?? current.next_due_date, body.assignedTo ?? current.assigned_to, id, organization.id),
+      auditStatement(user.id, "update", "maintenance_plan", id, "Bakım planı güncellendi.", organization.id, true),
+    ]);
     }
     return NextResponse.json({ ok: true });
   } catch (error) {
@@ -50,10 +54,12 @@ export async function DELETE(request: Request, routeContext: { params: Promise<{
   try {
     const { organization } = await requireOrganization(request, user);
     const { id } = await routeContext.params;
-    const removed = await getDb().prepare("DELETE FROM maintenance_plans WHERE id=? AND organization_id=?").bind(id, organization.id).run();
+    const [removed] = await getDb().batch([
+      getDb().prepare("DELETE FROM maintenance_plans WHERE id=? AND organization_id=?").bind(id, organization.id),
+      auditStatement(user.id, "delete", "maintenance_plan", id, undefined, organization.id, true),
+    ]);
     // Başka firmanın veya olmayan bir kaydın silinmesi başarı ve denetim kaydı üretmez.
     if (!removed.meta?.changes) return NextResponse.json({ error: "Kayıt bulunamadı." }, { status: 404 });
-    await addAudit(user.id, "delete", "maintenance_plan", id, undefined, organization.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ error: "Bakım planı silinemedi." }, { status: errorStatus(error) });

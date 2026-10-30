@@ -143,41 +143,23 @@ export function TasksView({ items, organizationId, onReload, notify, search = ""
 
 /* ---------------------------------------------------------- Work orders ---- */
 export function WorkOrdersView({ items, organizationId, onReload, notify, search = "" }: ViewProps<WorkOrder>) {
-  const [open, setOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
+
+
   const term = search.toLocaleLowerCase("tr-TR").trim();
   const filtered = filterList(items, "work-orders", search);
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setSaving(true);
-    const payload = Object.fromEntries(new FormData(event.currentTarget).entries());
-    try { await api("/api/work-orders", organizationId, "POST", payload); setOpen(false); notify("İş emri oluşturuldu."); await onReload(); }
-    catch (e) { notify(e instanceof Error ? e.message : "İş emri oluşturulamadı."); } finally { setSaving(false); }
-  }
   async function setStatus(w: WorkOrder, status: string) { try { await api(`/api/work-orders/${w.id}`, organizationId, "PUT", { status }); notify("İş emri durumu güncellendi."); await onReload(); } catch (e) { notify(e instanceof Error ? e.message : "Güncellenemedi."); } }
   async function remove(id: string) { if (!window.confirm("Bu iş emrini silmek istediğinizden emin misiniz?")) return; try { await api(`/api/work-orders/${id}`, organizationId, "DELETE"); notify("İş emri silindi."); await onReload(); } catch (e) { notify(e instanceof Error ? e.message : "Silinemedi."); } }
   const nextStatus: Record<string, [string, string]> = { open: ["assigned", "Ata"], assigned: ["in_progress", "Başlat"], in_progress: ["completed", "Tamamla"] };
   return <>
     <a className="panel-primary" style={{display:"inline-flex",marginBottom:16}} href="/servis">Servis masası: teklif, onay ve rapor →</a>
-    <PanelHead eyebrow="OPERASYON YÖNETİMİ" title="Saha ve bakım iş emirlerini yönetin." text="Her iş emri otomatik numara alır; durum akışını kart üzerinden ilerletin." count={`${items.length} iş emri`} action={<button className="panel-primary" onClick={() => setOpen(true)}><Plus size={17} /> Yeni iş emri</button>} />
+    <PanelHead eyebrow="OPERASYON YÖNETİMİ" title="Saha ve bakım iş emirlerini yönetin." text="Mevcut iş emirleri burada korunur. Yeni işler teklif, görevlendirme ve müşteri onayıyla Servis masasında açılır." count={`${items.length} iş emri`} action={<a className="panel-primary" href="/servis?create=1">Yeni servis talebi</a>} />
     {filtered.length ? <section className="project-card-grid">{filtered.map((w) => { const step = nextStatus[w.status]; return <article key={w.id}>
       <div className="project-card-top"><span>{w.order_number} · {orderTypeLabel[w.order_type]}</span><StatusBadge map={woStatus} value={w.status} /></div>
       <h3>{w.title}</h3><p>{w.description || "Açıklama eklenmedi."}</p>
       <dl><div><dt>Müşteri</dt><dd>{w.customer_name || "—"}</dd></div><div><dt>Konum</dt><dd>{w.location || "—"}</dd></div><div><dt>Sorumlu</dt><dd>{w.assigned_to || "Atanmadı"}</dd></div><div><dt>Planlanan</dt><dd>{fmtDate(w.scheduled_date)}</dd></div></dl>
       <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "center" }}><PriorityBadge value={w.priority} />{step && <button className="panel-primary" style={{ padding: "7px 12px", marginLeft: "auto" }} onClick={() => void setStatus(w, step[0])}>{step[1]}</button>}<button className="outline-button" style={{ padding: "7px 10px", marginLeft: step ? 0 : "auto" }} onClick={() => void remove(w.id)}><Trash2 size={15} /></button></div>
-    </article>; })}</section> : <section className="table-card"><ModuleEmpty icon={Wrench} title="İş emri bulunmuyor" text="Yeni iş emri düğmesiyle ilk kaydı oluşturun." onAdd={() => setOpen(true)} addLabel="Yeni iş emri" /></section>}
-    {open && <ModuleModal eyebrow="İŞ EMRİ" title="Yeni iş emri oluştur" onClose={() => setOpen(false)} onSubmit={submit} saving={saving}>
-      <div className="form-grid">
-        <label className="full"><span>Başlık</span><input name="title" required placeholder="Örn. Jeneratör periyodik bakımı" /></label>
-        <label><span>İş türü</span><select name="orderType" defaultValue="maintenance"><option value="maintenance">Bakım</option><option value="repair">Onarım</option><option value="installation">Kurulum</option><option value="inspection">Kontrol</option><option value="other">Diğer</option></select></label>
-        <label><span>Öncelik</span><select name="priority" defaultValue="normal"><option value="low">Düşük</option><option value="normal">Normal</option><option value="high">Yüksek</option><option value="critical">Kritik</option></select></label>
-        <label><span>Müşteri</span><input name="customerName" placeholder="Müşteri adı" /></label>
-        <label><span>Konum</span><input name="location" placeholder="Saha / adres" /></label>
-        <label><span>Sorumlu</span><input name="assignedTo" placeholder="Görevli ekip / kişi" /></label>
-        <label><span>Planlanan tarih</span><input name="scheduledDate" type="date" /></label>
-        <label><span>Tahmini süre (saat)</span><input name="estimatedHours" type="number" min="0" step="0.5" placeholder="0" /></label>
-        <label className="full"><span>Açıklama</span><textarea name="description" rows={3} placeholder="İş kapsamı ve notlar" /></label>
-      </div>
-    </ModuleModal>}
+    </article>; })}</section> : <section className="table-card"><ModuleEmpty icon={Wrench} title="İş emri bulunmuyor" text="Yeni kayıtlar Servis masasında açılır; mevcut kayıtlar korunur." onAdd={() => window.location.assign("/servis?create=1")} addLabel="Yeni servis talebi" /></section>}
+
   </>;
 }
 

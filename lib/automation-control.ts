@@ -1,4 +1,4 @@
-import { addAudit, getDb } from "./db";
+import { auditStatement, getDb } from "./db";
 
 // Acil durdurma: firmanın tüm otomasyon kurallarını tek anahtarla durdurur (kural ayarları silinmez).
 // Açıkken zamanlanmış ve elle başlatılan çalıştırmalar yapılmaz; her değişiklik işlem kaydına yazılır.
@@ -10,8 +10,10 @@ export async function isAutomationPaused(organizationId: string) {
 }
 
 export async function setAutomationPaused(organizationId: string, paused: boolean, userId: string) {
-  await getDb().prepare(`INSERT INTO app_metadata (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
-    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`).bind(key(organizationId), paused ? "1" : "0").run();
-  await addAudit(userId, paused ? "automation.emergency_stop" : "automation.resume", "automation_rule", null,
-    paused ? "Acil durdurma: firmanın tüm otomasyonları durduruldu." : "Otomasyonlar yeniden başlatıldı.", organizationId);
+  await getDb().batch([
+    getDb().prepare(`INSERT INTO app_metadata (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`).bind(key(organizationId), paused ? "1" : "0"),
+    auditStatement(userId, paused ? "automation.emergency_stop" : "automation.resume", "automation_rule", null,
+      paused ? "Acil durdurma: firmanın tüm otomasyonları durduruldu." : "Otomasyonlar yeniden başlatıldı.", organizationId),
+  ]);
 }

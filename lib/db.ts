@@ -12,7 +12,7 @@ type Statement = {
 export type Database = {
   exec: (sql: string) => Promise<unknown>;
   prepare: (sql: string) => Statement;
-  batch: (statements: Statement[]) => Promise<unknown[]>;
+  batch: (statements: Statement[]) => Promise<{ success: boolean; meta?: Record<string, unknown>; results?: Record<string, unknown>[] }[]>;
 };
 
 export function getDb(): Database {
@@ -671,12 +671,17 @@ export function createId(prefix: string) {
 }
 
 export async function refreshOrganizationPeriodSummary(organizationId: string, period: string) {
+  await getDb().batch(organizationPeriodSummaryStatements(organizationId, period));
+}
+
+/** Include derived totals in the same transaction as the financial mutation. */
+export function organizationPeriodSummaryStatements(organizationId: string, period: string) {
   const database = getDb();
-  await database.prepare(`INSERT OR IGNORE INTO organization_period_summaries
+  return [database.prepare(`INSERT OR IGNORE INTO organization_period_summaries
     (id, organization_id, period, sort_order)
     VALUES (?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM organization_period_summaries WHERE organization_id = ?))`)
-    .bind(createId("summary"), organizationId, period, organizationId).run();
-  await database.prepare(`UPDATE organization_period_summaries SET
+    .bind(createId("summary"), organizationId, period, organizationId),
+  database.prepare(`UPDATE organization_period_summaries SET
     total_limit = COALESCE((SELECT SUM(total_limit) FROM payment_records WHERE organization_id = ? AND period = ? AND workflow_status = 'approved'), 0),
     total_debt = COALESCE((SELECT SUM(MAX(total_debt - paid_amount, 0)) FROM payment_records WHERE organization_id = ? AND period = ? AND workflow_status = 'approved'), 0),
     restructuring = COALESCE((SELECT SUM(restructuring) FROM payment_records WHERE organization_id = ? AND period = ? AND workflow_status = 'approved'), 0),
@@ -691,7 +696,7 @@ export async function refreshOrganizationPeriodSummary(organizationId: string, p
       organizationId, period, organizationId, period, organizationId, period, organizationId, period,
       organizationId, period, organizationId, period, organizationId, period, organizationId, period,
       organizationId, period, organizationId, period,
-    ).run();
+    )];
 }
 
 /** Build an audit statement for the same D1 batch as its mutation.
@@ -718,3 +723,4 @@ export async function addAudit(
 ) {
   await auditStatement(userId, action, entityType, entityId, details, organizationId).run();
 }
+

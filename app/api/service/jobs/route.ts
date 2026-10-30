@@ -4,7 +4,7 @@ import {NextResponse} from "next/server";
 import {getCurrentUser} from "@/lib/auth";
 import {requireOrganization} from "@/lib/tenancy";
 import {getMemberAccess} from "@/lib/access";
-import {getDb,createId,addAudit} from "@/lib/db";
+import {getDb,createId,auditStatement} from "@/lib/db";
 import {cents,totals,validateTransition,serviceJob,ensureServiceColumns} from "@/lib/service";
 import {tokenDigest} from "@/lib/account-tokens";
 import {rejectCrossSiteMutation} from "@/lib/security";
@@ -57,12 +57,13 @@ async function handle(request:Request){
       WHERE w.organization_id=? AND w.title=? AND COALESCE(w.customer_name,'')=? AND w.created_by=? AND COALESCE(s.assigned_user_id,'')=? AND w.created_at>datetime('now','-60 seconds'))`)
      .bind(id,organization.id,number,title,txt(b.description),txt(b.customerName,240),txt(b.location,400),date,user.id,organization.id,title,txt(b.customerName,240),user.id,assigned),
     db.prepare("INSERT INTO service_jobs(id,organization_id,asset_id,assigned_user_id) SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM work_orders WHERE id=?)").bind(id,organization.id,asset,assigned,id),
+    auditStatement(user.id,"create","service_job",id,"Servis talebi oluşturuldu.",organization.id,true),
    ]);
    if(!await db.prepare("SELECT id FROM service_jobs WHERE id=?").bind(id).first()){
     const existing=await db.prepare(`SELECT w.id FROM work_orders w JOIN service_jobs s ON s.id=w.id WHERE w.organization_id=? AND w.title=? AND COALESCE(w.customer_name,'')=? AND w.created_by=? ORDER BY w.created_at DESC LIMIT 1`).bind(organization.id,title,txt(b.customerName,240),user.id).first<{id:string}>();
     return NextResponse.json({ok:true,id:existing?.id,duplicate:true});
    }
-   await addAudit(user.id,"create","service_job",id,"Servis talebi oluşturuldu.",organization.id);return NextResponse.json({ok:true,id},{status:201});
+   return NextResponse.json({ok:true,id},{status:201});
   }
   const id=txt(b.id,100);const job=await serviceJob(id,organization.id);
   if(!job||(!manage&&job.assigned_user_id!==user.id))return NextResponse.json({error:"Servis kaydı bulunamadı."},{status:404});
@@ -76,6 +77,7 @@ async function handle(request:Request){
    await db.batch([
     db.prepare("UPDATE service_approvals SET revoked_at=CURRENT_TIMESTAMP WHERE job_id=? AND organization_id=? AND approved_at IS NULL").bind(id,organization.id),
     db.prepare(`INSERT INTO service_approvals(id,organization_id,job_id,token_hash,purpose,job_version,expires_at,created_by) VALUES(?,?,?,?,?,?,datetime('now',?),?)`).bind(createId("approval"),organization.id,id,await tokenDigest(token),purpose,job.version,validity,user.id),
+    auditStatement(user.id,"share","service_job",id,"Müşteri onay bağlantısı oluşturuldu.",organization.id,true),
    ]);return NextResponse.json({ok:true,path:`/servis/onay#token=${token}`},{headers:{"Cache-Control":"no-store"}});
   }
   if(b.action==="schedule"){
@@ -86,14 +88,13 @@ async function handle(request:Request){
    if(date&&(!/^\d{4}-\d{2}-\d{2}$/.test(date)||Number.isNaN(Date.parse(date+"T00:00:00Z"))||new Date(date+"T00:00:00Z").toISOString().slice(0,10)!==date))throw new Error("Geçerli tarih girin.");
    const assigned=b.assignedUserId===undefined?String(job.assigned_user_id||user.id):txt(b.assignedUserId,100);
    if(assigned!==job.assigned_user_id&&!await db.prepare("SELECT user_id FROM organization_members WHERE user_id=? AND organization_id=? AND active=1").bind(assigned,organization.id).first())throw new Error("Çalışan bu firmaya ait değil.");
-   const moved=await db.prepare("UPDATE service_jobs SET assigned_user_id=?,version=version+1,updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=? AND version=? RETURNING version").bind(assigned,id,organization.id,job.version).first();
-   if(!moved)return NextResponse.json({error:"Kayıt değişti. Yenileyin."},{status:409});
-   await db.batch([
-    db.prepare("UPDATE work_orders SET scheduled_date=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=?").bind(date,id,organization.id),
-    // Plan değişince bekleyen müşteri bağlantısı eski sürüme ait olur; geçersiz kılınır.
-    db.prepare("UPDATE service_approvals SET revoked_at=CURRENT_TIMESTAMP WHERE job_id=? AND approved_at IS NULL").bind(id),
+   const [moved]=await db.batch([
+    db.prepare("UPDATE service_jobs SET assigned_user_id=?,version=version+1,updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=? AND version=? RETURNING version").bind(assigned,id,organization.id,job.version),
+    auditStatement(user.id,"schedule","service_job",id,`Plan: ${date||"tarihsiz"} → ${assigned}`,organization.id,true),
+    db.prepare("UPDATE work_orders SET scheduled_date=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=? AND changes()>0").bind(date,id,organization.id),
+    db.prepare("UPDATE service_approvals SET revoked_at=CURRENT_TIMESTAMP WHERE job_id=? AND organization_id=? AND approved_at IS NULL AND EXISTS(SELECT 1 FROM service_jobs WHERE id=? AND version=? AND assigned_user_id=?)").bind(id,organization.id),
    ]);
-   await addAudit(user.id,"schedule","service_job",id,`Plan: ${date||"tarihsiz"} → ${assigned}`,organization.id);
+   if(!moved.results?.length)return NextResponse.json({error:"Kayıt değişti. Yenileyin."},{status:409});
    return NextResponse.json({ok:true});
   }
   if(b.action!=="update")throw new Error("Geçersiz işlem.");
@@ -111,13 +112,14 @@ async function handle(request:Request){
   if(values[4]>values[0])throw new Error("Tahsilat teklif tutarını aşamaz.");
   if(stage==="collected"&&values[4]<values[0])throw new Error("Tahsilat tamamlanmadı.");
   if(["accepted","collected"].includes(String(job.stage))&&outcome!==String(job.outcome))throw new Error("Müşterinin onayladığı rapor değiştirilemez.");
-  const updated=await db.prepare(`UPDATE service_jobs SET stage=?,outcome=?,quote_cents=?,labor_cents=?,parts_cents=?,travel_cents=?,paid_cents=?,version=version+1,updated_at=CURRENT_TIMESTAMP
-   WHERE id=? AND organization_id=? AND version=? RETURNING version`).bind(stage,outcome,...values,id,organization.id,job.version).first();
-  if(!updated)return NextResponse.json({error:"Kayıt değişti. Yenileyin."},{status:409});
-  await db.batch([
-   db.prepare("UPDATE service_approvals SET revoked_at=CURRENT_TIMESTAMP WHERE job_id=? AND approved_at IS NULL").bind(id),
-   db.prepare("UPDATE work_orders SET status=?,notes=?,completed_date=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=?").bind(["completed","accepted","collected"].includes(stage)?"completed":stage==="cancelled"?"cancelled":stage==="in_progress"?"in_progress":"open",outcome,["completed","accepted","collected"].includes(stage)?new Date().toISOString().slice(0,10):null,id,organization.id),
+  const [updated]=await db.batch([
+   db.prepare(`UPDATE service_jobs SET stage=?,outcome=?,quote_cents=?,labor_cents=?,parts_cents=?,travel_cents=?,paid_cents=?,version=version+1,updated_at=CURRENT_TIMESTAMP
+    WHERE id=? AND organization_id=? AND version=? RETURNING version`).bind(stage,outcome,...values,id,organization.id,job.version),
+   auditStatement(user.id,"update","service_job",id,`Servis durumu: ${stage}`,organization.id,true),
+   db.prepare("UPDATE work_orders SET status=?,notes=?,completed_date=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=? AND changes()>0").bind(["completed","accepted","collected"].includes(stage)?"completed":stage==="cancelled"?"cancelled":stage==="in_progress"?"in_progress":"open",outcome,["completed","accepted","collected"].includes(stage)?new Date().toISOString().slice(0,10):null,id,organization.id),
+   db.prepare("UPDATE service_approvals SET revoked_at=CURRENT_TIMESTAMP WHERE job_id=? AND organization_id=? AND approved_at IS NULL AND changes()>0").bind(id,organization.id),
   ]);
-  await addAudit(user.id,"update","service_job",id,`Servis durumu: ${stage}`,organization.id);return NextResponse.json({ok:true});
+  if(!updated.results?.length)return NextResponse.json({error:"Kayıt değişti. Yenileyin."},{status:409});
+  return NextResponse.json({ok:true});
  }catch(e){return NextResponse.json({error:e instanceof RequiredChecklistError?e.message:"Servis işlemi tamamlanamadı."},{status:400});}
 }
