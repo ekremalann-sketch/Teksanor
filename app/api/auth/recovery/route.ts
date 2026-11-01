@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { NextResponse } from "next/server";
 import { getCurrentUser,enforceAuthRateLimit,hashPassword,verifyPassword,RATE_LIMIT_MESSAGE } from "@/lib/auth";
 import { mfaMode } from "@/lib/mfa";
-import { getDb,ensureSchema,addAudit } from "@/lib/db";
+import { getDb,ensureSchema,auditStatement } from "@/lib/db";
 import { ensureAccountTokens,sendAccountLink,tokenDigest } from "@/lib/account-tokens";
 import { rejectCrossSiteMutation } from "@/lib/security";
 export async function POST(request:Request){
@@ -47,13 +47,15 @@ export async function POST(request:Request){
    db.prepare("DELETE FROM sessions WHERE user_id=?").bind(token.user_id),
    db.prepare("DELETE FROM mfa_challenges WHERE user_id=?").bind(token.user_id),
    db.prepare("DELETE FROM account_tokens WHERE user_id=? AND purpose='reset'").bind(token.user_id),
+   // Denetim kaydı aynı toplu işlemde: kayıt yazılamazsa parola da değişmez.
+   auditStatement(token.user_id,"password_reset","user",token.user_id),
   ]);
   else await db.batch([
    db.prepare("UPDATE users SET email=? WHERE id=?").bind(token.email,token.user_id),
    db.prepare("INSERT INTO user_security(user_id,email_verified_at) VALUES(?,CURRENT_TIMESTAMP) ON CONFLICT(user_id) DO UPDATE SET email_verified_at=CURRENT_TIMESTAMP").bind(token.user_id),
    db.prepare("DELETE FROM account_tokens WHERE user_id=?").bind(token.user_id),
+   auditStatement(token.user_id,"email_verified","user",token.user_id),
   ]);
-  await addAudit(token.user_id,purpose==="reset"?"password_reset":"email_verified","user",token.user_id);
   return NextResponse.json({ok:true,message:purpose==="reset"?(mfaMode()==="off"?"Parolanız yenilendi; tüm açık oturumlar kapatıldı.":"Parolanız yenilendi; tüm açık oturumlar kapatıldı. Hesabınızda iki aşamalı doğrulama açıksa girişte doğrulama kodu da istenir."):"E-posta adresiniz doğrulandı."});
  }catch{return NextResponse.json({error:"İşlem tamamlanamadı. Bağlantıyı ve e-posta yapılandırmasını kontrol edin; çok sayıda denemede 15 dakika bekleyin."},{status:400});}
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSession, enforceAuthRateLimit, ensureDefaultAdminAccounts, hashPassword, sessionCookie, RATE_LIMIT_MESSAGE, RateLimitError } from "@/lib/auth";
-import { addAudit, createId, getDb } from "@/lib/db";
+import { auditStatement, createId, getDb } from "@/lib/db";
 import { rejectCrossSiteMutation } from "@/lib/security";
 
 function slugify(value: string) {
@@ -51,8 +51,9 @@ export async function POST(request: Request) {
       database.prepare(`INSERT INTO organization_period_summaries
         (id, organization_id, period, sort_order) VALUES (?, ?, 'Başlangıç dönemi', 1)`)
         .bind(createId("summary"), organizationId),
+      // Denetim kaydı aynı toplu işlemde: kayıt yazılamazsa hesap ve çalışma alanı da oluşmaz.
+      auditStatement(userId, "register", "organization", organizationId, `${organizationName} çalışma alanı oluşturuldu.`, organizationId),
     ]);
-    await addAudit(userId, "register", "organization", organizationId, `${organizationName} çalışma alanı oluşturuldu.`, organizationId);
     const token = await createSession(userId);
     const response = NextResponse.json({
       user: { id: userId, username, fullName, role: "user" },
