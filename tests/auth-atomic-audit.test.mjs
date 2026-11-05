@@ -9,7 +9,8 @@ await h.user('sim-user','a','member','employee');
 const rows=t=>sql.prepare(`SELECT * FROM ${t} ORDER BY rowid`).all();
 const failAudit=entity=>sql.exec(`CREATE TRIGGER fail_audit BEFORE INSERT ON audit_logs WHEN NEW.entity_type='${entity}' BEGIN SELECT RAISE(ABORT,'synthetic audit failure'); END`);
 const dropFail=()=>sql.exec('DROP TRIGGER IF EXISTS fail_audit');
-async function addToken(purpose,email){const raw=(purpose==='reset'?'a':'b').repeat(63)+String(Math.floor(Math.random()*10));sql.prepare("INSERT INTO account_tokens(token_hash,user_id,purpose,email,expires_at) VALUES(?,?,?,?,datetime('now','+1 hour'))").run(await api.tokens.tokenDigest(raw),'sim-user',purpose,email);return raw;}
+let tokenSequence=0;
+async function addToken(purpose,email){const raw=(purpose==='reset'?'a':'b').repeat(56)+(++tokenSequence).toString(16).padStart(8,'0');sql.prepare("INSERT INTO account_tokens(token_hash,user_id,purpose,email,expires_at) VALUES(?,?,?,?,datetime('now','+1 hour'))").run(await api.tokens.tokenDigest(raw),'sim-user',purpose,email);return raw;}
 const post=(route,body,user)=>api[route].POST(user?req(user,'/api/auth/'+route,'POST',body):new Request('https://test.local/api/auth/'+route,{method:'POST',headers:{'Content-Type':'application/json',Origin:'https://test.local'},body:JSON.stringify(body)}));
 
 test('reset: denetim kaydı yazılamazsa parola, oturumlar ve bağlantı aynen kalır',async()=>{

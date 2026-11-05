@@ -35,7 +35,7 @@ export type DemoPart = typeof DEMO_PARTS[number];
 
 const day = (offset: number) => new Date(Date.now() + 3 * 3600000 + offset * 86400000).toISOString().slice(0, 10);
 const stamp = (offsetDays: number) => new Date(Date.now() - offsetDays * 86400000).toISOString().slice(0, 19).replace("T", " ");
-const PERIOD = (() => { const m = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]; const d = new Date(Date.now() + 3 * 3600000); return `${m[d.getUTCMonth()]} ${d.getUTCFullYear()}`; })();
+export const currentPeriod = () => { const m = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]; const d = new Date(Date.now() + 3 * 3600000); return `${m[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
 const META = (orgId: string) => `demo_company:${orgId}`;
 
 export class DemoError extends Error { constructor(message: string, readonly status = 400) { super(message); } }
@@ -133,7 +133,7 @@ export async function seedDemoPart(orgId: string, part: DemoPart) {
   // Parçanın tüm kayıtları ve ilerleme tek işlem; aynı parça iki kez gelirse kilit satırı çakışır, hiçbir şey yazılmaz.
   try { await db.batch(statements); }
   catch (error) { if (isConflict(error)) throw new DemoError("Bu parça zaten ekleniyor veya eklendi; listeyi yenileyin.", 409); throw error; }
-  if (part === "c") await refreshOrganizationPeriodSummary(orgId, PERIOD);
+  if (part === "c") await refreshOrganizationPeriodSummary(orgId, currentPeriod());
   return { counts, next: part === "a" ? "b" : part === "b" ? "c" : null };
 }
 
@@ -226,10 +226,10 @@ function partB(out: Stmt[], db: Database, orgId: string, ownerId: string, member
 function partC(out: Stmt[], db: Database, orgId: string, ownerId: string, members: Member[]) {
   const payments: [string, string, number, number, number, string, number][] = [["Örnek Banka", "Ticari kredi", 480000, 24000, 0, "planned", 10], ["Örnek Banka", "Araç kredisi", 210000, 9800, 9800, "paid", -3], ["Örnek Katılım", "Kredi kartı", 64000, 64000, 20000, "partial", 4]];
   insertRows(out, db, "payment_records", ["id", "period", "owner_name", "bank_name", "account_name", "total_debt", "monthly_payment", "paid_amount", "payment_status", "due_date", "workflow_status", "created_by", "organization_id"],
-    payments.map(([bank, acc, debt, monthly, paid, st, due]) => [createId("pay"), PERIOD, "Örnek Klima Servis", bank, acc, debt, monthly, paid, st, day(due), "approved", ownerId, orgId]));
+    payments.map(([bank, acc, debt, monthly, paid, st, due]) => [createId("pay"), currentPeriod(), "Örnek Klima Servis", bank, acc, debt, monthly, paid, st, day(due), "approved", ownerId, orgId]));
   const expenses: [string, string, number][] = [["Yakıt", "Servis araçları yakıt", 18400], ["Parça", "Kompresör ve fan motoru alımı", 42600], ["Kira", "Atölye kirası", 35000], ["Personel", "Yemek kartı yüklemesi", 27000]];
   insertRows(out, db, "expenses", ["id", "period", "owner_name", "category", "description", "amount", "workflow_status", "created_by", "organization_id"],
-    expenses.map(([cat, desc, amt]) => [createId("exp"), PERIOD, "Örnek Klima Servis", cat, desc, amt, "approved", ownerId, orgId]));
+    expenses.map(([cat, desc, amt]) => [createId("exp"), currentPeriod(), "Örnek Klima Servis", cat, desc, amt, "approved", ownerId, orgId]));
   const byUser = (username: string) => members.find((m) => m.access_profile === "employee" && m.username === username) ?? members.filter((m) => m.access_profile === "employee")[username.endsWith("2") ? 1 : 0];
   const procs: { slug: string; template: string; title: string; data: Record<string, string>; steps: number; blocked?: string; ageDays?: number; owner?: string; requester?: "t1" | "t2" }[] = [
     { slug: "ik", template: "ise-alim", title: "Yaz sezonu için 2 teknisyen", data: { pozisyon: "Saha teknisyeni", birim: "Operasyon" }, steps: 4, owner: "İK Uzmanı (örnek)" },
@@ -244,7 +244,7 @@ function partC(out: Stmt[], db: Database, orgId: string, ownerId: string, member
     { slug: "satin-alma", template: "tedarikci", title: "Yeni bakır boru tedarikçisi", data: { firma: "Örnek Metal", belgeler: "Vergi levhası, imza sirküleri" }, steps: 2 },
     { slug: "finans", template: "odeme-talebi", title: "Atölye kirası", data: { alici: "Örnek Gayrimenkul", tutar: "35000", dayanak: "KİRA-ÖRNEK" }, steps: 2 },
     { slug: "finans", template: "odeme-talebi", title: "Parça tedarikçisi ödemesi", data: { alici: "Örnek Soğutma Tedarik", tutar: "21000", dayanak: "FTR-ÖRNEK-0912" }, steps: 1, ageDays: 4 },
-    { slug: "muhasebe", template: "ay-sonu", title: `${PERIOD} kapanışı`, data: { donem: day(0).slice(0, 7) }, steps: 1 },
+    { slug: "muhasebe", template: "ay-sonu", title: `${currentPeriod()} kapanışı`, data: { donem: day(0).slice(0, 7) }, steps: 1 },
     { slug: "muhasebe", template: "gelen-fatura", title: "Tablet faturası", data: { fatura: "ORN2026000123", tedarikci: "Örnek Bilişim", tutar: "27800" }, steps: 1 },
     { slug: "bt", template: "erisim", title: "Ön muhasebeye e-fatura portalı erişimi", data: { sistem: "e-Fatura portalı", yetki: "Kayıt girişi" }, steps: 1 },
     { slug: "bt", template: "olay", title: "Şüpheli e-posta (oltalama) bildirimi", data: { tespit: "Kargo bildirimi görünümlü bağlantı", "kisisel-veri": "Hayır" }, steps: 3 },
