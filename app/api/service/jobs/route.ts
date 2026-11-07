@@ -5,7 +5,7 @@ import {getCurrentUser} from "@/lib/auth";
 import {requireOrganization} from "@/lib/tenancy";
 import {getMemberAccess} from "@/lib/access";
 import {getDb,createId,auditStatement} from "@/lib/db";
-import {cents,totals,validateTransition,serviceJob,ensureServiceColumns} from "@/lib/service";
+import {cents,totals,validateTransition,serviceJob,ensureServiceColumns,ServiceRuleError} from "@/lib/service";
 import {tokenDigest} from "@/lib/account-tokens";
 import {rejectCrossSiteMutation} from "@/lib/security";
 import {isSafeSignaturePath} from "@/lib/signature";
@@ -44,11 +44,11 @@ async function handle(request:Request){
   const b=await request.json() as Record<string,unknown>;
   if(b.action==="create"){
    if(!manage)return NextResponse.json({error:"Yeni servis açmak için yönetici yetkisi gerekir."},{status:403});
-   const title=txt(b.title,240);if(!title)throw new Error("İş başlığı gerekli.");
+   const title=txt(b.title,240);if(!title)throw new ServiceRuleError("İş başlığı gerekli.");
    const asset=txt(b.assetId,100)||null;const assigned=txt(b.assignedUserId,100)||user.id;
-   if(asset&&!await db.prepare("SELECT id FROM assets WHERE id=? AND organization_id=?").bind(asset,organization.id).first())throw new Error("Ekipman bu firmaya ait değil.");
-   if(assigned!==user.id&&!await db.prepare("SELECT user_id FROM organization_members WHERE user_id=? AND organization_id=? AND active=1").bind(assigned,organization.id).first())throw new Error("Çalışan bu firmaya ait değil.");
-   const date=txt(b.scheduledDate,10)||null;if(date&&!/^\d{4}-\d{2}-\d{2}$/.test(date))throw new Error("Geçerli tarih girin.");
+   if(asset&&!await db.prepare("SELECT id FROM assets WHERE id=? AND organization_id=?").bind(asset,organization.id).first())throw new ServiceRuleError("Ekipman bu firmaya ait değil.");
+   if(assigned!==user.id&&!await db.prepare("SELECT user_id FROM organization_members WHERE user_id=? AND organization_id=? AND active=1").bind(assigned,organization.id).first())throw new ServiceRuleError("Çalışan bu firmaya ait değil.");
+   const date=txt(b.scheduledDate,10)||null;if(date&&!/^\d{4}-\d{2}-\d{2}$/.test(date))throw new ServiceRuleError("Geçerli tarih girin.");
    const id=createId("wo");const number=`SRV-${crypto.randomUUID().slice(0,12).toUpperCase()}`;
    await db.batch([
     // Çift gönderim koruması: aynı yöneticinin 60 sn içindeki aynı başlık+müşteri+atama talebi yeni iş açmaz.
@@ -72,7 +72,7 @@ async function handle(request:Request){
    const purpose=b.purpose==="completion"?"completion":"quote";
    if(!manage && purpose!=="completion")return NextResponse.json({error:"Teklif onayını yönetici başlatabilir."},{status:403});
    const validity=manage?"+7 days":"+1 hour";
-   if(job.stage!==(purpose==="quote"?"quoted":"completed"))throw new Error("Önce teklif veya tamamlanan iş durumunu kaydedin.");
+   if(job.stage!==(purpose==="quote"?"quoted":"completed"))throw new ServiceRuleError("Önce teklif veya tamamlanan iş durumunu kaydedin.");
    const token=Array.from(crypto.getRandomValues(new Uint8Array(32)),v=>v.toString(16).padStart(2,"0")).join("");
    await db.batch([
     db.prepare("UPDATE service_approvals SET revoked_at=CURRENT_TIMESTAMP WHERE job_id=? AND organization_id=? AND approved_at IS NULL").bind(id,organization.id),
@@ -83,11 +83,11 @@ async function handle(request:Request){
   if(b.action==="schedule"){
    // Planlama panosu: yalnız yönetici tarih ve sorumlu atar. Onaylanmış/kapanmış iş yeniden planlanmaz.
    if(!manage)return NextResponse.json({error:"Planlamayı yönetici yapar."},{status:403});
-   if(["accepted","collected","cancelled"].includes(String(job.stage)))throw new Error("Kapanmış iş yeniden planlanamaz.");
+   if(["accepted","collected","cancelled"].includes(String(job.stage)))throw new ServiceRuleError("Kapanmış iş yeniden planlanamaz.");
    const date=b.scheduledDate===null||b.scheduledDate===""?null:txt(b.scheduledDate,10);
-   if(date&&(!/^\d{4}-\d{2}-\d{2}$/.test(date)||Number.isNaN(Date.parse(date+"T00:00:00Z"))||new Date(date+"T00:00:00Z").toISOString().slice(0,10)!==date))throw new Error("Geçerli tarih girin.");
+   if(date&&(!/^\d{4}-\d{2}-\d{2}$/.test(date)||Number.isNaN(Date.parse(date+"T00:00:00Z"))||new Date(date+"T00:00:00Z").toISOString().slice(0,10)!==date))throw new ServiceRuleError("Geçerli tarih girin.");
    const assigned=b.assignedUserId===undefined?String(job.assigned_user_id||user.id):txt(b.assignedUserId,100);
-   if(assigned!==job.assigned_user_id&&!await db.prepare("SELECT user_id FROM organization_members WHERE user_id=? AND organization_id=? AND active=1").bind(assigned,organization.id).first())throw new Error("Çalışan bu firmaya ait değil.");
+   if(assigned!==job.assigned_user_id&&!await db.prepare("SELECT user_id FROM organization_members WHERE user_id=? AND organization_id=? AND active=1").bind(assigned,organization.id).first())throw new ServiceRuleError("Çalışan bu firmaya ait değil.");
    const [moved]=await db.batch([
     db.prepare("UPDATE service_jobs SET assigned_user_id=?,version=version+1,updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=? AND version=? RETURNING version").bind(assigned,id,organization.id,job.version),
     auditStatement(user.id,"schedule","service_job",id,`Plan: ${date||"tarihsiz"} → ${assigned}`,organization.id,true),
@@ -97,21 +97,21 @@ async function handle(request:Request){
    if(!moved.results?.length)return NextResponse.json({error:"Kayıt değişti. Yenileyin."},{status:409});
    return NextResponse.json({ok:true});
   }
-  if(b.action!=="update")throw new Error("Geçersiz işlem.");
+  if(b.action!=="update")throw new ServiceRuleError("Geçersiz işlem.");
   const stage=txt(b.stage,30)||String(job.stage);validateTransition(String(job.stage),stage);
-  if(!manage&&(!["quote_approved","in_progress"].includes(String(job.stage))||!["in_progress","completed"].includes(stage)))throw new Error("Saha kaydı için onaylı veya devam eden iş seçin.");
+  if(!manage&&(!["quote_approved","in_progress"].includes(String(job.stage))||!["in_progress","completed"].includes(stage)))throw new ServiceRuleError("Saha kaydı için onaylı veya devam eden iş seçin.");
   const outcome=b.outcome===undefined?String(job.outcome):txt(b.outcome,6000);
-  if(stage==="completed"&&!outcome)throw new Error("Yapılan işlemi yazın.");
+  if(stage==="completed"&&!outcome)throw new ServiceRuleError("Yapılan işlemi yazın.");
   if(stage==="completed"&&job.stage!=="completed"){
    const open=await db.prepare("SELECT name FROM service_job_checklists WHERE job_id=? AND organization_id=? AND completed_at IS NULL").bind(id,organization.id).all<{name:string}>();
    if(open.results.length)throw new RequiredChecklistError("Zorunlu kontrol maddeleri tamamlanmadı. Saha formundaki zorunlu alanları doldurun.");
   }
   const moneyFields=["quote","labor","parts","travel","paid"] as const;
   const values=moneyFields.map(k=>manage&&b[k]!==undefined?cents(b[k]):Number(job[`${k}_cents`]));
-  if(b.quote!==undefined&&values[0]!==Number(job.quote_cents)&&!["requested","quoted"].includes(String(job.stage)))throw new Error("Onaylanmış teklif tutarı değiştirilemez.");
-  if(values[4]>values[0])throw new Error("Tahsilat teklif tutarını aşamaz.");
-  if(stage==="collected"&&values[4]<values[0])throw new Error("Tahsilat tamamlanmadı.");
-  if(["accepted","collected"].includes(String(job.stage))&&outcome!==String(job.outcome))throw new Error("Müşterinin onayladığı rapor değiştirilemez.");
+  if(b.quote!==undefined&&values[0]!==Number(job.quote_cents)&&!["requested","quoted"].includes(String(job.stage)))throw new ServiceRuleError("Onaylanmış teklif tutarı değiştirilemez.");
+  if(values[4]>values[0])throw new ServiceRuleError("Tahsilat teklif tutarını aşamaz.");
+  if(stage==="collected"&&values[4]<values[0])throw new ServiceRuleError("Tahsilat tamamlanmadı.");
+  if(["accepted","collected"].includes(String(job.stage))&&outcome!==String(job.outcome))throw new ServiceRuleError("Müşterinin onayladığı rapor değiştirilemez.");
   const [updated]=await db.batch([
    db.prepare(`UPDATE service_jobs SET stage=?,outcome=?,quote_cents=?,labor_cents=?,parts_cents=?,travel_cents=?,paid_cents=?,version=version+1,updated_at=CURRENT_TIMESTAMP
     WHERE id=? AND organization_id=? AND version=? RETURNING version`).bind(stage,outcome,...values,id,organization.id,job.version),
@@ -121,5 +121,5 @@ async function handle(request:Request){
   ]);
   if(!updated.results?.length)return NextResponse.json({error:"Kayıt değişti. Yenileyin."},{status:409});
   return NextResponse.json({ok:true});
- }catch(e){return NextResponse.json({error:e instanceof RequiredChecklistError?e.message:"Servis işlemi tamamlanamadı."},{status:400});}
+ }catch(e){return NextResponse.json({error:e instanceof RequiredChecklistError||e instanceof ServiceRuleError?e.message:"Servis işlemi tamamlanamadı."},{status:400});}
 }

@@ -51,7 +51,9 @@ export function ensureServiceColumns(db:Database=getDb()){
 }
 export function cents(value:unknown){const n=Number(value);if(!Number.isFinite(n)||n<0||n>100000000)throw new Error("Tutar 0–100.000.000 TL arasında olmalı.");return Math.round(n*100);}
 export const transitions:Record<string,string[]>={requested:["quoted","cancelled"],quoted:["requested","cancelled"],quote_approved:["in_progress","cancelled"],in_progress:["completed","cancelled"],completed:["in_progress"],accepted:["collected"],collected:[],cancelled:[]};
-export function validateTransition(current:string,next:string){if(current!==next&&!transitions[current]?.includes(next))throw new Error("Bu durum değişikliği için önceki adımları tamamlayın.");}
+// Kullanıcıya gösterilmesi güvenli, elle yazılmış iş kuralı mesajları için.
+export class ServiceRuleError extends Error {}
+export function validateTransition(current:string,next:string){if(current!==next&&!transitions[current]?.includes(next))throw new ServiceRuleError("Bu durum değişikliği için önceki adımları tamamlayın.");}
 export function totals(job:{quote_cents:number;labor_cents:number;parts_cents:number;travel_cents:number;paid_cents:number}){const cost=job.labor_cents+job.parts_cents+job.travel_cents;return {cost_cents:cost,margin_cents:job.quote_cents-cost,remaining_cents:Math.max(0,job.quote_cents-job.paid_cents)};}
 export async function serviceJob(id:string,organizationId:string){return getDb().prepare(`SELECT w.title,w.description,w.customer_name,w.location,w.scheduled_date,w.order_number,w.assigned_to,s.*,a.name AS asset_name,a.asset_code
  FROM service_jobs s JOIN work_orders w ON w.id=s.id AND w.organization_id=s.organization_id
