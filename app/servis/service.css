@@ -81,7 +81,8 @@
  .service-header{align-items:flex-start;flex-direction:column;padding:18px}
  .service-header h1{font-size:25px}
  .service-workspace{grid-template-columns:1fr}
- .service-list{position:static;max-height:320px}
+ .service-list{position:static;max-height:none;overflow:visible}
+ .service-empty{display:none}
  .service-card{padding:18px}
  .service-grid{grid-template-columns:1fr}
  .service-detail-heading{flex-direction:column}
@@ -158,3 +159,6 @@
 .service-next button,.service-upload,.service-grid>button{min-height:48px}
 .service-upload{display:flex;align-items:center;justify-content:center;cursor:pointer}
 .service-asset-banner{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 16px;padding:16px;border:1px solid var(--sv-line);border-radius:12px;background:var(--ui-paper)} .service-asset-banner h2{margin:0;flex:1 1 100%;font-size:18px} .service-asset-banner a{min-height:44px;display:inline-flex;align-items:center}
+
+.service-locked-note{display:block;margin-top:6px;color:var(--sv-muted)}
+.service-prefill-note{margin:0;color:var(--sv-muted)}
