@@ -5,6 +5,7 @@ import "./public-navigation.css";
 import "./home.css";
 import "./home-design.css";
 import "./pwa-update.css";
+import "./workspace-polish.css";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import IdleSessionGuard from "@/components/IdleSessionGuard";
 import { PUBLIC_PAGES, SITE_URL, pageMeta, structuredData } from "@/lib/seo";
@@ -26,6 +27,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="tr">
       <body>
+        <a className="workspace-skip" href="#main-content">İçeriğe geç</a>
         {children}
         <ServiceWorkerRegister />
         {/* Yalnız çalışma alanı sayfalarında etkinleşir; herkese açık sayfalarda hiçbir şey yapmaz. */}

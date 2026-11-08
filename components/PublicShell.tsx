@@ -45,5 +45,5 @@ export function PublicFooter() {
 }
 
 export function PublicPage({ children }: { children: ReactNode }) {
-  return <main className="enterprise-page"><PublicHeader />{children}<PublicFooter /></main>;
+  return <main id="main-content" tabIndex={-1} className="enterprise-page"><PublicHeader />{children}<PublicFooter /></main>;
 }

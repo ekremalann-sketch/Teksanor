@@ -33,15 +33,15 @@ export function TodayCard({organizationId,profile,canManage,onNavigate}:{organiz
  const remaining=steps.filter(s=>!s.done).length;
  const showSetup=canManage&&data.manage&&remaining>0&&!hidden;
  return <section className="today-card" aria-labelledby="today-title">
-  <div className="today-head"><span><CalendarClock size={20}/><b id="today-title">Bugün</b></span>
+  <div className="today-head"><span><CalendarClock size={20}/><b id="today-title">Bugünkü işler</b></span>
    <div className="today-counts"><span className={n("overdue")?"bad":""}>Geciken <b>{n("overdue")}</b></span><span>Bugün <b>{n("today")}</b></span><span>Bu hafta <b>{n("week")}</b></span><span>Tarihsiz <b>{n("unscheduled")}</b></span></div>
    <a className="today-open" href="/servis">Servis masası <ArrowRight size={16}/></a></div>
   {open.length?<ul className="today-list">{open.slice(0,5).map(j=>{const b=bucketOf(j,today);return <li key={j.id}><a href={`/servis?job=${encodeURIComponent(j.id)}`}><span className={`today-tag ${b}`}>{j.stage==="accepted"?"Tahsilat bekliyor":BUCKET_LABEL[b]}</span><span><b>{j.title}</b><small>{j.customer_name||"Müşteri belirtilmedi"}{j.scheduled_date?` · ${new Date(j.scheduled_date+"T12:00:00").toLocaleDateString("tr-TR",{weekday:"short",day:"numeric",month:"short"})}`:""}</small></span><ArrowRight size={16}/></a></li>;})}</ul>
    :<p className="today-empty"><ClipboardList size={18}/>{data.manage?"Açık servis işi yok.":"Size atanmış açık iş yok. Yöneticiniz iş atadığında burada görünür."}</p>}
   {open.length>5&&<a className="today-more" href="/servis">Tümünü gör ({open.length})</a>}
-  {showSetup&&<div className="setup-list" aria-label="Başlangıç listesi">
+  {showSetup&&<details className="setup-list" aria-label="Başlangıç listesi"><summary>Başlangıç listesi · {steps.length-remaining}/{steps.length}</summary>
    <div className="setup-head"><b>Başlangıç listesi · {steps.length-remaining}/{steps.length}</b><button type="button" aria-label="Başlangıç listesini gizle" onClick={()=>{setHidden(true);try{localStorage.setItem(`teksanor-setup-done:${organizationId}`,"1");}catch{}}}><X size={16}/></button></div>
    <ol>{steps.map(s=><li key={s.label} className={s.done?"done":""}>{s.done?<CheckCircle2 size={18}/>:<Circle size={18}/>}<span><b>{s.label}</b><small>{s.hint}</small></span>{!s.done&&(s.href?<a href={s.href}>Başla</a>:<button type="button" onClick={s.go}>Başla</button>)}</li>)}</ol>
-  </div>}
+  </details>}
  </section>;
 }

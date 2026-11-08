@@ -30,7 +30,7 @@ const frequencyLabel={day:"gün",week:"hafta",month:"ay",year:"yıl",usage:"kull
 function Modal({title,onClose,onSubmit,children,saving}:{title:string;onClose:()=>void;onSubmit:(event:FormEvent<HTMLFormElement>)=>void;children:React.ReactNode;saving:boolean}){
   useModalKeys(onClose);
   return <div className="modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><form className="entry-modal" role="dialog" aria-modal="true" onSubmit={onSubmit}>
-    <div className="modal-head"><div><span>VARLIK VE BAKIM</span><h2>{title}</h2></div><button type="button" onClick={onClose}><X size={19}/></button></div>
+    <div className="modal-head"><div><span>EKİPMAN VE BAKIM</span><h2>{title}</h2></div><button type="button" onClick={onClose}><X size={19}/></button></div>
     {children}<div className="modal-actions"><button type="button" className="outline-button" onClick={onClose}>Vazgeç</button><button className="panel-primary" disabled={saving}>{saving?"Kaydediliyor...":"Kaydet"}</button></div>
   </form></div>
 }
