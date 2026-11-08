@@ -78,7 +78,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="login-page">
+    <main id="main-content" tabIndex={-1} className="login-page">
       <div className="login-brand-panel">
         <div className="login-grid" />
         <Link href="/" className="back-home"><ArrowLeft size={17} /> Ana sayfaya dön</Link>

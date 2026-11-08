@@ -77,7 +77,7 @@ type Project = { id: string; name: string; code?: string; department: string; ow
 type ServiceHealth = { ok: boolean; dependency?: "database" | "schema" | "storage"; checkedAt?: string; capabilities?: { storage: "available" | "disabled" } };
 
 const navItems = [
-  { id: "overview", label: "Şirket merkezi", icon: LayoutDashboard },
+  { id: "overview", label: "Ana sayfa", icon: LayoutDashboard },
   { id: "departments", label: "Departmanlar", icon: Building2 },
   { id: "rd", label: "Ar-Ge çalışma alanı", icon: Bot },
   { id: "projects", label: "Projeler", icon: BriefcaseBusiness },
@@ -630,7 +630,7 @@ export default function Dashboard() {
       </aside>
       {mobileNav && <button type="button" className="sidebar-backdrop" onClick={() => setMobileNav(false)} aria-label="Menüyü kapat" />}
 
-      <main className="dashboard-main">
+      <main id="main-content" tabIndex={-1} className="dashboard-main">
         <header className="dashboard-topbar">
           <button type="button" className="mobile-menu" onClick={() => setMobileNav(true)} aria-label="Menüyü aç"><Menu size={21} /></button>
           {active !== "overview" && <button type="button" className="mobile-panel-back" onClick={goBack} aria-label="Önceki bölüme dön"><ArrowLeft size={21} /></button>}
@@ -743,7 +743,7 @@ function LoadingScreen() {
 function PageHeader({ active, period, organization, onBack, onNew, onImport, onExport, exportCount, canAdd }: { active: string; period: string; organization: Organization; onBack: () => void; onNew: () => void; onImport: () => void; onExport: () => void; exportCount: number; canAdd: boolean }) {
   const titles: Record<string, [string, string]> = {
     admin: ["Yönetim merkezi", "Kullanıcı erişimleri, veri yönetimi ve platform araçları tek yerde."],
-    overview: ["Şirket merkezi", "Kurumunuzun profili, departmanları, projeleri ve son faaliyetleri tek bakışta görün."],
+    overview: ["Ana sayfa", "Kurumunuzun profili, departmanları, projeleri ve son faaliyetleri tek bakışta görün."],
     departments: ["Departmanlar", "Sorumluluk alanlarını ve günlük çalışma akışlarını düzenli bir kurum yapısında inceleyin."],
     rd: ["Ar-Ge çalışma alanı", "Fikir, bütçe, deney ve sonuç onaylarını izleyin."],
     projects: ["Proje portföyü", "Planlanan ve devam eden çalışmaları sorumlu, bütçe, tarih ve ilerleme bilgisiyle yönetin."],
@@ -769,7 +769,7 @@ function PageHeader({ active, period, organization, onBack, onNew, onImport, onE
     users: ["Kullanıcı yönetimi", "Veri girecek kişileri oluşturun ve yetkilerini yönetin."],
   };
   const current = titles[active] ?? titles.overview;
-  return <><div className="organization-strip"><div><Building2 size={16} /><span><b>{organization.name}</b>{organization.kind === "business" ? "Firma çalışma alanı" : "Kişisel çalışma alanı"}</span></div><em className={`subscription-badge ${organization.subscription_status}`}>{organization.subscription_status === "trialing" ? "14 günlük deneme" : organization.subscription_status === "active" ? "Aktif" : "Ödeme bekleniyor"}</em></div><div className="panel-heading"><div><span className="breadcrumb">TEKSANOR / {organization.name.toLocaleUpperCase("tr-TR")} / {period.toLocaleUpperCase("tr-TR")}</span><h1>{current[0]}</h1></div><div className="heading-actions">{(EXPORTABLE.has(active)||["financial","payments"].includes(active)) && <ExportMenu>{EXPORTABLE.has(active) && <button type="button" className="outline-button" onClick={onExport} disabled={!exportCount} title={exportCount ? `${exportCount} kaydı Excel dosyası olarak indir` : "Bu ekranda henüz indirilecek kayıt yok"}><Download size={17} /> Excel'e indir{exportCount ? ` (${exportCount})` : ""}</button>}{["financial", "payments"].includes(active) && <button type="button" className="outline-button" onClick={onImport} title="Excel veya CSV dosyasındaki ödeme kayıtlarını içeri alır"><FileSpreadsheet size={17} /> Excel'den içe al</button>}</ExportMenu>}{canAdd && <button className="panel-primary" onClick={onNew}><Plus size={17} /> {active === "projects" ? "Yeni proje" : active === "payments" ? "Yeni satır" : "Yeni kayıt"}</button>}</div></div></>;
+  return <><div className="organization-strip"><div><Building2 size={16} /><span><b>{organization.name}</b>{organization.kind === "business" ? "Firma çalışma alanı" : "Kişisel çalışma alanı"}</span></div><em className={`subscription-badge ${organization.subscription_status}`}>{organization.subscription_status === "trialing" ? "14 günlük deneme" : organization.subscription_status === "active" ? "Aktif" : "Ödeme bekleniyor"}</em></div><div className="panel-heading"><div><span className="breadcrumb">TEKSANOR / {organization.name.toLocaleUpperCase("tr-TR")} / {(period === "Ocak 1970" ? "Dönem belirtilmedi" : period).toLocaleUpperCase("tr-TR")}</span><h1>{current[0]}</h1></div><div className="heading-actions">{(EXPORTABLE.has(active)||["financial","payments"].includes(active)) && <ExportMenu>{EXPORTABLE.has(active) && <button type="button" className="outline-button" onClick={onExport} disabled={!exportCount} title={exportCount ? `${exportCount} kaydı Excel dosyası olarak indir` : "Bu ekranda henüz indirilecek kayıt yok"}><Download size={17} /> Excel'e indir{exportCount ? ` (${exportCount})` : ""}</button>}{["financial", "payments"].includes(active) && <button type="button" className="outline-button" onClick={onImport} title="Excel veya CSV dosyasındaki ödeme kayıtlarını içeri alır"><FileSpreadsheet size={17} /> Excel'den içe al</button>}</ExportMenu>}{canAdd && <button className="panel-primary" onClick={onNew}><Plus size={17} /> {active === "projects" ? "Yeni proje" : active === "payments" ? "Yeni satır" : "Yeni kayıt"}</button>}</div></div></>;
 }
 
 function CompanyHome({ data, organizationId, canManage, projects, tasks, workOrders, fieldVisits, procurement, risks, onNavigate }: { data: DashboardData; organizationId: string; canManage: boolean; projects: Project[]; tasks: Task[]; workOrders: WorkOrder[]; fieldVisits: FieldVisit[]; procurement: ProcurementRequest[]; risks: Risk[]; onNavigate: (page: string) => void }) {
@@ -788,15 +788,19 @@ function CompanyHome({ data, organizationId, canManage, projects, tasks, workOrd
   return <>
     {data.access.viewModules.includes("work-orders")&&<FlowsCard organizationId={organizationId}/>}
     <TodayCard key={organizationId} organizationId={organizationId} profile={data.profile} canManage={canManage} onNavigate={onNavigate} />
+    {data.access.viewModules.includes("procurement")&&<section className="pending-approvals"><h2>Bekleyen onaylar</h2><button type="button" className="outline-button" onClick={()=>onNavigate("procurement")}>Satın alma talepleri <b>{pendingPurchases}</b><ArrowRight size={17}/></button></section>}
+    <details className="home-more"><summary>Daha fazla</summary>
     <section className="proactive-action-center">
-      <div className="proactive-action-head"><span><Zap size={18} /><b>Bugünün aksiyonları</b></span><small>Kayıtlardaki tarih, önem ve bekleyen durumlara göre otomatik hazırlanır.</small></div>
+      <div className="proactive-action-head"><span><Zap size={18} /><b>Bugünün aksiyonları</b></span></div>
       {actions.length ? <div className="proactive-action-grid">{actions.slice(0, 5).map((action) => <button type="button" key={`${action.page}-${action.label}`} onClick={() => onNavigate(action.page)} className={action.level}><i /><span><b>{action.label}</b><small>{action.text}</small></span><ArrowRight size={17} /></button>)}</div> : <div className="proactive-action-empty"><Check size={18} /><span><b>Öncelikli aksiyon görünmüyor</b><small>Yeni gecikme veya kritik kayıt oluşursa burada gösterilir.</small></span></div>}
     </section>
+    
+    {data.access.viewModules.includes("work-orders")&&<FlowsCard organizationId={organizationId}/>}
     <section className="company-command-hero"><div><span>KURUMSAL ÇALIŞMA ALANI</span><h2>{data.profile?.legal_name || data.organization.name}</h2><p>{data.profile?.about || "Firmanızın temel bilgilerini, projelerini ve günlük çalışmalarını burada bir arada tutun."}</p><button type="button" onClick={() => onNavigate("company")}>Firma bilgilerini aç <ArrowRight size={16} /></button></div><div className="command-hero-mark"><Building2 size={42} /><span>Faaliyet alanı</span><b>{data.profile?.sector || "Henüz eklenmedi"}</b></div></section>
     <OverviewModuleWidgets tasks={tasks} workOrders={workOrders} fieldVisits={fieldVisits} procurement={procurement} risks={risks} onNavigate={onNavigate} />
     {/* Sol menüyü tekrar eden "hızlı geçiş" kutuları kaldırıldı (aynı sayfada iki aynı hedef olmasın). */}
     <section className="company-activity-board"><div><span>SON FAALİYETLER</span><h3>Çalışma alanındaki güncel hareketler</h3></div><div>{data.activity.length ? data.activity.slice(0, 5).map((item) => { const target = ACTIVITY_TARGET[item.entity_type]; const body = <><i /><span><b>{item.details || "Çalışma alanında işlem yapıldı"}</b><small>{new Date(item.created_at).toLocaleString("tr-TR")}</small></span></>;
-      return target ? <article key={item.id}>{target.startsWith("/") ? <a className="activity-link" href={target}>{body}</a> : <button type="button" className="activity-link" onClick={() => onNavigate(target)}>{body}</button>}</article> : <article key={item.id}>{body}</article>; }) : <p>Henüz faaliyet kaydı bulunmuyor.</p>}</div></section>
+      return target ? <article key={item.id}>{target.startsWith("/") ? <a className="activity-link" href={target}>{body}</a> : <button type="button" className="activity-link" onClick={() => onNavigate(target)}>{body}</button>}</article> : <article key={item.id}>{body}</article>; }) : <p>Henüz faaliyet kaydı bulunmuyor.</p>}</div></section></details>
   </>;
 }
 

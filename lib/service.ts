@@ -5,6 +5,7 @@ export const serviceSchema=[
  id TEXT PRIMARY KEY REFERENCES work_orders(id), organization_id TEXT NOT NULL REFERENCES organizations(id),
  asset_id TEXT, assigned_user_id TEXT REFERENCES users(id), outcome TEXT NOT NULL DEFAULT '',
  stage TEXT NOT NULL DEFAULT 'requested', version INTEGER NOT NULL DEFAULT 1,
+ previous_job_id TEXT REFERENCES service_jobs(id),
  quote_cents INTEGER NOT NULL DEFAULT 0 CHECK(quote_cents>=0), labor_cents INTEGER NOT NULL DEFAULT 0 CHECK(labor_cents>=0),
  parts_cents INTEGER NOT NULL DEFAULT 0 CHECK(parts_cents>=0), travel_cents INTEGER NOT NULL DEFAULT 0 CHECK(travel_cents>=0),
  paid_cents INTEGER NOT NULL DEFAULT 0 CHECK(paid_cents>=0), currency TEXT NOT NULL DEFAULT 'TRY',
@@ -21,6 +22,18 @@ export const serviceSchema=[
 // Eklemeli genişletmeler: saha kontrol listeleri. Yeni kurulumda ve mevcut canlı veri tabanında
 // (ilk servis isteğinde) aynı CREATE … IF NOT EXISTS ifadeleri çalışır; mevcut tablolara dokunmaz.
 export const serviceExtensionSchema=[
+`CREATE TABLE IF NOT EXISTS service_visits (
+ id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, job_id TEXT NOT NULL REFERENCES service_jobs(id),
+ assigned_user_id TEXT NOT NULL REFERENCES users(id), scheduled_date TEXT NOT NULL,
+ status TEXT NOT NULL DEFAULT 'planned' CHECK(status IN ('planned','done','parts_waiting','customer_absent','cancelled')),
+ note TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, closed_at TEXT
+)`,
+`CREATE UNIQUE INDEX IF NOT EXISTS service_one_planned_visit ON service_visits(job_id) WHERE status='planned'`,
+`CREATE TABLE IF NOT EXISTS service_payment_history (
+ organization_id TEXT NOT NULL, job_id TEXT NOT NULL REFERENCES service_jobs(id), version INTEGER NOT NULL,
+ before_cents INTEGER NOT NULL, after_cents INTEGER NOT NULL, actor_id TEXT NOT NULL,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY(job_id,version)
+)`,
 `CREATE TABLE IF NOT EXISTS service_checklist_templates (
  id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, name TEXT NOT NULL, items TEXT NOT NULL,
  active INTEGER NOT NULL DEFAULT 1, created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -39,6 +52,11 @@ export async function initializeService(db:Database){for(const sql of [...servic
 // Genel şema sürümü bilerek yükseltilmedi; o yol tüm kurulum adımlarını (eski tablolardan
 // kopyalama dahil) yeniden çalıştırır. Bu fonksiyon yalnız yeni tablo/sütun ekler.
 const initializeServiceColumns=requestSafeInitializer(async(db:Database)=>{
+  const jobs = await db.prepare("PRAGMA table_info(service_jobs)").all<{name:string}>();
+  if(jobs.results.length&&!jobs.results.some(c=>c.name==="previous_job_id")){
+   try{await db.prepare("ALTER TABLE service_jobs ADD COLUMN previous_job_id TEXT REFERENCES service_jobs(id)").run();}
+   catch(e){if(!/duplicate column/i.test(String(e)))throw e;}
+  }
   const cols=await db.prepare("PRAGMA table_info(service_approvals)").all<{name:string}>();
   for(const sql of serviceExtensionSchema)await db.prepare(sql).run();
   if(cols.results.length&&!cols.results.some(c=>c.name==="signature_path")){
@@ -51,7 +69,9 @@ export function ensureServiceColumns(db:Database=getDb()){
 }
 export function cents(value:unknown){const n=Number(value);if(!Number.isFinite(n)||n<0||n>100000000)throw new Error("Tutar 0–100.000.000 TL arasında olmalı.");return Math.round(n*100);}
 export const transitions:Record<string,string[]>={requested:["quoted","cancelled"],quoted:["requested","cancelled"],quote_approved:["in_progress","cancelled"],in_progress:["completed","cancelled"],completed:["in_progress"],accepted:["collected"],collected:[],cancelled:[]};
-export function validateTransition(current:string,next:string){if(current!==next&&!transitions[current]?.includes(next))throw new Error("Bu durum değişikliği için önceki adımları tamamlayın.");}
+// Kullanıcıya gösterilmesi güvenli, elle yazılmış iş kuralı mesajları için.
+export class ServiceRuleError extends Error {}
+export function validateTransition(current:string,next:string){if(current!==next&&!transitions[current]?.includes(next))throw new ServiceRuleError("Bu durum değişikliği için önceki adımları tamamlayın.");}
 export function totals(job:{quote_cents:number;labor_cents:number;parts_cents:number;travel_cents:number;paid_cents:number}){const cost=job.labor_cents+job.parts_cents+job.travel_cents;return {cost_cents:cost,margin_cents:job.quote_cents-cost,remaining_cents:Math.max(0,job.quote_cents-job.paid_cents)};}
 export async function serviceJob(id:string,organizationId:string){return getDb().prepare(`SELECT w.title,w.description,w.customer_name,w.location,w.scheduled_date,w.order_number,w.assigned_to,s.*,a.name AS asset_name,a.asset_code
  FROM service_jobs s JOIN work_orders w ON w.id=s.id AND w.organization_id=s.organization_id

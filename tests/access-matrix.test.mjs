@@ -21,7 +21,7 @@ for(const u of USERS)await h.user(...u);
 // Her firma tablosuna o firmaya özgü işaretli bir satır ekle.
 const ownerOf={a:'boss',b:'outsider'};
 function seed(org){
-  const tables=sql.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r=>r.name).filter(t=>!['organization_members','organization_member_access','organization_profiles','organization_reference_rates','service_approvals','service_jobs','service_job_checklists'].includes(t));
+  const tables=sql.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r=>r.name).filter(t=>!['organization_members','organization_member_access','organization_profiles','organization_reference_rates','service_approvals','service_jobs','service_job_checklists','service_payment_history','service_visits'].includes(t));
   for(const t of ['assets','customers',...tables.filter(x=>!['assets','customers','department_process_events'].includes(x)),'department_process_events']){
     const cols=sql.prepare(`PRAGMA table_info(${t})`).all();if(!cols.some(c=>c.name==='organization_id'))continue;
     const values={};
@@ -45,6 +45,7 @@ function seed(org){
   for(const [id,assignee] of [[`svc-private-${org}`,ownerOf[org]],...(org==='a'?[['svc-emp-a','employee']]:[])]){
     sql.prepare('INSERT INTO work_orders(id,organization_id,order_number,title,customer_name,notes) VALUES(?,?,?,?,?,?)').run(id,org,'SRV-'+id,`SVC-${id}`,`MUSTERI-${id}`,`RAPOR-${id}`);
     sql.prepare('INSERT INTO service_jobs(id,organization_id,assigned_user_id,quote_cents,labor_cents) VALUES(?,?,?,?,?)').run(id,org,assignee,100000,77777);
+    sql.prepare('INSERT INTO service_payment_history(organization_id,job_id,version,before_cents,after_cents,actor_id) VALUES(?,?,2,0,500,?)').run(org,id,assignee);
   }
 }
 seed('a');seed('b');

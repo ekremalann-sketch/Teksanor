@@ -61,7 +61,13 @@ await test('8) tahsilat: eksik tahsilatla kapanmaz, fazla tahsilat reddedilir, t
   assert.equal((await act('boss',{action:'update',id,version:job(id).version,stage:'collected',paid:1000})).status,400);
   assert.equal((await act('boss',{action:'update',id,version:job(id).version,paid:3000})).status,400);
   assert.equal((await act('employee',{action:'update',id,version:job(id).version,stage:'collected',paid:2500})).status,400,'çalışan tahsilatı kapatamaz');
+  assert.equal((await act('boss',{action:'update',id,version:job(id).version,paid:1000})).status,200);
   assert.equal((await act('boss',{action:'update',id,version:job(id).version,stage:'collected',paid:2500})).status,200);
+  const path='/api/service/jobs?paymentHistory='+encodeURIComponent(id);
+  const history=await api.jobs.GET(req('boss',path,'GET',undefined,'a'));
+  assert.equal(history.status,200);
+  assert.deepEqual((await history.json()).history.map(row=>[row.before_cents,row.after_cents]),[[100000,250000],[0,100000]]);
+  assert.equal((await api.jobs.GET(req('employee',path,'GET',undefined,'a'))).status,403);
   assert.deepEqual([job(id).stage,job(id).paid_cents],['collected',250000]);assert.equal(wo(id).status,'completed');
   assert.equal((await act('boss',{action:'update',id,version:job(id).version,stage:'in_progress'})).status,400,'kapanan iş yeniden açılamaz');
 });
@@ -90,4 +96,33 @@ await test('12) Excel: aynı dosya iki kez içe aktarılırsa satır sayısı ar
   await api.payments.POST(req('boss','/api/payments','POST',api.finance.paymentImportPayload({...rows[0],'Toplam Borç':650},'X'),'a'));
   assert.equal(sql.prepare("SELECT total_debt FROM payment_records WHERE bank_name='Excel' AND account_name='H1'").get().total_debt,650);
   assert.equal(sql.prepare("SELECT COUNT(*) AS n FROM payment_records WHERE bank_name='Excel'").get().n,2);
+});
+
+await test('tekrar servis işi kaynağını saklar ve çift gönderimde aynı işe döner',async()=>{
+ const input={action:'create',title:'Tekrar ziyaret',previousJobId:id};
+ const first=await act('boss',input);
+ assert.equal(first.status,201);
+ const created=(await first.json()).id;
+ assert.notEqual(created,id);
+ assert.equal(sql.prepare('SELECT previous_job_id FROM service_jobs WHERE id=?').get(created).previous_job_id,id);
+ assert.equal((await (await act('boss',input)).json()).id,created);
+ assert.equal((await act('boss',{...input,previousJobId:'missing'})).status,400);
+});
+
+await test('parça bekleyen ziyaret kapanır, sonraki ziyaret aynı servis işinde kalır',async()=>{
+ const created=await act('boss',{action:'create',title:'İki ziyaretli sentetik iş',assignedUserId:'employee'});
+ const serviceId=(await created.json()).id;
+ sql.prepare("UPDATE service_jobs SET stage='in_progress' WHERE id=?").run(serviceId);
+ const plan=(date)=>act('boss',{action:'visit-plan',id:serviceId,version:job(serviceId).version,scheduledDate:date,assignedUserId:'employee'});
+ assert.equal((await plan('2026-11-10')).status,200);
+ assert.equal((await plan('2026-11-11')).status,409);
+ const visitId=sql.prepare('SELECT id FROM service_visits WHERE job_id=?').get(serviceId).id;
+ const close={action:'visit-close',id:serviceId,version:job(serviceId).version,visitId,status:'parts_waiting',note:'Sentetik parça bekleniyor'};
+ assert.equal((await act('other',close)).status,404);
+ assert.equal((await act('employee',{action:'update',id:serviceId,version:job(serviceId).version,stage:'completed',outcome:'Deneme'})).status,400);
+ assert.equal((await act('employee',close)).status,200);
+ assert.equal((await act('employee',close)).status,409);
+ assert.equal((await plan('2026-11-11')).status,200);
+ const r=await api.jobs.GET(req('boss','/api/service/jobs?visitHistory='+serviceId,'GET',undefined,'a'));
+ assert.deepEqual((await r.json()).visits.map(visit=>visit.status),['planned','parts_waiting']);
 });

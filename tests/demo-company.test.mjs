@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHarness} from './helpers/harness.mjs';
 
-const h=await createHarness('demo-company',{demo:'./app/api/organizations/demo/route.ts',dep:'./app/api/departments/route.ts',jobs:'./app/api/service/jobs/route.ts'});
+const h=await createHarness('demo-company',{company:'./lib/demo-company.ts',demo:'./app/api/organizations/demo/route.ts',dep:'./app/api/departments/route.ts',jobs:'./app/api/service/jobs/route.ts'});
 const {sql,api,req}=h;
 await h.user('platform','a','owner','owner');sql.prepare("UPDATE users SET role='admin' WHERE id='platform'").run();
 await h.user('boss','a','owner','owner');
@@ -70,4 +70,9 @@ await test('örnek işletme: bir parça hata verirse o parçanın hiçbir kaydı
   const done=(await (await api.demo.GET(req('platform','/api/organizations/demo','GET',undefined,'a'))).json()).companies.find(c=>c.organizationId===org2);
   assert.equal(done.complete,true);
   assert.equal(sql.prepare("SELECT COUNT(*) n FROM work_orders WHERE organization_id=?").get(org2).n,10);
+});
+
+await test('örnek işletme dönemi modül açılışında değil, çağrı anında hesaplanır',()=>{
+ const original=Date.now;
+ try { Date.now=()=>Date.UTC(2026,10,5,9);assert.equal(api.company.currentPeriod(),'Kasım 2026');Date.now=()=>Date.UTC(2026,11,31,22);assert.equal(api.company.currentPeriod(),'Ocak 2027'); } finally { Date.now=original; }
 });
