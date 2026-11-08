@@ -9,6 +9,7 @@ import {cents,totals,validateTransition,serviceJob,ensureServiceColumns,ServiceR
 import {tokenDigest} from "@/lib/account-tokens";
 import {rejectCrossSiteMutation} from "@/lib/security";
 import {isSafeSignaturePath} from "@/lib/signature";
+import {quoteLines,quoteSnapshot} from "@/lib/service-quotes";
 const txt=(v:unknown,max=1000)=>String(v??"").trim().slice(0,max);
 export async function GET(request:Request){return handle(request);}
 export async function POST(request:Request){const r=rejectCrossSiteMutation(request);return r||handle(request);}
@@ -21,6 +22,14 @@ async function handle(request:Request){
   await ensureServiceColumns();const access=await getMemberAccess(user,organization);const db=getDb();
   const manage=["owner","company_admin","ceo","manager"].includes(access.profile);const canWrite=access.editModules.includes("work-orders");
   if(request.method==="GET"){
+   const quoteJob=txt(new URL(request.url).searchParams.get("quoteHistory"),100);
+   if(quoteJob){
+    if(!manage)return NextResponse.json({error:"Teklif geçmişi için yönetici yetkisi gerekir."},{status:403});
+    if(!await serviceJob(quoteJob,organization.id))return NextResponse.json({error:"Servis kaydı bulunamadı."},{status:404});
+    const history=await db.prepare("SELECT revision,lines,total_cents,reason,created_at FROM service_quote_versions WHERE organization_id=? AND job_id=? ORDER BY revision DESC").bind(organization.id,quoteJob).all<{lines:string}>();
+    await recordRead(user.id,organization.id,"service-jobs:quote-history");
+    return NextResponse.json({history:history.results.map(row=>({...row,lines:JSON.parse(row.lines)}))},{headers:{"Cache-Control":"private, no-store"}});
+   }
    const visitJob=txt(new URL(request.url).searchParams.get("visitHistory"),100);
    if(visitJob){
     const job=await serviceJob(visitJob,organization.id);
@@ -86,6 +95,30 @@ async function handle(request:Request){
   const id=txt(b.id,100);const job=await serviceJob(id,organization.id);
   if(!job||(!manage&&job.assigned_user_id!==user.id))return NextResponse.json({error:"Servis kaydı bulunamadı."},{status:404});
   if(Number(b.version)!==Number(job.version))return NextResponse.json({error:"Kayıt başka bir işlemle güncellendi. Yenileyin."},{status:409});
+  if(b.action==="quote-revise"){
+   if(!manage)return NextResponse.json({error:"Teklifi yönetici düzenleyebilir."},{status:403});
+   if(!["requested","quoted"].includes(String(job.stage)))throw new ServiceRuleError("Onaylanmış teklif değiştirilemez.");
+   const lines=quoteLines(b.lines);
+   if(!lines)throw new ServiceRuleError("Geçerli teklif kalemleri girin.");
+   const total=lines.reduce((sum,line)=>sum+line.quantity*line.unitCents,0);
+   if(!Number.isSafeInteger(total)||total>10_000_000_000||total<Number(job.paid_cents))throw new ServiceRuleError("Teklif toplamı geçersiz.");
+   const previous=await quoteSnapshot(db,organization.id,id,job.version);
+   const reason=typeof b.reason==="string"?b.reason.trim().slice(0,1000):"";
+   if((previous||job.stage==="quoted")&&!reason)throw new ServiceRuleError("Revizyon gerekçesi gerekli.");
+   const revision=(previous?.revision??0)+1;
+   const [updated]=await db.batch([
+    db.prepare(`UPDATE service_jobs SET stage='quoted',quote_cents=?,version=version+1,updated_at=CURRENT_TIMESTAMP
+      WHERE id=? AND organization_id=? AND version=? AND stage IN ('requested','quoted') RETURNING version`)
+     .bind(total,id,organization.id,job.version),
+    db.prepare(`INSERT INTO service_quote_versions(organization_id,job_id,job_version,revision,lines,total_cents,reason,actor_id)
+      SELECT ?,?,?,?,?,?,?,? WHERE changes()>0`)
+     .bind(organization.id,id,Number(job.version)+1,revision,JSON.stringify(lines),total,reason,user.id),
+    auditStatement(user.id,"revise_quote","service_job",id,`Teklif sürümü: ${revision}`,organization.id,true),
+    db.prepare("UPDATE service_approvals SET revoked_at=CURRENT_TIMESTAMP WHERE job_id=? AND organization_id=? AND approved_at IS NULL AND changes()>0").bind(id,organization.id),
+   ]);
+   if(!updated.results?.length)return NextResponse.json({error:"Kayıt değişti. Yenileyin."},{status:409});
+   return NextResponse.json({ok:true,revision,totalCents:total});
+  }
   if(b.action==="share"){
    const purpose=b.purpose==="completion"?"completion":"quote";
    if(!manage && purpose!=="completion")return NextResponse.json({error:"Teklif onayını yönetici başlatabilir."},{status:403});
@@ -150,6 +183,7 @@ async function handle(request:Request){
   }
   const moneyFields=["quote","labor","parts","travel","paid"] as const;
   const values=moneyFields.map(k=>manage&&b[k]!==undefined?cents(b[k]):Number(job[`${k}_cents`]));
+  if(values[0]!==Number(job.quote_cents)&&await quoteSnapshot(db,organization.id,id,job.version))throw new ServiceRuleError("Teklif toplamı yalnızca teklif kalemlerinden değiştirilebilir.");
   if(b.quote!==undefined&&values[0]!==Number(job.quote_cents)&&!["requested","quoted"].includes(String(job.stage)))throw new ServiceRuleError("Onaylanmış teklif tutarı değiştirilemez.");
   if(values[4]>values[0])throw new ServiceRuleError("Tahsilat teklif tutarını aşamaz.");
   if(stage==="collected"&&values[4]<values[0])throw new ServiceRuleError("Tahsilat tamamlanmadı.");
