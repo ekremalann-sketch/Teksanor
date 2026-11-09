@@ -16,7 +16,9 @@ await test('teklif kalemleri sunucuda toplanır, gerekçeli revizyon ve ret tek 
  const opened=await act('boss',{action:'create',title:'Sentetik kalemli teklif',assignedUserId:'employee'});
  const {id}=await opened.json();
  const lines=[{kind:'item',label:'Sentetik parça',quantity:2,unitCents:2500},{kind:'labor',label:'Sentetik işçilik',quantity:1,unitCents:1500}];
- const revise=(reason,who='boss',version=job(id).version)=>act(who,{action:'quote-revise',id,version,lines,reason,totalCents:1});
+ const secondLines=[{...lines[0],quantity:3},lines[1]];
+ const finalLines=[lines[0],{...lines[1],unitCents:2000}];
+ const revise=(reason,who='boss',version=job(id).version,revisionLines=lines)=>act(who,{action:'quote-revise',id,version,lines:revisionLines,reason,totalCents:1});
  assert.equal((await revise('', 'employee')).status,403);
  assert.equal((await revise('')).status,200);
  assert.equal(job(id).quote_cents,6500);
@@ -24,27 +26,33 @@ await test('teklif kalemleri sunucuda toplanır, gerekçeli revizyon ve ret tek 
  assert.deepEqual((await (await customer(old,'GET')).json()).quoteLines,lines);
  assert.equal((await revise('')).status,400);
  const version=job(id).version;
- assert.deepEqual((await Promise.all([revise('Sentetik güncelleme','boss',version),revise('Sentetik güncelleme','boss',version)])).map(r=>r.status).sort(),[200,409]);
+ assert.deepEqual((await Promise.all([revise('Sentetik güncelleme','boss',version,secondLines),revise('Sentetik güncelleme','boss',version,secondLines)])).map(r=>r.status).sort(),[200,409]);
  assert.equal((await customer(old,'GET')).status,410);
  const rejected=await share(id,'quote');
+ const second=await (await customer(rejected,'GET')).json();
+ assert.equal(second.quote,90);
+ assert.equal(second.quoteRevision,2);
+ assert.deepEqual(second.quoteLines,secondLines);
  assert.equal((await customer(rejected,'POST',{action:'reject',name:'Demo'})).status,400);
  assert.equal((await customer(rejected,'POST',{action:'reject',name:'Demo',reason:'Sentetik ret gerekçesi'})).status,200);
  assert.equal(job(id).stage,'requested');
  assert.equal((await customer(rejected)).status,410);
- assert.equal((await revise('Ret sonrası revizyon')).status,200);
+ assert.equal((await revise('Ret sonrası revizyon','boss',job(id).version,finalLines)).status,200);
  const accepted=await share(id,'quote');
  assert.equal((await customer(accepted)).status,200);
  assert.equal((await revise('Onay sonrası değişiklik')).status,400);
  const replay=await (await customer(accepted,'GET')).json();
- assert.equal(replay.quote,65);
+ assert.equal(replay.quote,70);
  assert.equal(replay.quoteRevision,3);
- assert.deepEqual(replay.quoteLines,lines);
+ assert.deepEqual(replay.quoteLines,finalLines);
  await h.user('quote-outsider','b','owner','owner');
  const path='/api/service/jobs?quoteHistory='+id;
  assert.equal((await api.jobs.GET(req('employee',path,'GET',undefined,'a'))).status,403);
  assert.equal((await api.jobs.GET(req('quote-outsider',path,'GET',undefined,'b'))).status,404);
  const history=await api.jobs.GET(req('boss',path,'GET',undefined,'a'));
- assert.deepEqual((await history.json()).history.map(row=>row.revision),[3,2,1]);
+ assert.deepEqual((await history.json()).history.map(row=>[row.revision,row.total_cents,row.lines]),[
+  [3,7000,finalLines],[2,9000,secondLines],[1,6500,lines],
+ ]);
 });
 
 let id;
