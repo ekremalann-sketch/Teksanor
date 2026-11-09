@@ -188,6 +188,7 @@ async function handle(request:Request){
   if(b.quote!==undefined&&values[0]!==Number(job.quote_cents)&&!["requested","quoted"].includes(String(job.stage)))throw new ServiceRuleError("Onaylanmış teklif tutarı değiştirilemez.");
   if(values[4]>values[0])throw new ServiceRuleError("Tahsilat teklif tutarını aşamaz.");
   if(stage==="collected"&&values[4]<values[0])throw new ServiceRuleError("Tahsilat tamamlanmadı.");
+  if(values[4]<Number(job.paid_cents))throw new ServiceRuleError("Tahsil edilen tutarı azaltmak için iade veya tahsilat iptali kaydı kullanın.");
   if(["accepted","collected"].includes(String(job.stage))&&outcome!==String(job.outcome))throw new ServiceRuleError("Müşterinin onayladığı rapor değiştirilemez.");
   const paymentHistory=values[4]!==Number(job.paid_cents)?[db.prepare(`INSERT INTO service_payment_history(organization_id,job_id,version,before_cents,after_cents,actor_id)
    SELECT organization_id,id,version+1,paid_cents,?,? FROM service_jobs WHERE id=? AND organization_id=? AND version=?`)
@@ -196,6 +197,9 @@ async function handle(request:Request){
    ...paymentHistory,
    db.prepare(`UPDATE service_jobs SET stage=?,outcome=?,quote_cents=?,labor_cents=?,parts_cents=?,travel_cents=?,paid_cents=?,version=version+1,updated_at=CURRENT_TIMESTAMP
     WHERE id=? AND organization_id=? AND version=? RETURNING version`).bind(stage,outcome,...values,id,organization.id,job.version),
+   // Toplam alanından girilen tahsilat artışı da ayrı bir tahsilat hareketi olarak kaydedilir.
+   ...(values[4]>Number(job.paid_cents)?[db.prepare(`INSERT INTO service_payments(id,organization_id,job_id,kind,amount_cents,method,reason,request_id,actor_id)
+    SELECT ?,?,?,'payment',?,'diger','',?,? WHERE changes()>0`).bind(createId("pay"),organization.id,id,values[4]-Number(job.paid_cents),createId("legacy-pay"),user.id)]:[]),
    auditStatement(user.id,"update","service_job",id,`Servis durumu: ${stage}`,organization.id,true),
    db.prepare("UPDATE work_orders SET status=?,notes=?,completed_date=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=? AND changes()>0").bind(["completed","accepted","collected"].includes(stage)?"completed":stage==="cancelled"?"cancelled":stage==="in_progress"?"in_progress":"open",outcome,["completed","accepted","collected"].includes(stage)?new Date().toISOString().slice(0,10):null,id,organization.id),
    db.prepare("UPDATE service_approvals SET revoked_at=CURRENT_TIMESTAMP WHERE job_id=? AND organization_id=? AND approved_at IS NULL AND changes()>0").bind(id,organization.id),
