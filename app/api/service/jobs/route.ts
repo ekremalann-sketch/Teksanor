@@ -177,6 +177,7 @@ async function handle(request:Request){
   const outcome=b.outcome===undefined?String(job.outcome):txt(b.outcome,6000);
   if(stage==="completed"&&!outcome)throw new ServiceRuleError("Yapılan işlemi yazın.");
   if(["completed","cancelled"].includes(stage)&&stage!==job.stage&&await db.prepare("SELECT 1 FROM service_visits WHERE job_id=? AND organization_id=? AND status='planned'").bind(id,organization.id).first())throw new ServiceRuleError("İşi kapatmadan açık ziyareti sonuçlandırın.");
+  if(["completed","cancelled"].includes(stage)&&stage!==job.stage&&await db.prepare("SELECT 1 FROM service_job_parts WHERE job_id=? AND organization_id=? AND reserved>0").bind(id,organization.id).first())throw new ServiceRuleError("İşi kapatmadan önce ayrılan parçaları kullanıldı veya depoya iade edildi olarak işaretleyin.");
   if(stage==="completed"&&job.stage!=="completed"){
    const open=await db.prepare("SELECT name FROM service_job_checklists WHERE job_id=? AND organization_id=? AND completed_at IS NULL").bind(id,organization.id).all<{name:string}>();
    if(open.results.length)throw new RequiredChecklistError("Zorunlu kontrol maddeleri tamamlanmadı. Saha formundaki zorunlu alanları doldurun.");
