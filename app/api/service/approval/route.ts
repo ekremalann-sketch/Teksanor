@@ -4,6 +4,7 @@ import {tokenDigest} from "@/lib/account-tokens";
 import {rejectCrossSiteMutation} from "@/lib/security";
 import {signaturePath,SignatureError} from "@/lib/signature";
 import {ensureServiceColumns} from "@/lib/service";
+import {quoteSnapshot} from "@/lib/service-quotes";
 export async function GET(request:Request){return handle(request);}
 export async function POST(request:Request){const rejected=rejectCrossSiteMutation(request);return rejected||handle(request);}
 async function handle(request:Request){
@@ -16,8 +17,23 @@ async function handle(request:Request){
  JOIN work_orders w ON w.id=s.id JOIN organizations o ON o.id=s.organization_id
  WHERE token_hash=? AND a.revoked_at IS NULL AND a.expires_at>CURRENT_TIMESTAMP AND o.active=1`).bind(hash).first<Record<string,unknown>>();
  if(!a||(!a.approved_at&&a.job_version!==a.version))return NextResponse.json({error:"Bağlantının süresi dolmuş veya kayıt değişmiş. Yeni bağlantı isteyin."},{status:410});
- if(request.method==="GET")return NextResponse.json({title:a.title,number:a.order_number,company:a.organization_name,customer:a.customer_name,quote:Number(a.quote_cents)/100,outcome:a.purpose==="completion"?a.outcome:"",purpose:a.purpose,approvedAt:a.approved_at},{headers:{"Cache-Control":"no-store","Referrer-Policy":"no-referrer"}});
- const b=await request.json() as {name?:string;consent?:boolean;signature?:unknown};const name=String(b.name||"").trim().slice(0,160);
+ const snapshot=a.purpose==="quote"?await quoteSnapshot(db,a.organization_id,a.job_id,a.job_version):null;
+ if(request.method==="GET")return NextResponse.json({title:a.title,number:a.order_number,company:a.organization_name,customer:a.customer_name,quote:Number(snapshot?.total_cents??a.quote_cents)/100,quoteRevision:snapshot?.revision,quoteLines:snapshot?JSON.parse(snapshot.lines):undefined,outcome:a.purpose==="completion"?a.outcome:"",purpose:a.purpose,approvedAt:a.approved_at},{headers:{"Cache-Control":"no-store","Referrer-Policy":"no-referrer"}});
+ const b=await request.json() as {name?:string;consent?:boolean;signature?:unknown;action?:string;reason?:unknown};const name=String(b.name||"").trim().slice(0,160);
+ if(b.action==="reject"){
+  const reason=typeof b.reason==="string"?b.reason.trim().slice(0,1000):"";
+  if(!reason||!name||a.purpose!=="quote"||a.approved_at)return NextResponse.json({error:"Teklifi reddetmek için ad ve gerekçe gerekli."},{status:400});
+  const [updated]=await db.batch([
+   db.prepare(`UPDATE service_jobs SET stage='requested',version=version+1,updated_at=CURRENT_TIMESTAMP
+    WHERE id=? AND organization_id=? AND version=? AND stage='quoted'
+      AND EXISTS(SELECT 1 FROM service_approvals WHERE token_hash=? AND approved_at IS NULL
+       AND revoked_at IS NULL AND expires_at>CURRENT_TIMESTAMP) RETURNING id`).bind(a.job_id,a.organization_id,a.job_version,hash),
+   db.prepare("UPDATE service_approvals SET revoked_at=CURRENT_TIMESTAMP WHERE token_hash=? AND changes()>0").bind(hash),
+   auditStatement(null,"reject_quote","service_job",String(a.job_id),`Teklif reddi (${name}): ${reason}`,String(a.organization_id),true),
+  ]);
+  if(!updated.results?.length)return NextResponse.json({error:"Kayıt değişti. Yeni bağlantı isteyin."},{status:409});
+  return NextResponse.json({ok:true});
+ }
  if(!name||b.consent!==true)return NextResponse.json({error:"Adınızı yazın ve onay kutusunu işaretleyin."},{status:400});
  let signature:string|null;
  try{signature=signaturePath(b.signature);}catch(e){if(e instanceof SignatureError)return NextResponse.json({error:e.message},{status:400});throw e;}
