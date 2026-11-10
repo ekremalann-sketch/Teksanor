@@ -10,3 +10,9 @@ await test('Yazılı yanıt referansı olmadan kapanmaz; veri otomatik silinmez'
 await test('Saklama politikası bağımsız onay ve hukuki bekletme bilgisi taşır',async()=>{assert.equal((await write('owner',{action:'policy.save',resource:'customers',days:30,basisRef:'POLITIKA-01',legalHold:true})).status,200);const p=sql.prepare("SELECT * FROM retention_policies WHERE scope='a'").get();assert.equal((await write('owner',{action:'policy.approve',id:p.id,version:p.version})).status,403);assert.equal((await write('reviewer',{action:'policy.approve',id:p.id,version:p.version})).status,200);assert.equal(sql.prepare('SELECT legal_hold FROM retention_policies WHERE id=?').get(p.id).legal_hold,1);});
 await test('Müşteri detay okuma kaydı kapsamlı ve saatlik tekildir',async()=>{sql.prepare("INSERT INTO customers(id,organization_id,name,status) VALUES('cust-safe','a','Sentetik','active')").run();for(let i=0;i<2;i++)assert.equal((await api.customer.GET(req('owner','/api/customers/cust-safe','GET',undefined,'a'),h.ctx('cust-safe'))).status,200);assert.equal(sql.prepare("SELECT count(*) n FROM read_audits WHERE resource='customers:cust-safe'").get().n,1);});
 await test('Rol ana ekranı mesleğe göre değişir',()=>{assert.equal(api.home.homeFor({profile:'hr'}),'/birimler?birim=ik');assert.equal(api.home.homeFor({profile:'employee'}),'/servis?view=today');assert.equal(api.home.homeFor({profile:'finance'}),'/panel#panel=payments');});
+await test('Firma yönetimi servis masasına, satın alma yöneticisi kendi paneline açılır',()=>{
+ for(const profile of ['owner','company_admin','ceo','manager']){
+  assert.equal(api.home.homeFor({profile,department:'Saha operasyonları'}),'/servis');
+ }
+ assert.equal(api.home.homeFor({profile:'manager',department:'Satın alma'}),'/panel#panel=procurement');
+});
