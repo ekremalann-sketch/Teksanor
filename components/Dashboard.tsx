@@ -1,6 +1,7 @@
 "use client";
 import {goToLogin,goToMfaSetup} from "@/lib/workspace-navigation";
 import { mainMenu, otherModules } from "@/lib/menu";
+import { todayAlerts } from "@/lib/today-alerts";
 import { forgetOrganization, rememberOrganization, signOut } from "@/lib/org-client";
 import Field from "@/components/shared/Field";
 import ExportMenu from "@/components/shared/ExportMenu";
@@ -773,27 +774,11 @@ function PageHeader({ active, period, organization, onBack, onNew, onImport, onE
 }
 
 function CompanyHome({ data, organizationId, canManage, projects, tasks, workOrders, fieldVisits, procurement, risks, onNavigate }: { data: DashboardData; organizationId: string; canManage: boolean; projects: Project[]; tasks: Task[]; workOrders: WorkOrder[]; fieldVisits: FieldVisit[]; procurement: ProcurementRequest[]; risks: Risk[]; onNavigate: (page: string) => void }) {
-  const today = new Date().toISOString().slice(0, 10);
-  const overdueTasks = tasks.filter((item) => item.due_date && item.due_date < today && !["done", "cancelled"].includes(item.status)).length;
-  const openCriticalRisks = risks.filter((item) => item.impact === "critical" && !["resolved", "accepted"].includes(item.status)).length;
-  const pendingPurchases = procurement.filter((item) => item.status === "pending").length;
-  const openWorkOrders = workOrders.filter((item) => !["completed", "cancelled"].includes(item.status)).length;
-  const actions = [
-    overdueTasks ? { label: `${overdueTasks} geciken görev`, text: "Termin geçmiş; sorumlu ve durumu kontrol edin.", page: "tasks", level: "critical" } : null,
-    openCriticalRisks ? { label: `${openCriticalRisks} kritik risk`, text: "Önlem ve sorumluyu gözden geçirin.", page: "risks", level: "critical" } : null,
-    data.attentionCount ? { label: `${data.attentionCount} finans kaydı`, text: "Ödeme durumu takip bekliyor.", page: "payments", level: "warning" } : null,
-    pendingPurchases ? { label: `${pendingPurchases} satın alma talebi`, text: "Yönetici kararı bekliyor.", page: "procurement", level: "warning" } : null,
-    openWorkOrders ? { label: `${openWorkOrders} açık iş emri`, text: "Operasyon akışını kontrol edin.", page: "work-orders", level: "info" } : null,
-  ].filter((item) => item && (data.access?.viewModules?.includes(item.page) ?? true)) as { label: string; text: string; page: string; level: string }[];
+  const alerts = todayAlerts({ today: new Date().toISOString().slice(0, 10), tasks, risks, procurement, attentionCount: data.attentionCount, canView: (page) => data.access?.viewModules?.includes(page) ?? true });
+  // T7: tek "Bugün" listesi. Onaylar, aksiyonlar, finans takibi ve servis işleri aynı listede; geri kalanı "Daha fazla" altında.
   return <>
-    {data.access.viewModules.includes("work-orders")&&<FlowsCard organizationId={organizationId}/>}
-    <TodayCard key={organizationId} organizationId={organizationId} profile={data.profile} canManage={canManage} onNavigate={onNavigate} />
-    {data.access.viewModules.includes("procurement")&&<section className="pending-approvals"><h2>Bekleyen onaylar</h2><button type="button" className="outline-button" onClick={()=>onNavigate("procurement")}>Satın alma talepleri <b>{pendingPurchases}</b><ArrowRight size={17}/></button></section>}
+    <TodayCard key={organizationId} organizationId={organizationId} profile={data.profile} canManage={canManage} onNavigate={onNavigate} alerts={alerts} />
     <details className="home-more"><summary>Daha fazla</summary>
-    <section className="proactive-action-center">
-      <div className="proactive-action-head"><span><Zap size={18} /><b>Bugünün aksiyonları</b></span></div>
-      {actions.length ? <div className="proactive-action-grid">{actions.slice(0, 5).map((action) => <button type="button" key={`${action.page}-${action.label}`} onClick={() => onNavigate(action.page)} className={action.level}><i /><span><b>{action.label}</b><small>{action.text}</small></span><ArrowRight size={17} /></button>)}</div> : <div className="proactive-action-empty"><Check size={18} /><span><b>Öncelikli aksiyon görünmüyor</b><small>Yeni gecikme veya kritik kayıt oluşursa burada gösterilir.</small></span></div>}
-    </section>
     
     {data.access.viewModules.includes("work-orders")&&<FlowsCard organizationId={organizationId}/>}
     <section className="company-command-hero"><div><span>KURUMSAL ÇALIŞMA ALANI</span><h2>{data.profile?.legal_name || data.organization.name}</h2><p>{data.profile?.about || "Firmanızın temel bilgilerini, projelerini ve günlük çalışmalarını burada bir arada tutun."}</p><button type="button" onClick={() => onNavigate("company")}>Firma bilgilerini aç <ArrowRight size={16} /></button></div><div className="command-hero-mark"><Building2 size={42} /><span>Faaliyet alanı</span><b>{data.profile?.sector || "Henüz eklenmedi"}</b></div></section>
