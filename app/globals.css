@@ -1518,6 +1518,9 @@ html :is(a, button, select, input, textarea, summary, [tabindex]):focus-visible 
 .today-open { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 16px; border-radius: 10px; background: #0b1929; color: #fff; text-decoration: none; font-weight: 700; font-size: 14px; }
 .today-list { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; }
 .today-list a { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; min-height: 56px; padding: 10px 14px; border: 1px solid #e3e9f0; border-radius: 12px; color: #17283d; text-decoration: none; }
+.today-list .today-alert { width: 100%; text-align: left; font: inherit; cursor: pointer; background: rgb(255 255 255); display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; min-height: 56px; padding: 10px 14px; border: 1px solid rgb(227 233 240); border-radius: 12px; color: rgb(23 40 61); }
+.today-list .today-alert:hover { border-color: rgb(211 173 102); background: rgb(255 251 242); }
+.today-tag.warn { background: rgb(253 240 196); color: rgb(110 80 0); }
 .today-list a:hover { border-color: #d3ad66; background: #fffbf2; }
 .today-list b { display: block; font-size: 15px; }
 .today-list small { color: #4f6178; font-size: 13px; }

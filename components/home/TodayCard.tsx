@@ -2,6 +2,7 @@
 import {useEffect,useState} from "react";
 import {ArrowRight,CalendarClock,CheckCircle2,Circle,ClipboardList,X} from "lucide-react";
 import {bucketOf,BUCKET_LABEL,localDay,sortJobs} from "@/lib/service-ui";
+import type {TodayAlert} from "@/lib/today-alerts";
 
 type Job={id:string;title:string;customer_name:string|null;stage:string;scheduled_date:string|null;updated_at?:string};
 type Jobs={jobs:Job[];members:{id:string;username?:string}[];manage:boolean};
@@ -9,7 +10,9 @@ type Profile={legal_name?:string;tax_number?:string;address?:string}|null;
 
 // Panelin en üstündeki "Bugün" kartı: kişinin açık servis işleri önceliğe göre ve tek dokunuşla açılır.
 // Yönetici için ayrıca "Başlangıç listesi": sistemi kullanıma hazırlamak için kalan adımlar.
-export function TodayCard({organizationId,profile,canManage,onNavigate}:{organizationId:string;profile:Profile;canManage:boolean;onNavigate:(page:string)=>void}){
+export function TodayCard({organizationId,profile,canManage,onNavigate,alerts=[]}:{organizationId:string;profile:Profile;canManage:boolean;onNavigate:(page:string)=>void;alerts?:TodayAlert[]}){
+ // T7: uyarılar listenin en üstünde; servis işleri ardından. Tek liste, tek yer.
+ const alertRows=alerts.map(a=><li key={`alert-${a.key}`}><button type="button" className="today-alert" onClick={()=>onNavigate(a.page)}><span className={`today-tag ${a.level==="critical"?"overdue":"warn"}`}>{a.level==="critical"?"Acil":"Bekliyor"}</span><span><b>{a.label}</b><small>{a.text}</small></span><ArrowRight size={16}/></button></li>);
  const [data,setData]=useState<Jobs|null|undefined>(undefined),[templates,setTemplates]=useState<number|null>(null),[hidden,setHidden]=useState(false);
  useEffect(()=>{
   let alive=true;const h={"X-Organization-Id":organizationId};
@@ -20,7 +23,8 @@ export function TodayCard({organizationId,profile,canManage,onNavigate}:{organiz
  },[organizationId,canManage]);
  // Yüklenirken yer tutucu: kart sonradan gelip altındaki her şeyi aşağı itmesin (sayfa kayması/yanlış tıklama).
  if(data===undefined)return <section className="today-card today-skeleton" aria-busy="true" aria-label="Bugünün işleri yükleniyor"><div className="today-head"><span><CalendarClock size={20}/><b>Bugün</b></span></div><div className="skeleton-line"/><div className="skeleton-line short"/><div className="skeleton-line"/></section>;
- if(!data)return null; // servis modülü yetkisi yoksa kart gösterilmez
+ // Servis modülü yetkisi yoksa yalnız uyarılar gösterilir; o da yoksa kart hiç çıkmaz.
+ if(!data)return alertRows.length?<section className="today-card" aria-labelledby="today-title"><div className="today-head"><span><CalendarClock size={20}/><b id="today-title">Bugün</b></span></div><ul className="today-list">{alertRows}</ul></section>:null;
  const today=localDay();
  const open=sortJobs(data.jobs.filter(j=>bucketOf(j,today)!=="closed"),today);
  const n=(b:string)=>open.filter(j=>bucketOf(j,today)===b).length;
@@ -33,11 +37,12 @@ export function TodayCard({organizationId,profile,canManage,onNavigate}:{organiz
  const remaining=steps.filter(s=>!s.done).length;
  const showSetup=canManage&&data.manage&&remaining>0&&!hidden;
  return <section className="today-card" aria-labelledby="today-title">
-  <div className="today-head"><span><CalendarClock size={20}/><b id="today-title">Bugünkü işler</b></span>
+  <div className="today-head"><span><CalendarClock size={20}/><b id="today-title">Bugün</b></span>
    <div className="today-counts"><span className={n("overdue")?"bad":""}>Geciken <b>{n("overdue")}</b></span><span>Bugün <b>{n("today")}</b></span><span>Bu hafta <b>{n("week")}</b></span><span>Tarihsiz <b>{n("unscheduled")}</b></span></div>
    <a className="today-open" href="/servis">Servis masası <ArrowRight size={16}/></a></div>
-  {open.length?<ul className="today-list">{open.slice(0,5).map(j=>{const b=bucketOf(j,today);return <li key={j.id}><a href={`/servis?job=${encodeURIComponent(j.id)}`}><span className={`today-tag ${b}`}>{j.stage==="accepted"?"Tahsilat bekliyor":BUCKET_LABEL[b]}</span><span><b>{j.title}</b><small>{j.customer_name||"Müşteri belirtilmedi"}{j.scheduled_date?` · ${new Date(j.scheduled_date+"T12:00:00").toLocaleDateString("tr-TR",{weekday:"short",day:"numeric",month:"short"})}`:""}</small></span><ArrowRight size={16}/></a></li>;})}</ul>
-   :<p className="today-empty"><ClipboardList size={18}/>{data.manage?"Açık servis işi yok.":"Size atanmış açık iş yok. Yöneticiniz iş atadığında burada görünür."}</p>}
+  {alertRows.length>0&&!open.length&&<ul className="today-list">{alertRows}</ul>}
+  {open.length?<ul className="today-list">{alertRows}{open.slice(0,5).map(j=>{const b=bucketOf(j,today);return <li key={j.id}><a href={`/servis?job=${encodeURIComponent(j.id)}`}><span className={`today-tag ${b}`}>{j.stage==="accepted"?"Tahsilat bekliyor":BUCKET_LABEL[b]}</span><span><b>{j.title}</b><small>{j.customer_name||"Müşteri belirtilmedi"}{j.scheduled_date?` · ${new Date(j.scheduled_date+"T12:00:00").toLocaleDateString("tr-TR",{weekday:"short",day:"numeric",month:"short"})}`:""}</small></span><ArrowRight size={16}/></a></li>;})}</ul>
+   :alertRows.length?null:<p className="today-empty"><ClipboardList size={18}/>{data.manage?"Açık servis işi yok.":"Size atanmış açık iş yok. Yöneticiniz iş atadığında burada görünür."}</p>}
   {open.length>5&&<a className="today-more" href="/servis">Tümünü gör ({open.length})</a>}
   {showSetup&&<details className="setup-list" aria-label="Başlangıç listesi"><summary>Başlangıç listesi · {steps.length-remaining}/{steps.length}</summary>
    <div className="setup-head"><b>Başlangıç listesi · {steps.length-remaining}/{steps.length}</b><button type="button" aria-label="Başlangıç listesini gizle" onClick={()=>{setHidden(true);try{localStorage.setItem(`teksanor-setup-done:${organizationId}`,"1");}catch{}}}><X size={16}/></button></div>
