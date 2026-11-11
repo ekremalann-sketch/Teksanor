@@ -12,7 +12,7 @@ Durum: ✅ yapıldı (PR) · ⏳ sırada · ⛔ yapılmayacak (neden)
 | 4 | Kapora, parçalı ödeme, iade, iptal | LinexServ, Kursoft | ✅ #53 |
 | 5 | Üyeliksiz müşteri takip sayfası, QR fiş, WhatsApp paylaşımı | LinexServ, Evobulut, Flow | ✅ #57 |
 | 6 | Gün sonu kasa, gider, kim tahsil etti, CSV | LinexServ | ✅ #58 |
-| 7 | Stok ekranı: alış/satış fiyatı, kritik seviye uyarısı, barkod, CSV | Bilsoft, Opwire | ⏳ |
+| 7 | Stok ekranı: alış/satış fiyatı, kritik seviye uyarısı, barkod, CSV | Bilsoft, Opwire | ✅ #61 |
 | 8 | Raporlar: 12 aylık ciro, teknisyen performansı, en çok kullanılan parça, borçlu müşteriler, brüt kâr | LinexServ, Servis Pozitif | ⏳ |
 | 9 | Müşteri profili: servis geçmişi, cari borç; CSV içe/dışa aktarma | LinexServ, Kursoft | ⏳ |
 | 10 | Özel durum adları | LinexServ | ⏳ |

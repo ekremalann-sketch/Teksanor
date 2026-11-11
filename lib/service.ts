@@ -69,6 +69,11 @@ const initializeServiceColumns=requestSafeInitializer(async(db:Database)=>{
   }
   const cols=await db.prepare("PRAGMA table_info(service_approvals)").all<{name:string}>();
   for(const sql of serviceExtensionSchema)await db.prepare(sql).run();
+  // Stok ekranı alanları (yalnız ekleme): satış fiyatı, kritik seviye, barkod.
+  const partCols=(await db.prepare("PRAGMA table_info(service_parts)").all<{name:string}>()).results.map(c=>c.name);
+  for(const [name,def] of [["sale_price_cents","INTEGER NOT NULL DEFAULT 0"],["critical_level","INTEGER NOT NULL DEFAULT 0"],["barcode","TEXT"]] as const){
+   if(partCols.length&&!partCols.includes(name)){try{await db.prepare(`ALTER TABLE service_parts ADD COLUMN ${name} ${def}`).run();}catch(e){if(!/duplicate column/i.test(String(e)))throw e;}}
+  }
   if(cols.results.length&&!cols.results.some(c=>c.name==="signature_path")){
    try{await db.prepare("ALTER TABLE service_approvals ADD COLUMN signature_path TEXT").run();}
    catch(e){if(!/duplicate column/i.test(String(e)))throw e;} // eşzamanlı ilk istek
