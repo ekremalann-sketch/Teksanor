@@ -45,9 +45,18 @@ async function handle(request:Request){
     return NextResponse.json({lines:lines.results,movements:movements.results,stock:stock.results,manage},{headers:{"Cache-Control":"private, no-store"}});
    }
    if(!manage)return fail("Depo listesini yönetici görüntüleyebilir.",403);
-   const parts=await db.prepare("SELECT id,code,name,unit_cost_cents,on_hand FROM service_parts WHERE organization_id=? ORDER BY code LIMIT 500").bind(org).all();
+   const parts=await db.prepare(`SELECT p.id,p.code,p.name,p.unit_cost_cents,p.sale_price_cents,p.on_hand,p.critical_level,p.barcode,
+     COALESCE((SELECT SUM(reserved) FROM service_job_parts jp WHERE jp.part_id=p.id AND jp.organization_id=p.organization_id),0) AS reserved
+     FROM service_parts p WHERE p.organization_id=? ORDER BY (p.on_hand<=p.critical_level AND p.critical_level>0) DESC,p.code LIMIT 1000`).bind(org).all<{code:string;name:string;barcode:string|null;unit_cost_cents:number;sale_price_cents:number;on_hand:number;critical_level:number;reserved:number}>();
+   const critical=parts.results.filter(p=>p.critical_level>0&&p.on_hand<=p.critical_level).length;
    await recordRead(user.id,org,"service-parts:stock");
-   return NextResponse.json({parts:parts.results},{headers:{"Cache-Control":"private, no-store"}});
+   if(params.get("format")==="csv"){
+    const cell=(v:unknown)=>{const t=String(v??"");const safe=/^[=+\-@\t\r]/.test(t)?"'"+t:t;return /[";\n]/.test(safe)?`"${safe.replace(/"/g,'""')}"`:safe;};
+    const tl=(c:number)=>(c/100).toFixed(2).replace(".",",");
+    const lines=[["Kod","Ad","Barkod","Depoda","İşlere ayrılan","Kritik seviye","Alış (TL)","Satış (TL)"].join(";"),...parts.results.map(p=>[p.code,p.name,p.barcode??"",p.on_hand,p.reserved,p.critical_level,tl(p.unit_cost_cents),tl(p.sale_price_cents)].map(cell).join(";"))];
+    return new Response("\uFEFF"+lines.join("\r\n"),{headers:{"Content-Type":"text/csv; charset=utf-8","Content-Disposition":'attachment; filename="stok.csv"',"Cache-Control":"private, no-store"}});
+   }
+   return NextResponse.json({parts:parts.results,critical},{headers:{"Cache-Control":"private, no-store"}});
   }
 
   const b=await request.json() as Record<string,unknown>;
@@ -64,6 +73,19 @@ async function handle(request:Request){
     auditStatement(user.id,"create","service_part",id,`Parça tanımı: ${code}`,org,true),
    ]);
    return NextResponse.json({ok:true,id},{status:201});
+  }
+
+  if(b.action==="part-update"){
+   if(!manage)return fail("Parça bilgisini yönetici düzenler.",403);
+   const id=txt(b.partId,100),name=txt(b.name,160),barcode=txt(b.barcode,64)||null;
+   const nums=[b.unitCostCents,b.salePriceCents].map(Number);const critical=Number(b.criticalLevel);
+   if(!name||nums.some(n=>!Number.isSafeInteger(n)||n<0||n>10_000_000_000)||!Number.isSafeInteger(critical)||critical<0||critical>100000)return fail("Ad, fiyatlar ve kritik seviye geçerli olmalı.");
+   const [row]=await db.batch([
+    db.prepare("UPDATE service_parts SET name=?,unit_cost_cents=?,sale_price_cents=?,critical_level=?,barcode=? WHERE id=? AND organization_id=? RETURNING id").bind(name,nums[0],nums[1],critical,barcode,id,org),
+    auditStatement(user.id,"update","service_part",id,"Parça bilgisi güncellendi.",org,true),
+   ]);
+   if(!row.results?.length)return fail("Parça bu firmada bulunamadı.",404);
+   return NextResponse.json({ok:true});
   }
 
   const requestId=partRequestId(b.requestId);const quantity=partQuantity(b.quantity);const partId=txt(b.partId,100);

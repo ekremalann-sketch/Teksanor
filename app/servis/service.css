@@ -176,3 +176,7 @@
 .service-cash-table{width:100%;border-collapse:collapse;font-size:.95rem}.service-cash-table th,.service-cash-table td{padding:8px;border-bottom:1px solid rgb(227 232 238);text-align:left}
 .service-cash-list{padding-left:18px;max-height:360px;overflow:auto}
 @media (max-width:560px){.service-cash-kpis{grid-template-columns:1fr}.service-cash-table{display:block;overflow-x:auto}}
+.service-stock-badge{display:inline-block;margin-left:10px;font-size:.85rem;padding:4px 10px;border-radius:999px;background:rgb(255 244 224);color:rgb(138 90 0);vertical-align:middle}
+.service-stock-low td{background:rgb(255 250 240)}
+.service-table-wrap{overflow-x:auto}
+.service-check{display:flex;align-items:center;gap:8px}
