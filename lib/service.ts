@@ -1,3 +1,4 @@
+import {TECHNICAL_SERVICE_FLOW,transitionsOf} from "@/lib/flow-definition";
 import {getDb,type Database} from "./db";
 import {requestSafeInitializer} from "./request-safe-initializer";
 import {serviceQuoteSchema} from "./service-quotes";
@@ -83,7 +84,8 @@ export function ensureServiceColumns(db:Database=getDb()){
  return initializeServiceColumns(db);
 }
 export function cents(value:unknown){const n=Number(value);if(!Number.isFinite(n)||n<0||n>100000000)throw new Error("Tutar 0–100.000.000 TL arasında olmalı.");return Math.round(n*100);}
-export const transitions:Record<string,string[]>={requested:["quoted","cancelled"],quoted:["requested","cancelled"],quote_approved:["in_progress","cancelled"],in_progress:["completed","cancelled"],completed:["in_progress"],accepted:["collected"],collected:[],cancelled:[]};
+// T4: geçişler artık akış tanımından okunur (lib/flow-definition.ts).
+export const transitions:Record<string,string[]>=transitionsOf(TECHNICAL_SERVICE_FLOW);
 // Kullanıcıya gösterilmesi güvenli, elle yazılmış iş kuralı mesajları için.
 export class ServiceRuleError extends Error {}
 export function validateTransition(current:string,next:string){if(current!==next&&!transitions[current]?.includes(next))throw new ServiceRuleError("Bu durum değişikliği için önceki adımları tamamlayın.");}

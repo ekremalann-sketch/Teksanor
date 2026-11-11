@@ -6,6 +6,7 @@ import {requireOrganization} from "@/lib/tenancy";
 import {getMemberAccess} from "@/lib/access";
 import {getDb,createId,auditStatement} from "@/lib/db";
 import {cents,totals,validateTransition,serviceJob,ensureServiceColumns,ServiceRuleError} from "@/lib/service";
+import {canTransition,missingRequired,TECHNICAL_SERVICE_FLOW} from "@/lib/flow-definition";
 import {tokenDigest} from "@/lib/account-tokens";
 import {rejectCrossSiteMutation} from "@/lib/security";
 import {isSafeSignaturePath} from "@/lib/signature";
@@ -173,9 +174,10 @@ async function handle(request:Request){
   }
   if(b.action!=="update")throw new ServiceRuleError("Geçersiz işlem.");
   const stage=txt(b.stage,30)||String(job.stage);validateTransition(String(job.stage),stage);
-  if(!manage&&(!["quote_approved","in_progress"].includes(String(job.stage))||!["in_progress","completed"].includes(stage)))throw new ServiceRuleError("Saha kaydı için onaylı veya devam eden iş seçin.");
+  if(!manage&&!canTransition(TECHNICAL_SERVICE_FLOW,String(job.stage),stage,false))throw new ServiceRuleError("Saha kaydı için onaylı veya devam eden iş seçin.");
   const outcome=b.outcome===undefined?String(job.outcome):txt(b.outcome,6000);
-  if(stage==="completed"&&!outcome)throw new ServiceRuleError("Yapılan işlemi yazın.");
+  // T4: aşamanın zorunlu alanları akış tanımından.
+  if(stage!==job.stage){const missing=missingRequired(TECHNICAL_SERVICE_FLOW,stage,{outcome});if(missing.length)throw new ServiceRuleError(missing[0]);}else if(stage==="completed"&&!outcome)throw new ServiceRuleError("Yapılan işlemi yazın.");
   if(["completed","cancelled"].includes(stage)&&stage!==job.stage&&await db.prepare("SELECT 1 FROM service_visits WHERE job_id=? AND organization_id=? AND status='planned'").bind(id,organization.id).first())throw new ServiceRuleError("İşi kapatmadan açık ziyareti sonuçlandırın.");
   if(["completed","cancelled"].includes(stage)&&stage!==job.stage&&await db.prepare("SELECT 1 FROM service_job_parts WHERE job_id=? AND organization_id=? AND reserved>0").bind(id,organization.id).first())throw new ServiceRuleError("İşi kapatmadan önce ayrılan parçaları kullanıldı veya depoya iade edildi olarak işaretleyin.");
   if(stage==="completed"&&job.stage!=="completed"){
