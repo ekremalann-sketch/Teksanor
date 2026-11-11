@@ -1,5 +1,6 @@
 "use client";
 import {goToLogin,goToMfaSetup} from "@/lib/workspace-navigation";
+import { mainMenu, otherModules } from "@/lib/menu";
 import { forgetOrganization, rememberOrganization, signOut } from "@/lib/org-client";
 import Field from "@/components/shared/Field";
 import ExportMenu from "@/components/shared/ExportMenu";
@@ -102,18 +103,9 @@ const navItems = [
   { id: "users", label: "Kullanıcılar", icon: Users, admin: true },
 ] as const;
 
-// Sade menü: 6 ana başlık. Aynı işe giden ekranlar tek başlıkta toplanır ve bölümün üstünde sekme olarak görünür
-// (ör. İşler → Görevler | İş emirleri | Saha ziyaretleri). Az kullanılanlar "Diğer" altında. Yetki filtreleri aynen geçerli.
-const MENU: { key: string; label: string; icon: typeof LayoutDashboard; ids: string[] }[] = [
-  { key: "home", label: "Ana sayfa", icon: LayoutDashboard, ids: ["overview"] },
-  { key: "work", label: "İşler", icon: CheckSquare, ids: ["tasks", "work-orders", "field-visits"] },
-  { key: "equipment", label: "Ekipman ve bakım", icon: Factory, ids: ["assets", "maintenance"] },
-  { key: "customers", label: "Müşteriler", icon: UserPlus, ids: ["crm"] },
-  { key: "finance", label: "Finans", icon: Landmark, ids: ["financial", "payments", "expenses", "treasury", "reports"] },
-  { key: "team", label: "Ekip", icon: Users2, ids: ["hr"] },
-];
+// T2: Sade menü 5 madde (lib/menu.ts). Aynı işe giden ekranlar tek başlıkta toplanır ve bölümün üstünde sekme olarak görünür.
+const MENU_ICONS: Record<string, typeof LayoutDashboard> = { today: LayoutDashboard, work: CheckSquare, calendar: CalendarCheck2, customers: UserPlus, money: Landmark };
 const HOUSEHOLD_MODULES: string[] = ["financial", "payments", "treasury"];
-const MORE_IDS = ["projects", "procurement", "risks", "files", "automations", "agents", "company"];
 const TAB_LABELS: Record<string, string> = {
   tasks: "Görevler", "work-orders": "İş emirleri", "field-visits": "Saha ziyaretleri", assets: "Ekipmanlar", maintenance: "Bakım planları",
   financial: "Özet", payments: "Ödemeler ve borçlar", expenses: "Gelir ve gider", treasury: "Nakit", reports: "Raporlar",
@@ -593,6 +585,9 @@ export default function Dashboard() {
   const householdHidden = data.organization.kind !== "personal";
   const visibleNavigation = navItems.filter((item) => !["departments","rd"].includes(item.id)).filter((item) => !(householdHidden && HOUSEHOLD_MODULES.includes(item.id))).filter((item) => viewModules.includes(item.id === "rd" ? "projects" : item.id));
   const viewAs = Boolean(data.organization.view_as);
+  const canSee = (id: string) => visibleNavigation.some((item) => item.id === id);
+  const MENU = mainMenu(canSee);
+  const MORE_IDS: string[] = otherModules(data.profile?.sector, canSee);
 
   return (
     <div className="dashboard-shell">
@@ -611,21 +606,20 @@ export default function Dashboard() {
         </div>
         <nav className="sidebar-nav" aria-label="Ana menü">
           {MENU.map((m) => {
+            const Icon = MENU_ICONS[m.key] ?? LayoutDashboard;
+            if (m.href) return <a key={m.key} className="nav-link" href={m.href} onClick={() => setMobileNav(false)}><Icon size={18} /><span>{m.label}</span></a>;
             const items = visibleNavigation.filter((item) => m.ids.includes(item.id));
-            if (!items.length) return null;
-            const Icon = m.icon;
             const on = m.ids.includes(active);
-            return <button key={m.key} className={on ? "active" : ""} aria-current={on ? "page" : undefined} onClick={() => { navigate(on ? active : items[0].id); setMobileNav(false); }}><Icon size={18} /><span>{m.label}</span>{m.key === "finance" && data.attentionCount > 0 && <em>{data.attentionCount}</em>}</button>;
+            return <button key={m.key} className={on ? "active" : ""} aria-current={on ? "page" : undefined} onClick={() => { navigate(on ? active : items[0].id); setMobileNav(false); }}><Icon size={18} /><span>{m.label}</span>{m.key === "money" && data.attentionCount > 0 && <em>{data.attentionCount}</em>}</button>;
           })}
-          {viewModules.includes("work-orders") && <a className="nav-link" href="/servis"><Wrench size={18} /><span>Servis masası</span></a>}
           <details className="nav-more" open={MORE_IDS.includes(active) || active === "admin"}>
-            <summary><MoreHorizontal size={18} /><span>Diğer modüller</span></summary>
+            <summary><MoreHorizontal size={18} /><span>Diğer</span></summary>
             {visibleNavigation.filter((item) => MORE_IDS.includes(item.id)).map(({ id, label, icon: Icon }) => (
               <button key={id} className={active === id ? "active" : ""} onClick={() => { navigate(id); setMobileNav(false); }}><Icon size={18} /><span>{label}</span></button>
             ))}
+            {viewModules.includes("work-orders") && <a className="nav-link" href="/servis"><Wrench size={18} /><span>Servis masası</span></a>}
             <a className="nav-link" href="/birimler"><Building2 size={18} /><span>Birimler ve süreçler</span></a>
             {viewModules.includes("work-orders") && ["owner", "company_admin", "ceo", "manager"].includes(effectiveProfile) && <>
-              <a className="nav-link" href="/servis/plan"><CalendarCheck2 size={18} /><span>Planlama panosu</span></a>
               <a className="nav-link" href="/servis/sablonlar"><CheckSquare size={18} /><span>Form şablonları</span></a>
             </>}
             {(canManage || data.user.role === "admin") && !viewAs && <button className={active === "admin" ? "active" : ""} onClick={() => { navigate("admin"); setMobileNav(false); }}><Shield size={18} /><span>Yönetim merkezi</span></button>}
