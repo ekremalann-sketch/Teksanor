@@ -169,3 +169,10 @@
 .service-tracking-steps li.done{background:rgb(229 246 239);color:rgb(17 132 91);font-weight:600}
 .service-tracking-facts{display:grid;gap:6px;margin:12px 0}.service-tracking-facts div{display:flex;justify-content:space-between;border-bottom:1px solid rgb(227 232 238);padding:6px 0}.service-tracking-facts dd{margin:0}
 .service-tracking-share{display:grid;gap:8px}.service-tracking-share img{width:160px;height:160px}
+.service-cash{max-width:960px;margin:0 auto;padding:16px}
+.service-cash-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:16px 0}
+.service-cash-kpis div{border:1px solid rgb(220 229 238);border-radius:12px;padding:14px;background:rgb(255 255 255);display:grid;gap:4px}
+.service-cash-kpis b{font-size:1.3rem}
+.service-cash-table{width:100%;border-collapse:collapse;font-size:.95rem}.service-cash-table th,.service-cash-table td{padding:8px;border-bottom:1px solid rgb(227 232 238);text-align:left}
+.service-cash-list{padding-left:18px;max-height:360px;overflow:auto}
+@media (max-width:560px){.service-cash-kpis{grid-template-columns:1fr}.service-cash-table{display:block;overflow-x:auto}}

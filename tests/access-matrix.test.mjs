@@ -21,7 +21,7 @@ for(const u of USERS)await h.user(...u);
 // Her firma tablosuna o firmaya özgü işaretli bir satır ekle.
 const ownerOf={a:'boss',b:'outsider'};
 function seed(org){
-  const tables=sql.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r=>r.name).filter(t=>!['organization_members','organization_member_access','organization_profiles','organization_reference_rates','service_approvals','service_jobs','service_job_checklists','service_payment_history','service_quote_versions','service_visits','service_job_parts','service_part_movements','service_payments','service_tracking'].includes(t));
+  const tables=sql.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r=>r.name).filter(t=>!['organization_members','organization_member_access','organization_profiles','organization_reference_rates','service_approvals','service_jobs','service_job_checklists','service_payment_history','service_quote_versions','service_visits','service_job_parts','service_part_movements','service_payments','service_tracking','service_expenses'].includes(t));
   for(const t of ['assets','customers',...tables.filter(x=>!['assets','customers','department_process_events'].includes(x)),'department_process_events']){
     const cols=sql.prepare(`PRAGMA table_info(${t})`).all();if(!cols.some(c=>c.name==='organization_id'))continue;
     const values={};
