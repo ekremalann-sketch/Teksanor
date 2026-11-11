@@ -5,6 +5,7 @@ import {rejectCrossSiteMutation} from "@/lib/security";
 import {signaturePath,SignatureError} from "@/lib/signature";
 import {ensureServiceColumns} from "@/lib/service";
 import {quoteSnapshot} from "@/lib/service-quotes";
+import {approvalMessage,approvalNotificationStatement} from "@/lib/approval-notify";
 export async function GET(request:Request){return handle(request);}
 export async function POST(request:Request){const rejected=rejectCrossSiteMutation(request);return rejected||handle(request);}
 async function handle(request:Request){
@@ -30,6 +31,7 @@ async function handle(request:Request){
        AND revoked_at IS NULL AND expires_at>CURRENT_TIMESTAMP) RETURNING id`).bind(a.job_id,a.organization_id,a.job_version,hash),
    db.prepare("UPDATE service_approvals SET revoked_at=CURRENT_TIMESTAMP WHERE token_hash=? AND changes()>0").bind(hash),
    auditStatement(null,"reject_quote","service_job",String(a.job_id),`Teklif reddi (${name}): ${reason}`,String(a.organization_id),true),
+   (()=>{const m=approvalMessage("quote_rejected",{title:String(a.title),order_number:a.order_number as string,customer_name:a.customer_name as string},reason.slice(0,200));return approvalNotificationStatement(db,{organizationId:String(a.organization_id),jobId:String(a.job_id),expectedStage:"requested",expectedVersion:Number(a.job_version)+1,...m});})(),
   ]);
   if(!updated.results?.length)return NextResponse.json({error:"Kayıt değişti. Yeni bağlantı isteyin."},{status:409});
   return NextResponse.json({ok:true});
@@ -46,6 +48,8 @@ async function handle(request:Request){
  db.prepare(`UPDATE service_jobs SET stage=?,version=version+1,updated_at=CURRENT_TIMESTAMP WHERE id=? AND version=? AND stage=?
  AND EXISTS(SELECT 1 FROM service_approvals WHERE token_hash=? AND approved_at IS NOT NULL AND revoked_at IS NULL) RETURNING id`).bind(stage,a.job_id,a.job_version,previous,hash),
  auditStatement(null,"customer_approval","service_job",String(a.job_id),`${a.purpose} müşteri onayı kaydedildi${signature?" (imzalı)":""}.`,String(a.organization_id),true),
+ // T10: onay yazıldıysa (iş yeni aşamada) yöneticilere ve sorumluya uygulama içi bildirim.
+ (()=>{const m=approvalMessage(a.purpose==="quote"?"quote_approved":"work_accepted",{title:String(a.title),order_number:a.order_number as string,customer_name:a.customer_name as string});return approvalNotificationStatement(db,{organizationId:String(a.organization_id),jobId:String(a.job_id),expectedStage:stage,expectedVersion:Number(a.job_version)+1,...m});})(),
  ]);
  const changed=results[1] as {results?:unknown[]};if(!changed?.results?.length)return NextResponse.json({error:"Kayıt değişti. Yeni bağlantı isteyin."},{status:409});
 
