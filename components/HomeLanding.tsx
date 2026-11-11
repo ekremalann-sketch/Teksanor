@@ -20,7 +20,7 @@ export default function HomeLanding(){
    <Link className="login-link" href={login}><UserRound aria-hidden="true" size={18}/><span>{authenticated?'Paneli aç':'Giriş yap'}</span></Link>
   </header>
   <section className="home-hero" aria-labelledby="home-title">
-   <div><span className="section-kicker">Teknik servis · Bakım · Mühendislik</span><h1 id="home-title">Sahadaki işi,<br/><span>merkezdeki karara bağlayın.</span></h1><p>Teklif → iş emri → müşteri onayı → tahsilat, tek kayıtta. Ekibiniz ne yapacağını, siz işin nerede kaldığını görün.</p><div className="home-actions"><Link className="home-primary" href="/pilot">Pilot başvurusu yap <ArrowRight aria-hidden="true" size={18}/></Link><Link className="home-secondary" href="/platform">Platformu incele</Link></div></div>
+   <div><span className="section-kicker">Teknik servis ve saha ekipleri</span><h1 id="home-title">Teknik servis işlerinizi<br/><span>talepten tahsilata takip edin.</span></h1><p>Servis talebini kaydedin, teknisyeni planlayın ve müşteriye teklif onay bağlantısı gönderin. İşin durumunu ve kalan tahsilatı aynı kayıttan görün.</p><div className="home-actions"><Link className="home-primary" href="/pilot">Pilot başvurusu yap <ArrowRight aria-hidden="true" size={18}/></Link><Link className="home-secondary" href="/platform">Platformu incele</Link></div></div>
    <img src="/assets/teksanor-field-operations.svg" alt="Saha operasyonunu merkezden yöneten mühendislik ekibi" width="560" height="360"/>
   </section>
   <section className="home-block" aria-labelledby="benefits-title"><span className="section-kicker">Neden Teksanor?</span><h2 id="benefits-title">Teklif, saha ve tahsilat aynı kayıt zincirinde.</h2><div className="home-benefits">
