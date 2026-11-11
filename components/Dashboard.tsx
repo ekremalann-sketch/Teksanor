@@ -112,6 +112,7 @@ const MENU: { key: string; label: string; icon: typeof LayoutDashboard; ids: str
   { key: "finance", label: "Finans", icon: Landmark, ids: ["financial", "payments", "expenses", "treasury", "reports"] },
   { key: "team", label: "Ekip", icon: Users2, ids: ["hr"] },
 ];
+const HOUSEHOLD_MODULES: string[] = ["financial", "payments", "treasury"];
 const MORE_IDS = ["projects", "procurement", "risks", "files", "automations", "agents", "company"];
 const TAB_LABELS: Record<string, string> = {
   tasks: "Görevler", "work-orders": "İş emirleri", "field-visits": "Saha ziyaretleri", assets: "Ekipmanlar", maintenance: "Bakım planları",
@@ -268,6 +269,9 @@ export default function Dashboard() {
     const timer = window.setInterval(() => void check(), 120_000);
     return () => { activeRequest = false; window.clearInterval(timer); };
   }, []);
+
+  // T1: firma hesabında hane bütçesi panellerine doğrudan bağlantıyla da gidilmez.
+  useEffect(() => { if (data && data.organization.kind !== "personal" && HOUSEHOLD_MODULES.includes(active)) setActive("overview"); }, [data, active]);
 
   useEffect(() => {
     const validPanels = new Set<string>([...navItems.map((item) => item.id), "admin"]);
@@ -585,7 +589,9 @@ export default function Dashboard() {
   // Rol önizlemesi: yönetici "teknisyen / finans … bu paneli nasıl görüyor?" diye bakabilir (yalnız menü ve ana ekran değişir).
   const viewModules: readonly string[] = previewProfile ? accessRules[previewProfile].view : (data.access?.viewModules ?? []);
   const effectiveProfile = previewProfile ?? data.access?.profile ?? "employee";
-  const visibleNavigation = navItems.filter((item) => !["departments","rd"].includes(item.id)).filter((item) => viewModules.includes(item.id === "rd" ? "projects" : item.id));
+  // T1: hane bütçesi ekranları (altın, ziynet, KMH, kart borcu) yalnız eski kişisel hesaplarda görünür; firma hesabında gizlidir.
+  const householdHidden = data.organization.kind !== "personal";
+  const visibleNavigation = navItems.filter((item) => !["departments","rd"].includes(item.id)).filter((item) => !(householdHidden && HOUSEHOLD_MODULES.includes(item.id))).filter((item) => viewModules.includes(item.id === "rd" ? "projects" : item.id));
   const viewAs = Boolean(data.organization.view_as);
 
   return (
