@@ -162,3 +162,10 @@
 
 .service-locked-note{display:block;margin-top:6px;color:var(--sv-muted)}
 .service-prefill-note{margin:0;color:var(--sv-muted)}
+.service-tracking{max-width:560px;margin:0 auto;padding:24px 16px}
+.service-tracking-status{font-size:1.15rem}
+.service-tracking-steps{list-style:none;padding:0;margin:16px 0;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;font-size:.85rem}
+.service-tracking-steps li{padding:8px;border-radius:8px;background:rgb(238 242 246);text-align:center}
+.service-tracking-steps li.done{background:rgb(229 246 239);color:rgb(17 132 91);font-weight:600}
+.service-tracking-facts{display:grid;gap:6px;margin:12px 0}.service-tracking-facts div{display:flex;justify-content:space-between;border-bottom:1px solid rgb(227 232 238);padding:6px 0}.service-tracking-facts dd{margin:0}
+.service-tracking-share{display:grid;gap:8px}.service-tracking-share img{width:160px;height:160px}

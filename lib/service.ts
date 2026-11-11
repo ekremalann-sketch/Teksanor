@@ -3,6 +3,7 @@ import {requestSafeInitializer} from "./request-safe-initializer";
 import {serviceQuoteSchema} from "./service-quotes";
 import {servicePartSchemas} from "./service-parts";
 import {servicePaymentSchemas} from "./service-payments";
+import {serviceTrackingSchema} from "./service-tracking";
 export const serviceSchema=[
 `CREATE TABLE IF NOT EXISTS service_jobs (
  id TEXT PRIMARY KEY REFERENCES work_orders(id), organization_id TEXT NOT NULL REFERENCES organizations(id),
@@ -28,6 +29,7 @@ export const serviceExtensionSchema=[
 serviceQuoteSchema,
 ...servicePartSchemas,
 ...servicePaymentSchemas,
+serviceTrackingSchema,
 `CREATE TABLE IF NOT EXISTS service_visits (
  id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, job_id TEXT NOT NULL REFERENCES service_jobs(id),
  assigned_user_id TEXT NOT NULL REFERENCES users(id), scheduled_date TEXT NOT NULL,
