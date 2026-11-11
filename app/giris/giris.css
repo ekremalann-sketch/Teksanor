@@ -1,0 +1,10 @@
+.login-brand-panel{background:linear-gradient(160deg,rgb(11 41 74),rgb(9 79 150))}
+.login-brand-copy h1{letter-spacing:-.02em}
+.gx-preview{margin:22px 0;background:rgb(255 255 255 / .96);color:rgb(16 36 58);border-radius:16px;padding:14px 16px;box-shadow:0 18px 40px rgb(0 0 0 / .25);max-width:420px;display:grid;gap:8px}
+.gx-preview-head{display:flex;justify-content:space-between;align-items:center;font-size:.9rem}.gx-preview-head span{color:rgb(90 107 125)}
+.gx-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid rgb(220 229 238);border-radius:10px;font-size:.95rem}
+.gx-row em{margin-left:auto;font-style:normal;font-size:.8rem;color:rgb(90 107 125)}
+.gx-dot{width:10px;height:10px;border-radius:50%;flex:none}.gx-ok{background:rgb(17 132 91)}.gx-run{background:rgb(11 107 203)}.gx-wait{background:rgb(201 138 29)}
+.login-form-panel input{min-height:48px;font-size:1rem}
+.login-submit{min-height:50px;font-size:1.02rem}
+@media (max-width:900px){.gx-preview{display:none}}

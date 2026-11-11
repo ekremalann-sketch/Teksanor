@@ -4,6 +4,7 @@ import Link from "next/link";
 import {safeWorkspacePath} from "@/lib/workspace-navigation";
 import { forgetOrganization, rememberOrganization, storedOrganization } from "@/lib/org-client";
 import { useEffect, useState, type FormEvent } from "react";
+import "./giris.css";
 import { ArrowLeft, ArrowRight, Building2, CheckCircle2, Eye, EyeOff, LockKeyhole, ShieldCheck, UserRound } from "lucide-react";
 
 export default function LoginPage() {
@@ -84,11 +85,17 @@ export default function LoginPage() {
         <Link href="/" className="back-home"><ArrowLeft size={17} /> Ana sayfaya dön</Link>
         <div className="login-brand-copy">
           <img src="/assets/teksanor-logo.webp" alt="Teksanor" width={400} height={160} decoding="async" />
-          <span className="login-kicker">Saha servis ve operasyon yönetimi</span>
-          <h1>Her firma için<br />yalnızca kendi verisi.</h1>
-          <p>Servis talepleri, teknisyen planı, müşteri onayı ve belgeler her firmaya ayrılmış özel çalışma alanında yönetilir.</p>
-          <div className="login-trust"><ShieldCheck size={20} /><span><b>Şirket bazlı veri izolasyonu</b>Bir kullanıcı başka şirketin kayıtlarını hiçbir yoldan göremez.</span></div>
-          <div className="login-capabilities"><span><CheckCircle2 /> Özel çalışma alanı</span><span><CheckCircle2 /> Rol yönetimi</span><span><CheckCircle2 /> İşlem geçmişi</span></div>
+          <span className="login-kicker">Teknik servis programı</span>
+          <h1>Bugünün işleri<br />tek ekranda.</h1>
+          <p>Talep, teklif, teknisyen, parça ve tahsilat aynı kayıtta. Giriş yapın, kaldığınız yerden devam edin.</p>
+          <div className="gx-preview" aria-hidden="true">
+            <div className="gx-preview-head"><b>Bugün</b><span>3 iş · 1 onay bekliyor</span></div>
+            <div className="gx-row"><span className="gx-dot gx-ok" />Kombi bakımı<em>Tamamlandı</em></div>
+            <div className="gx-row"><span className="gx-dot gx-run" />Klima gaz dolumu<em>Sahada</em></div>
+            <div className="gx-row"><span className="gx-dot gx-wait" />Su arıtma filtre<em>Onay bekliyor</em></div>
+          </div>
+          <div className="login-capabilities"><span><CheckCircle2 /> Kurulum yok</span><span><CheckCircle2 /> Telefonda tam kullanım</span><span><CheckCircle2 /> Her firmanın verisi ayrı</span></div>
+          <div className="login-trust"><ShieldCheck size={20} /><span><b>Verileriniz size özel</b>Parolalar şifreli saklanır; yöneticiler için iki aşamalı giriş vardır.</span></div>
         </div>
       </div>
 
