@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { accountKindFor } from "@/lib/account-kind";
 import { createSession, enforceAuthRateLimit, ensureDefaultAdminAccounts, hashPassword, sessionCookie, RATE_LIMIT_MESSAGE, RateLimitError } from "@/lib/auth";
 import { auditStatement, createId, getDb } from "@/lib/db";
 import { rejectCrossSiteMutation } from "@/lib/security";
@@ -23,7 +24,8 @@ export async function POST(request: Request) {
     const username = body.username?.trim().toLowerCase() ?? "";
     const email = body.email?.trim().toLowerCase() ?? "";
     const fullName = body.fullName?.trim() ?? "";
-    const kind = body.accountType === "personal" ? "personal" : "business";
+    // T1: kişisel (hane bütçesi) hesabı yalnız ayrı bayrakla açılır; varsayılan firma hesabıdır.
+    const kind = accountKindFor(body.accountType, process.env.HOUSEHOLD_FINANCE_ENABLED);
     const organizationName = kind === "business" ? body.companyName?.trim() ?? "" : `${fullName} · Kişisel Alan`;
     if (!/^[a-z0-9._-]{3,32}$/.test(username)) return NextResponse.json({ error: "Kullanıcı adı 3-32 karakter olmalı; harf, rakam, nokta, tire veya alt çizgi kullanılabilir." }, { status: 400 });
     if (!/^\S+@\S+\.\S+$/.test(email)) return NextResponse.json({ error: "Geçerli bir e-posta adresi girin." }, { status: 400 });

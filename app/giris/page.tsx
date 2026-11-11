@@ -9,7 +9,8 @@ import { ArrowLeft, ArrowRight, Building2, CheckCircle2, Eye, EyeOff, LockKeyhol
 
 export default function LoginPage() {
   const [mode, setMode] = useState<"login" | "register">("login");
-  const [accountType, setAccountType] = useState<"business" | "personal">("business");
+  // T1: Teksanor yalnız firma hesabı açar; kişisel bütçe hesabı üründen ayrıldı.
+  const accountType = "business" as "business" | "personal";
   const [companyName, setCompanyName] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -108,7 +109,7 @@ export default function LoginPage() {
           <p>{challengeToken ? "Kimlik doğrulama uygulamanızda görünen 6 haneli kodu girin." : mode === "login" ? "Kullanıcı adınız ve parolanızla devam edin." : "14 günlük deneme alanınız yalnızca size ve yetkilendirdiğiniz kişilere açık olur."}</p>
 
           {!challengeToken && mode === "register" && <>
-            <div className="account-type-grid"><button type="button" className={accountType === "business" ? "active" : ""} onClick={() => setAccountType("business")}><Building2 /><span><b>Firma hesabı</b><small>Şirket ve çalışanlar için</small></span></button><button type="button" className={accountType === "personal" ? "active" : ""} onClick={() => setAccountType("personal")}><UserRound /><span><b>Bireysel hesap</b><small>Kişisel günlük takip için</small></span></button></div>
+            
             {accountType === "business" && <label><span>Firma adı <b aria-hidden="true">*</b></span><input aria-required="true" required value={companyName} onChange={(event) => setCompanyName(event.target.value)} placeholder="Firmanızın görünen adı" /></label>}
             <label><span>Ad soyad <b aria-hidden="true">*</b></span><input aria-required="true" required value={fullName} onChange={(event) => setFullName(event.target.value)} autoComplete="name" /></label>
             <label><span>E-posta <b aria-hidden="true">*</b></span><input aria-required="true" required type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" /></label>
