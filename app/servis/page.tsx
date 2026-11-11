@@ -12,6 +12,7 @@ import {ChecklistPanel} from "@/components/service/ChecklistPanel";
 import {VisitPanel} from "@/components/service/VisitPanel";
 import {PartsPanel} from "@/components/service/PartsPanel";
 import {PaymentsPanel} from "@/components/service/PaymentsPanel";
+import {TrackingPanel} from "@/components/service/TrackingPanel";
 import {bucketOf,BUCKET_LABEL,localDay,nextStep,shareLinks,sortJobs,type Bucket} from "@/lib/service-ui";
 import {QuotePanel} from "./quote-panel";
 type Job={id:string;previous_job_id?:string|null;version:number;title:string;description:string;customer_name:string;location:string;order_number:string;scheduled_date:string;stage:string;outcome:string;quote_cents:number;labor_cents?:number;parts_cents?:number;travel_cents?:number;paid_cents?:number;margin_cents?:number;remaining_cents?:number;updated_at?:string;approval_purpose?:string|null;approved_by?:string|null;approved_at?:string|null;signature_path?:string|null;asset_id?:string;asset_code?:string;asset_name?:string};
@@ -74,6 +75,7 @@ export default function Service(){
  paymentHistory.rows.length?<ul>{paymentHistory.rows.map(row=><li key={row.version}>{row.created_at} · {money(row.before_cents)} → {money(row.after_cents)}</li>)}</ul>:<p>Henüz yeni tahsilat hareketi kaydedilmedi.</p>:<p>Geçmiş yükleniyor…</p>}
  </details>}
  {data&&<ChecklistPanel key={current.id} jobId={current.id} organizationId={data.organization.id}/>}
+ {data&&<TrackingPanel key={"trk:"+current.id} jobId={current.id} organizationId={data.organization.id} title={current.title} customer={current.customer_name} stage={current.stage} remainingCents={current.remaining_cents}/>}
  {data?.manage&&<PaymentsPanel key={"pay:"+data.organization.id+":"+current.id} jobId={current.id} organizationId={data.organization.id} version={current.version} stage={current.stage} onChanged={load}/>}
  {data&&<PartsPanel key={"parts:"+data.organization.id+":"+current.id} jobId={current.id} organizationId={data.organization.id} version={current.version} stage={current.stage} manage={data.manage} canWrite={data.canWrite} onChanged={load}/>}
  {data&&<VisitPanel key={data.organization.id+":"+current.id} jobId={current.id} organizationId={data.organization.id}

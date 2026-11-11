@@ -10,7 +10,7 @@ const IDLE_MS=30*60*1000, PING_MS=5*60*1000;
 const WORKSPACE=/^\/(panel|servis|birimler|kullanicilar|ornek-isletme|hesap-guvenligi|veri-yonetimi)(\/|$)/;
 export default function IdleSessionGuard(){useEffect(()=>{
  // Müşteriye açık onay sayfası oturum gerektirmez.
- if(!WORKSPACE.test(location.pathname)||location.pathname.startsWith("/servis/onay"))return;
+ if(!WORKSPACE.test(location.pathname)||location.pathname.startsWith("/servis/onay")||location.pathname.startsWith("/servis/takip"))return;
  let leaving=false,last=Date.now(),lastPing=Date.now();
  const write=(value:number)=>{try{localStorage.setItem(KEY,String(value));}catch{/* yoksay */}};
  const read=()=>{try{return Number(localStorage.getItem(KEY)||0);}catch{return 0;}};
