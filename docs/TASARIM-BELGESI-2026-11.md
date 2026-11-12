@@ -214,7 +214,7 @@ Menü 5 ana maddeye iner: **Bugün, İşler, Takvim, Müşteriler, Para**. Ayarl
 | T3 | Üç soruluk kurulum sihirbazı + örnek iş | Boş ve dolu tuval sorunlarının çözümü | ClickUp (kurulum pencereleri) | 1 | orta | kod + tasarım | Kayıttan ilk işe 10 dakikanın altında ulaşılıyor (5 kişilik testte) |
 | T4 ✅ #67 | Akış motoru: iş türü, aşama, alan, aşama başına zorunlu alan | "Kendi işini tanımla" hedefinin kendisi | Kissflow, Odoo, monday | 1 | zor | kod | Teknik servis akışı koddan çıkıp tanım verisine taşındı, testler geçiyor |
 | T6 | Teknik servis ve periyodik bakım şablonları | İlk satış sektörü | Servis Pozitif, Kursoft, ServiceM8 | 1 | orta | tasarım + kod | İki şablon sihirbazdan kuruluyor |
-| T8 ✅ | Dönüştürme düğmeleri: talep → teklif → iş, tamamla → tahsil et | Bugün teklif ve tahsilat adımında düğme yok | Jobber | 1 | orta | kod (PR #49 ve #53 gözden geçirilir) | Hiçbir adımda açılır listeden aşama seçmek gerekmiyor |
+| T8 ✅ #69 | Dönüştürme düğmeleri: talep → teklif → iş, tamamla → tahsil et | Bugün teklif ve tahsilat adımında düğme yok | Jobber | 1 | orta | kod (PR #49 ve #53 gözden geçirilir) | Hiçbir adımda açılır listeden aşama seçmek gerekmiyor |
 | T9 | Fotoğraf yükleme (güvenli tarama ile) | Saha kanıtı. Bugün kapalı. | ServiceM8, Servis Pozitif | 1 | orta | kod (tarama servisi: **karar-sözleşme** olabilir) | Teknisyen telefondan fotoğraf ekleyebiliyor |
 | T11 | Tahsilatın cari hareket üretmesi, kasa/banka seçimi | Para tarafının tutarlılığı | Paraşüt, LinexServ | 1 | orta | kod | Cari ekstresi işle ve tahsilatla tutuyor |
 | T12 | Onay adımı (rol ya da kişi, açan kişi onaylayamaz seçeneği) | Teklif ve ek parça onayı | Odoo, Kissflow | 2 | orta | kod | Onaysız iş sonraki aşamaya geçemiyor |
