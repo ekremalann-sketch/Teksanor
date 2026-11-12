@@ -6,6 +6,7 @@ import {servicePartSchemas} from "./service-parts";
 import {servicePaymentSchemas} from "./service-payments";
 import {serviceTrackingSchema} from "./service-tracking";
 import {serviceExpenseSchema} from "./service-cash";
+import {serviceFlowSchema} from "./flow-store";
 export const serviceSchema=[
 `CREATE TABLE IF NOT EXISTS service_jobs (
  id TEXT PRIMARY KEY REFERENCES work_orders(id), organization_id TEXT NOT NULL REFERENCES organizations(id),
@@ -33,6 +34,7 @@ serviceQuoteSchema,
 ...servicePaymentSchemas,
 serviceTrackingSchema,
 serviceExpenseSchema,
+serviceFlowSchema,
 `CREATE TABLE IF NOT EXISTS service_visits (
  id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, job_id TEXT NOT NULL REFERENCES service_jobs(id),
  assigned_user_id TEXT NOT NULL REFERENCES users(id), scheduled_date TEXT NOT NULL,

@@ -183,3 +183,7 @@
 
 /* T9: saha fotoğrafları */
 .service-photos{display:grid;gap:10px}.service-photo-list{list-style:none;padding:0;margin:0;display:grid;gap:6px}.service-photo-list li{display:grid}.service-photo-list small{color:rgb(79 97 120)}
+
+/* T5: akış düzenleyici */
+.flow-list{display:grid;gap:8px;padding-left:22px}.flow-list li{display:grid;gap:6px;padding:10px 12px;border:1px solid rgb(220 229 238);border-radius:10px;background:rgb(255 255 255)}.flow-list li.flow-extra{border-color:rgb(211 173 102);background:rgb(255 251 242)}.flow-list input[type=text],.flow-list li>input{min-height:40px;padding:0 10px;border:1px solid rgb(200 212 224);border-radius:8px;font:inherit}.flow-list details label{display:flex;gap:6px;align-items:center}.flow-add{display:flex;flex-wrap:wrap;gap:10px;align-items:end;border:1px dashed rgb(200 212 224);border-radius:10px;padding:12px}
+.service-shell .service-primary{background:rgb(11 25 41);color:rgb(255 255 255);border-color:rgb(11 25 41)}.service-shell .service-danger{color:rgb(138 31 17)}
