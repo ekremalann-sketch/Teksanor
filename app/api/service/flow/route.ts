@@ -20,12 +20,15 @@ async function handle(request:Request){
  const current=await loadFlowCustom(db,organization.id);
  const counts=(await db.prepare("SELECT stage,count(*) AS n FROM service_jobs WHERE organization_id=? GROUP BY stage").bind(organization.id).all<{stage:string;n:number}>()).results;
  const stageCounts=Object.fromEntries(counts.map(c=>[c.stage,Number(c.n)]));
- if(request.method==="GET")return NextResponse.json({manage,version:current.version,stageCounts,custom:current.custom,flow:buildFlow(current.custom),base:TECHNICAL_SERVICE_FLOW,editableAfter:EDITABLE_AFTER,requiredFields:REQUIRED_FIELDS});
+ const members=manage?(await db.prepare("SELECT u.id,u.full_name FROM users u JOIN organization_members m ON m.user_id=u.id WHERE m.organization_id=? AND m.active=1 AND u.active=1 ORDER BY u.full_name").bind(organization.id).all<{id:string;full_name:string}>()).results:[];
+ if(request.method==="GET")return NextResponse.json({manage,members,version:current.version,stageCounts,custom:current.custom,flow:buildFlow(current.custom),base:TECHNICAL_SERVICE_FLOW,editableAfter:EDITABLE_AFTER,requiredFields:REQUIRED_FIELDS});
  if(!manage)return NextResponse.json({error:"Akışı yalnız yönetici değiştirir."},{status:403});
  const body=await request.json().catch(()=>null) as {version?:unknown;custom?:unknown;moves?:unknown}|null;
  if(!body||Number(body.version)!==current.version)return NextResponse.json({error:"Akış başka biri tarafından değişti. Sayfayı yenileyin."},{status:409});
  const parsed=sanitizeCustom(body.custom);
  if(!parsed.ok)return NextResponse.json({error:parsed.errors[0],errors:parsed.errors},{status:400});
+ // T12: onaylayacak kişi bu firmanın etkin çalışanı olmalı (sunucuda denetlenir).
+ for(const e of parsed.value.extra??[])if(e.approval?.by==="user"&&!members.some(m=>m.id===e.approval?.userId))return NextResponse.json({error:`${e.label}: onaylayacak kişi bu firmada etkin değil.`},{status:400});
  // T14: kaldırılan özel aşamadaki işler, kullanıcının seçtiği aşamaya taşınır ve her iş geçmişe yazılır.
  const kept=new Set((parsed.value.extra??[]).map(e=>e.key));
  const newFlow=buildFlow(parsed.value);const valid=new Set(newFlow.stages.filter(x=>!x.closed).map(x=>x.key));

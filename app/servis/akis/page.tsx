@@ -6,10 +6,11 @@ import {organizationFetch,storedOrganization} from "@/lib/org-client";
 import "../service.css";
 
 type Field="outcome"|"quote_cents"|"scheduled_date"|"assigned_user_id";
-type Extra={key:string;label:string;after:"quote_approved"|"in_progress";required?:Field[]};
+type Approval={by:"manager"|"user";userId?:string;notCreator:boolean};
+type Extra={key:string;label:string;after:"quote_approved"|"in_progress";required?:Field[];approval?:Approval};
 type Custom={labels?:Record<string,string>;extra?:Extra[];required?:Record<string,Field[]>};
 type Stage={key:string;label:string;closed?:boolean};
-type Data={manage:boolean;version:number;custom:Custom;flow:{stages:Stage[]};base:{stages:Stage[]};requiredFields:Record<Field,string>;stageCounts?:Record<string,number>};
+type Data={manage:boolean;members?:{id:string;full_name:string}[];version:number;custom:Custom;flow:{stages:Stage[]};base:{stages:Stage[]};requiredFields:Record<Field,string>;stageCounts?:Record<string,number>};
 const slug=(s:string)=>"ozel_"+s.toLocaleLowerCase("tr-TR").normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/ı/g,"i").replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"").slice(0,24);
 
 export default function FlowEditor(){
@@ -22,6 +23,8 @@ export default function FlowEditor(){
  const req=(k:string):Field[]=>extra.find(e=>e.key===k)?.required??custom.required?.[k]??[];
  function setReq(k:string,f:Field,on:boolean){const cur=new Set(req(k));on?cur.add(f):cur.delete(f);const list=[...cur];
   if(extra.some(e=>e.key===k))setCustom({...custom,extra:extra.map(e=>e.key===k?{...e,required:list}:e)});else setCustom({...custom,required:{...(custom.required??{}),[k]:list}});}
+ function setApproval(k:string,a:Approval|undefined){setCustom({...custom,extra:extra.map(e=>e.key===k?{...e,approval:a}:e)});}
+ const apOf=(k:string)=>extra.find(e=>e.key===k)?.approval;
  function rename(k:string,v:string){if(extra.some(e=>e.key===k))setCustom({...custom,extra:extra.map(e=>e.key===k?{...e,label:v}:e)});else setCustom({...custom,labels:{...(custom.labels??{}),[k]:v}});}
  function add(){const name=newName.trim();if(name.length<2)return;let key=slug(name);let i=2;while(order.some(s=>s.key===key))key=slug(name)+"_"+i++;setCustom({...custom,extra:[...extra,{key,label:name,after:newAfter,required:[]}]});setNewName("");}
  async function save(){setBusy(true);setMsg("");try{const r=await organizationFetch("/api/service/flow",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({version:data!.version,custom,moves})},storedOrganization());const d=await r.json();if(!r.ok)throw new Error(d.error||"Kaydedilemedi.");setMsg("Akış kaydedildi. Yeni işler ve mevcut işler bu aşamaları kullanır.");await load();}catch(e){setMsg(e instanceof Error?e.message:"Kaydedilemedi.");}finally{setBusy(false);}}
@@ -31,6 +34,12 @@ export default function FlowEditor(){
    {data.manage?<input aria-label={`${s.label} aşamasının adı`} value={isExtra?s.label:labelOf(s)} onChange={e=>rename(s.key,e.target.value)} maxLength={40}/>:<b>{isExtra?s.label:labelOf(s)}</b>}
    {isExtra&&<small>Sizin eklediğiniz aşama</small>}
    {data.manage&&!s.closed&&<details><summary>Zorunlu alanlar ({req(s.key).length})</summary>{(Object.keys(data.requiredFields) as Field[]).map(f=><label key={f}><input type="checkbox" checked={req(s.key).includes(f)} onChange={e=>setReq(s.key,f,e.target.checked)}/> {data.requiredFields[f]}</label>)}</details>}
+   {data.manage&&isExtra&&(()=>{const ap=apOf(s.key);return <details><summary>Onay adımı{ap?" (açık)":""}</summary>
+    <label><input type="checkbox" checked={!!ap} onChange={e=>setApproval(s.key,e.target.checked?{by:"manager",notCreator:true}:undefined)}/> Bu aşamada iş onaylanmadan ilerlemesin</label>
+    {ap&&<><label>Kim onaylar<select value={ap.by==="user"?ap.userId??"":"manager"} onChange={e=>setApproval(s.key,e.target.value==="manager"?{...ap,by:"manager",userId:undefined}:{...ap,by:"user",userId:e.target.value})}><option value="manager">Herhangi bir yönetici</option>{(data.members??[]).map(m=><option key={m.id} value={m.id}>{m.full_name}</option>)}</select></label>
+    <label><input type="checkbox" checked={ap.notCreator} onChange={e=>setApproval(s.key,{...ap,notCreator:e.target.checked})}/> İşi açan kişi onaylayamaz</label>
+    <small>Örnek: “Ek parça onayı” aşaması. Onaydan sonra iş değişirse yeniden onay gerekir.</small></>}
+   </details>;})()}
    {data.manage&&isExtra&&<button type="button" className="service-danger" onClick={()=>{setCustom({...custom,extra:extra.filter(e=>e.key!==s.key)});if((data.stageCounts?.[s.key]??0)>0)setRemoved([...removed,{key:s.key,label:s.label}]);}}>Aşamayı kaldır</button>}{(data.stageCounts?.[s.key]??0)>0&&<small>{data.stageCounts![s.key]} iş bu aşamada</small>}
   </li>;})}</ol>
   {data.manage&&<>
