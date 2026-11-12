@@ -39,5 +39,5 @@ test('servis ekranında aşama seçme listesi yok; iptal "Diğer işlemler" sat�
   assert.doesNotMatch(src,/name="stage"/);
   assert.match(src,/stage:step\.stage,outcome:note,\.\.\.\(step\.stage==="collected"\?\{paid:current\.quote_cents\/100\}:\{\}\)/);
   assert.match(src,/İşi iptal et/);
-  assert.match(src,/transitionsOf\(TECHNICAL_SERVICE_FLOW\)/);
+  assert.match(src,/const next=transitionsOf\(flow\)/); // T5: firmanın akışından
 });

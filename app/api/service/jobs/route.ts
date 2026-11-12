@@ -5,8 +5,9 @@ import {getCurrentUser} from "@/lib/auth";
 import {requireOrganization} from "@/lib/tenancy";
 import {getMemberAccess} from "@/lib/access";
 import {getDb,createId,auditStatement} from "@/lib/db";
-import {cents,totals,validateTransition,serviceJob,ensureServiceColumns,ServiceRuleError} from "@/lib/service";
-import {canTransition,missingRequired,TECHNICAL_SERVICE_FLOW} from "@/lib/flow-definition";
+import {cents,totals,serviceJob,ensureServiceColumns,ServiceRuleError} from "@/lib/service";
+import {canTransition,missingRequired} from "@/lib/flow-definition";
+import {buildFlow,loadFlow,loadFlowCustom} from "@/lib/flow-store";
 import {tokenDigest} from "@/lib/account-tokens";
 import {rejectCrossSiteMutation} from "@/lib/security";
 import {isSafeSignaturePath} from "@/lib/signature";
@@ -65,7 +66,9 @@ async function handle(request:Request){
    const assets=access.viewModules.includes("assets")?await db.prepare("SELECT id,name,asset_code FROM assets WHERE organization_id=? ORDER BY name LIMIT 500").bind(organization.id).all():{results:[]};
    const members=manage?await db.prepare("SELECT u.id,u.username,u.full_name FROM users u JOIN organization_members m ON m.user_id=u.id WHERE m.organization_id=? AND m.active=1 AND u.active=1").bind(organization.id).all():{results:[]};
    await recordRead(user.id,organization.id,"service-jobs:list");
-   return NextResponse.json({jobs:jobs.results,assets:assets.results,members:members.results,manage,canWrite,userId:user.id,organization:{id:organization.id,name:organization.name}});
+   const {custom}=await loadFlowCustom(db,organization.id);const flow=buildFlow(custom);
+   const stageLabels={...Object.fromEntries((custom.extra??[]).map(e=>[e.key,e.label])),...(custom.labels??{})};
+   return NextResponse.json({flow,stageLabels,jobs:jobs.results,assets:assets.results,members:members.results,manage,canWrite,userId:user.id,organization:{id:organization.id,name:organization.name}});
   }
   const b=await request.json() as Record<string,unknown>;
   if(b.action==="create"){
@@ -173,8 +176,10 @@ async function handle(request:Request){
    return NextResponse.json({ok:true});
   }
   if(b.action!=="update")throw new ServiceRuleError("Geçersiz işlem.");
-  const stage=txt(b.stage,30)||String(job.stage);validateTransition(String(job.stage),stage);
-  if(!manage&&!canTransition(TECHNICAL_SERVICE_FLOW,String(job.stage),stage,false))throw new ServiceRuleError("Saha kaydı için onaylı veya devam eden iş seçin.");
+  // T5: firmanın kendi akışı (eklenen aşamalar dahil).
+  const flow=await loadFlow(db,organization.id);
+  const stage=txt(b.stage,30)||String(job.stage);if(!canTransition(flow,String(job.stage),stage,true))throw new ServiceRuleError("Bu durum değişikliği için önceki adımları tamamlayın.");
+  if(!manage&&!canTransition(flow,String(job.stage),stage,false))throw new ServiceRuleError("Saha kaydı için onaylı veya devam eden iş seçin.");
   const outcome=b.outcome===undefined?String(job.outcome):txt(b.outcome,6000);
   // T4: aşamanın zorunlu alanları akış tanımından.
   if(stage==="completed"&&!outcome)throw new ServiceRuleError("Yapılan işlemi yazın.");
@@ -189,7 +194,7 @@ async function handle(request:Request){
   if(values[0]!==Number(job.quote_cents)&&await quoteSnapshot(db,organization.id,id,job.version))throw new ServiceRuleError("Teklif toplamı yalnızca teklif kalemlerinden değiştirilebilir.");
   if(b.quote!==undefined&&values[0]!==Number(job.quote_cents)&&!["requested","quoted"].includes(String(job.stage)))throw new ServiceRuleError("Onaylanmış teklif tutarı değiştirilemez.");
   // T4/T8: hedef aşamanın zorunlu alanları akış tanımından (tutarlar girilen yeni değerlerle).
-  if(stage!==job.stage){const missing=missingRequired(TECHNICAL_SERVICE_FLOW,stage,{outcome,quote_cents:values[0]});if(missing.length)throw new ServiceRuleError(missing[0]);}
+  if(stage!==job.stage){const missing=missingRequired(flow,stage,{outcome,quote_cents:values[0],scheduled_date:job.scheduled_date,assigned_user_id:job.assigned_user_id});if(missing.length)throw new ServiceRuleError(missing[0]);}
   if(values[4]>values[0])throw new ServiceRuleError("Tahsilat teklif tutarını aşamaz.");
   if(stage==="collected"&&values[4]<values[0])throw new ServiceRuleError("Tahsilat tamamlanmadı.");
   if(values[4]<Number(job.paid_cents))throw new ServiceRuleError("Tahsil edilen tutarı azaltmak için iade veya tahsilat iptali kaydı kullanın.");

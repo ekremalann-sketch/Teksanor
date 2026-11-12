@@ -53,7 +53,8 @@ test("yeni bir iş türü aynı motorla tanımlanabilir; hatalı tanım reddedil
 test("servis kodu geçişleri ve saha kuralını tanımdan alıyor", () => {
   assert.match(readFileSync("lib/service.ts", "utf8"), /transitionsOf\(TECHNICAL_SERVICE_FLOW\)/);
   const route = readFileSync("app/api/service/jobs/route.ts", "utf8");
-  assert.match(route, /canTransition\(TECHNICAL_SERVICE_FLOW,String\(job\.stage\),stage,false\)/);
-  assert.match(route, /missingRequired\(TECHNICAL_SERVICE_FLOW,stage,\{outcome,quote_cents:values\[0\]\}\)/);
+  assert.match(route, /canTransition\(flow,String\(job\.stage\),stage,false\)/); // T5: firmanın akışı
+  assert.match(route, /const flow=await loadFlow\(db,organization\.id\)/);
+  assert.match(route, /missingRequired\(flow,stage,\{outcome,quote_cents:values\[0\],/);
   assert.doesNotMatch(readFileSync("lib/service-ui.ts", "utf8"), /case "quote_approved"/);
 });
