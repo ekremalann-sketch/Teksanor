@@ -10,10 +10,14 @@ export const serviceFlowSchema = `CREATE TABLE IF NOT EXISTS service_flows (
  organization_id TEXT NOT NULL, flow_key TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1, custom_json TEXT NOT NULL DEFAULT '{}',
  updated_by TEXT, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (organization_id, flow_key))`;
 
+export const serviceStageApprovalSchema = `CREATE TABLE IF NOT EXISTS service_stage_approvals (
+ organization_id TEXT NOT NULL, job_id TEXT NOT NULL, stage TEXT NOT NULL, job_version INTEGER NOT NULL, approved_by TEXT NOT NULL,
+ approved_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (job_id, stage, job_version))`;
+
 export const EDITABLE_AFTER = ["quote_approved", "in_progress"] as const;
 export const REQUIRED_FIELDS: Record<RequiredField["field"], string> = { outcome: "Yapılan işlem notu", quote_cents: "Teklif tutarı", scheduled_date: "Planlanan tarih", assigned_user_id: "Sorumlu kişi" };
 
-export type ExtraStage = { key: string; label: string; after: (typeof EDITABLE_AFTER)[number]; required?: RequiredField["field"][] };
+export type ExtraStage = { key: string; label: string; after: (typeof EDITABLE_AFTER)[number]; required?: RequiredField["field"][]; approval?: { by: "manager" | "user"; userId?: string; notCreator: boolean } };
 export type FlowCustom = { labels?: Record<string, string>; extra?: ExtraStage[]; required?: Record<string, RequiredField["field"][]> };
 
 const cleanLabel = (v: unknown) => String(v ?? "").replace(/[<>]/g, "").trim().slice(0, 40);
@@ -39,7 +43,10 @@ export function sanitizeCustom(raw: unknown): { ok: true; value: FlowCustom } | 
     if (label.length < 2) { errors.push("Aşama adı en az 2 harf olmalı."); continue; }
     if (!EDITABLE_AFTER.includes(after)) { errors.push(`${label}: yalnız "Teklif onaylandı" veya "Sahada" aşamasından sonra eklenebilir.`); continue; }
     keys.add(key);
-    extra.push({ key, label, after, required: (Array.isArray(x.required) ? x.required : []).filter((f): f is RequiredField["field"] => typeof f === "string" && f in REQUIRED_FIELDS) });
+    const ap = x.approval as Record<string, unknown> | undefined;
+    const approval = ap && (ap.by === "manager" || ap.by === "user") ? { by: ap.by as "manager" | "user", userId: ap.by === "user" ? String(ap.userId ?? "").slice(0, 80) : undefined, notCreator: ap.notCreator !== false } : undefined;
+    if (approval?.by === "user" && !approval.userId) { errors.push(`${label}: onaylayacak kişiyi seçin.`); continue; }
+    extra.push({ key, label, after, approval, required: (Array.isArray(x.required) ? x.required : []).filter((f): f is RequiredField["field"] => typeof f === "string" && f in REQUIRED_FIELDS) });
   }
   const required: Record<string, RequiredField["field"][]> = {};
   for (const [k, v] of Object.entries((r.required as Record<string, unknown>) ?? {})) {
@@ -67,7 +74,11 @@ export function buildFlow(custom: FlowCustom | null | undefined): FlowDefinition
     const stage: FlowStage = {
       key: e.key, label: e.label, next: [forward, "cancelled"], staffNext: [forward, e.key],
       required: (e.required ?? []).map((f) => ({ field: f, message: reqMsg(f) })),
-      step: {
+      approval: e.approval,
+      step: e.approval ? {
+        manage: { kind: "approve", label: "Onayla", stage: forward, hint: `"${e.label}": bu iş onay bekliyor. Onaylanınca "${label}" aşamasına geçebilir.${e.approval.notCreator ? " İşi açan kişi onaylayamaz." : ""}` },
+        staff: { kind: "approve", label: "Onayla", stage: forward, hint: `"${e.label}": bu iş onay bekliyor.` },
+      } : {
         manage: { kind: "stage", label: `${label} aşamasına geç`, stage: forward, hint: `İş "${e.label}" aşamasında. Hazır olunca devam edin.`, needsNote: forward === "completed" },
         staff: { kind: "stage", label: `${label} aşamasına geç`, stage: forward, hint: `İş "${e.label}" aşamasında. Hazır olunca devam edin.`, needsNote: forward === "completed" },
       },
@@ -95,4 +106,10 @@ export async function loadFlowCustom(db: Database, organizationId: string): Prom
 }
 export async function loadFlow(db: Database, organizationId: string): Promise<FlowDefinition> {
   return buildFlow((await loadFlowCustom(db, organizationId)).custom);
+}
+
+/** T12: bu aşamayı bu kullanıcı onaylayabilir mi? (açan kişi kuralı ayrıca veritabanında denetlenir) */
+export function mayApprove(stage: FlowStage | undefined, userId: string, manage: boolean): boolean {
+  if (!stage?.approval) return false;
+  return stage.approval.by === "manager" ? manage : stage.approval.userId === userId;
 }

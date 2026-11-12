@@ -43,7 +43,8 @@ export const BUCKET_LABEL: Record<Bucket, string> = { overdue: "Gecikti", today:
 export type NextStep =
   | { kind: "stage"; label: string; stage: string; hint: string; needsNote?: boolean }
   | { kind: "share"; label: string; purpose: "quote" | "completion"; hint: string }
-  | { kind: "info"; hint: string };
+  | { kind: "info"; hint: string }
+  | { kind: "approve"; label: string; stage: string; hint: string };
 
 /** İşin bulunduğu aşamaya ve kullanıcının rolüne göre sıradaki adım (T4: akış tanımından). */
 export function nextStep(stage: string, manage: boolean): NextStep {
