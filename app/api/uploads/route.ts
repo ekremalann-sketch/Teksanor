@@ -8,6 +8,7 @@ import { auditStatement, createId, getDb } from "@/lib/db";
 import { requireOrganization } from "@/lib/tenancy";
 import { rejectCrossSiteMutation } from "@/lib/security";
 import { inspectUpload } from "@/lib/file-security";
+import { acceptPhoto } from "@/lib/photo-policy";
 
 type Bucket = { put: (key: string, value: ArrayBuffer, options?: unknown) => Promise<unknown>; delete: (key: string) => Promise<unknown> };
 
@@ -53,7 +54,10 @@ export async function POST(request: Request) {
   try { await requireAttachmentRecord(user, context.organization, recordType, recordId); }
   catch { return NextResponse.json({error:"Belge kaydına erişim reddedildi."},{status:403}); }
   let scanStatus;
-  try{scanStatus=await scanMalware(buffer,file.type);}catch(e){return NextResponse.json({error:"Dosya taranamadı."},{status:503});}
+  // T9: servis işine saha fotoğrafı — tarayıcıda yeniden kodlanmış WebP, bayt düzeyinde doğrulanır; tarama hizmeti gerekmez.
+  const photo=form.get("kind")==="photo"&&recordType==="work_order";
+  if(photo){const p=acceptPhoto(file.type,file.size,buffer);if(!p.ok)return NextResponse.json({error:p.error},{status:400});scanStatus="reencoded_image";}
+  else{try{scanStatus=await scanMalware(buffer,file.type);}catch(e){return NextResponse.json({error:"Dosya taranamadı."},{status:503});}}
   const id = createId("file");
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-").slice(-120);
   const objectKey = `${context.organization.id}/${new Date().getUTCFullYear()}/${id}-${safeName}`;
@@ -66,7 +70,7 @@ export async function POST(request: Request) {
     (id, object_key, file_name, content_type, size_bytes, record_type, record_id, uploaded_by, organization_id, scan_status, scan_details)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .bind(id, objectKey, file.name, file.type, file.size, form.get("recordType") || null, form.get("recordId") || null, user.id, context.organization.id, scanStatus, inspection.scanMode),
-      auditStatement(user.id, "upload_scanned", "attachment", id, `${file.name} · imza ve içerik politikası kontrolü geçti`, context.organization.id, true),
+      auditStatement(user.id, photo ? "photo_uploaded" : "upload_scanned", "attachment", id, `${file.name} · ${photo ? "yeniden kodlanmış saha fotoğrafı" : "imza ve içerik politikası kontrolü geçti"}`, context.organization.id, true),
     ]);
   } catch {
     try { await bucket.delete(objectKey); }
