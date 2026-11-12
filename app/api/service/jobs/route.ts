@@ -177,7 +177,7 @@ async function handle(request:Request){
   if(!manage&&!canTransition(TECHNICAL_SERVICE_FLOW,String(job.stage),stage,false))throw new ServiceRuleError("Saha kaydı için onaylı veya devam eden iş seçin.");
   const outcome=b.outcome===undefined?String(job.outcome):txt(b.outcome,6000);
   // T4: aşamanın zorunlu alanları akış tanımından.
-  if(stage!==job.stage){const missing=missingRequired(TECHNICAL_SERVICE_FLOW,stage,{outcome});if(missing.length)throw new ServiceRuleError(missing[0]);}else if(stage==="completed"&&!outcome)throw new ServiceRuleError("Yapılan işlemi yazın.");
+  if(stage==="completed"&&!outcome)throw new ServiceRuleError("Yapılan işlemi yazın.");
   if(["completed","cancelled"].includes(stage)&&stage!==job.stage&&await db.prepare("SELECT 1 FROM service_visits WHERE job_id=? AND organization_id=? AND status='planned'").bind(id,organization.id).first())throw new ServiceRuleError("İşi kapatmadan açık ziyareti sonuçlandırın.");
   if(["completed","cancelled"].includes(stage)&&stage!==job.stage&&await db.prepare("SELECT 1 FROM service_job_parts WHERE job_id=? AND organization_id=? AND reserved>0").bind(id,organization.id).first())throw new ServiceRuleError("İşi kapatmadan önce ayrılan parçaları kullanıldı veya depoya iade edildi olarak işaretleyin.");
   if(stage==="completed"&&job.stage!=="completed"){
@@ -188,6 +188,8 @@ async function handle(request:Request){
   const values=moneyFields.map(k=>manage&&b[k]!==undefined?cents(b[k]):Number(job[`${k}_cents`]));
   if(values[0]!==Number(job.quote_cents)&&await quoteSnapshot(db,organization.id,id,job.version))throw new ServiceRuleError("Teklif toplamı yalnızca teklif kalemlerinden değiştirilebilir.");
   if(b.quote!==undefined&&values[0]!==Number(job.quote_cents)&&!["requested","quoted"].includes(String(job.stage)))throw new ServiceRuleError("Onaylanmış teklif tutarı değiştirilemez.");
+  // T4/T8: hedef aşamanın zorunlu alanları akış tanımından (tutarlar girilen yeni değerlerle).
+  if(stage!==job.stage){const missing=missingRequired(TECHNICAL_SERVICE_FLOW,stage,{outcome,quote_cents:values[0]});if(missing.length)throw new ServiceRuleError(missing[0]);}
   if(values[4]>values[0])throw new ServiceRuleError("Tahsilat teklif tutarını aşamaz.");
   if(stage==="collected"&&values[4]<values[0])throw new ServiceRuleError("Tahsilat tamamlanmadı.");
   if(values[4]<Number(job.paid_cents))throw new ServiceRuleError("Tahsil edilen tutarı azaltmak için iade veya tahsilat iptali kaydı kullanın.");
