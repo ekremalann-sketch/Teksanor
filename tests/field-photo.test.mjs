@@ -25,7 +25,7 @@ test('WebP doğrulama: başlık, boyut ve sondaki ek veri',()=>{
 await test('işin teknisyeni fotoğraf ekler; tarama hizmeti olmadan da çalışır ve denetime yazılır',async()=>{
   const r=await upload('tech',WEBP);assert.equal(r.status,201);
   const row=sql.prepare("SELECT scan_status,record_type,record_id FROM attachments WHERE uploaded_by='tech'").get();
-  assert.deepEqual({...row},{scan_status:'reencoded_image',record_type:'work_order',record_id:job});
+  assert.deepEqual({...row},{scan_status:'webp_structural',record_type:'work_order',record_id:job});
   assert.equal(objects.size,1);
   assert.equal(sql.prepare("SELECT count(*) n FROM audit_logs WHERE action='photo_uploaded'").get().n,1);
 });
@@ -35,6 +35,21 @@ await test('reddedilenler: işe atanmamış çalışan, WebP olmayan dosya, foto
   assert.equal((await upload('tech',WEBP,{type:'image/png',name:'a.png'})).status,400);
   assert.equal((await upload('tech',new Uint8Array([...WEBP,1,2,3]))).status,400);
   assert.equal((await upload('tech',WEBP,{kind:'document'})).status,503,'tarama hizmeti yoksa normal belge yüklemesi kapalı kalır');
+});
+
+test('#70 incelemesi: genişletilmiş WebP (VP8X: EXIF/XMP/ek parça taşıyabilir) ve parça boyu tutmayan dosya reddedilir',()=>{
+  // VP8X başlığı + sahte EXIF parçası
+  const vp8x=new Uint8Array(30+12);const w=(o,s)=>{for(let i=0;i<s.length;i++)vp8x[o+i]=s.charCodeAt(i);};const u32=(o,v)=>{vp8x[o]=v&255;vp8x[o+1]=(v>>8)&255;vp8x[o+2]=(v>>16)&255;vp8x[o+3]=(v>>>24)&255;};
+  w(0,'RIFF');u32(4,vp8x.length-8);w(8,'WEBP');w(12,'VP8X');u32(16,10);vp8x[20]=0x08;w(30,'EXIF');u32(34,4);
+  assert.equal(api.photo.webpSize(vp8x.buffer),null);
+  const bad=new Uint8Array(WEBP);bad[16]=bad[16]-2;assert.equal(api.photo.webpSize(bad.buffer),null,'parça boyu dosyayı tam kaplamalı');
+});
+
+await test('#70 incelemesi: tarama hizmeti tanımlıysa fotoğraf da taranır; temiz değilse kabul edilmez',async()=>{
+  const env=globalThis.__teksanorTestEnv;env.FILE_SCAN_URL='https://scan.test/x';env.FILE_SCAN_TOKEN='t';
+  const orig=globalThis.fetch;let scanned=0;globalThis.fetch=async(u)=>{if(String(u).startsWith('https://scan.test')){scanned++;return Response.json({clean:false});}return orig(u);};
+  try{assert.equal((await upload('tech',WEBP)).status,503);assert.equal(scanned,1,'fotoğraf yolu taramayı atlamadı');}
+  finally{globalThis.fetch=orig;delete env.FILE_SCAN_URL;delete env.FILE_SCAN_TOKEN;}
 });
 
 test('servis ekranında telefon kamerasıyla fotoğraf ekleme',()=>{
