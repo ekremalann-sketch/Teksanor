@@ -128,6 +128,19 @@ async function handle(request:Request){
    if(!added.results?.length)return NextResponse.json({error:"Kayıt değişti veya zaten onaylandı. Yenileyin."},{status:409});
    return NextResponse.json({ok:true});
   }
+  if(b.action==="travel"){
+   // T6: "Yola çıktım / Vardım". Yalnız işin sorumlusu veya yönetici; iş sürümünü değiştirmez (onayları bozmaz).
+   if(!manage&&job.assigned_user_id!==user.id)return NextResponse.json({error:"Bu işin sorumlusu değilsiniz."},{status:403});
+   if(!["quote_approved","in_progress"].includes(String(job.stage)))throw new ServiceRuleError("Yola çıkış yalnız onaylı veya devam eden işte kaydedilir.");
+   const step=b.step==="arrived"?"arrived":"on_way";
+   const column=step==="arrived"?"arrived_at":"on_way_at";
+   const [done]=await db.batch([
+    db.prepare(`UPDATE service_jobs SET ${column}=CURRENT_TIMESTAMP${step==="arrived"?",on_way_at=coalesce(on_way_at,CURRENT_TIMESTAMP)":""} WHERE id=? AND organization_id=? AND version=? AND ${column} IS NULL RETURNING id`).bind(id,organization.id,job.version),
+    auditStatement(user.id,step,"service_job",id,step==="arrived"?"Teknisyen adreste.":"Teknisyen yola çıktı.",organization.id,true),
+   ]);
+   if(!done.results?.length)return NextResponse.json({error:"Zaten kaydedildi veya kayıt değişti. Yenileyin."},{status:409});
+   return NextResponse.json({ok:true});
+  }
   if(b.action==="quote-revise"){
    if(!manage)return NextResponse.json({error:"Teklifi yönetici düzenleyebilir."},{status:403});
    if(!["requested","quoted"].includes(String(job.stage)))throw new ServiceRuleError("Onaylanmış teklif değiştirilemez.");
@@ -187,6 +200,10 @@ async function handle(request:Request){
    if(date&&(!/^\d{4}-\d{2}-\d{2}$/.test(date)||Number.isNaN(Date.parse(date+"T00:00:00Z"))||new Date(date+"T00:00:00Z").toISOString().slice(0,10)!==date))throw new ServiceRuleError("Geçerli tarih girin.");
    const assigned=b.assignedUserId===undefined?String(job.assigned_user_id||user.id):txt(b.assignedUserId,100);
    if(assigned!==job.assigned_user_id&&!await db.prepare("SELECT user_id FROM organization_members WHERE user_id=? AND organization_id=? AND active=1").bind(assigned,organization.id).first())throw new ServiceRuleError("Çalışan bu firmaya ait değil.");
+   // T6: müşteriye gösterilen saat aralığı (ör. 09:00-12:00); boş bırakılabilir.
+   const timeWindow=b.timeWindow===undefined?(job.time_window??null):(txt(b.timeWindow,11)||null);
+   if(timeWindow&&!/^([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d$/.test(String(timeWindow)))throw new ServiceRuleError("Saat aralığını 09:00-12:00 biçiminde girin.");
+   if(timeWindow&&String(timeWindow).slice(0,5)>=String(timeWindow).slice(6))throw new ServiceRuleError("Saat aralığının bitişi başlangıçtan sonra olmalı.");
    const planningVisit=b.action==="visit-plan";
    if(planningVisit&&(!date||!assigned||job.stage==="completed"))throw new ServiceRuleError("Ziyaret için açık iş, tarih ve sorumlu gerekli.");
    if(!planningVisit&&await db.prepare("SELECT 1 FROM service_visits WHERE job_id=? AND organization_id=? AND status='planned'").bind(id,organization.id).first())throw new ServiceRuleError("Önce açık ziyareti sonuçlandırın veya iptal edin.");
@@ -194,8 +211,8 @@ async function handle(request:Request){
    const visitStatement=db.prepare(`INSERT INTO service_visits(id,organization_id,job_id,assigned_user_id,scheduled_date)
     SELECT ?,?,?,?,? WHERE changes()>0`).bind(visitId,organization.id,id,assigned,date);
    const [moved]=await db.batch([
-    db.prepare(`UPDATE service_jobs SET assigned_user_id=?,version=version+1,updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=? AND version=?
-      AND NOT EXISTS(SELECT 1 FROM service_visits WHERE job_id=? AND status='planned') RETURNING version`).bind(assigned,id,organization.id,job.version,id),
+    db.prepare(`UPDATE service_jobs SET assigned_user_id=?,time_window=?,on_way_at=CASE WHEN ? THEN NULL ELSE on_way_at END,arrived_at=CASE WHEN ? THEN NULL ELSE arrived_at END,version=version+1,updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=? AND version=?
+      AND NOT EXISTS(SELECT 1 FROM service_visits WHERE job_id=? AND status='planned') RETURNING version`).bind(assigned,timeWindow,date!==job.scheduled_date?1:0,date!==job.scheduled_date?1:0,id,organization.id,job.version,id),
     ...(planningVisit?[visitStatement]:[]),
     auditStatement(user.id,"schedule","service_job",id,`Plan: ${date||"tarihsiz"} → ${assigned}`,organization.id,true),
     db.prepare("UPDATE work_orders SET scheduled_date=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND organization_id=? AND changes()>0").bind(date,id,organization.id),

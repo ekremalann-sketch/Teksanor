@@ -78,6 +78,11 @@ const initializeServiceColumns=requestSafeInitializer(async(db:Database)=>{
   for(const [name,def] of [["sale_price_cents","INTEGER NOT NULL DEFAULT 0"],["critical_level","INTEGER NOT NULL DEFAULT 0"],["barcode","TEXT"]] as const){
    if(partCols.length&&!partCols.includes(name)){try{await db.prepare(`ALTER TABLE service_parts ADD COLUMN ${name} ${def}`).run();}catch(e){if(!/duplicate column/i.test(String(e)))throw e;}}
   }
+  // T6: saat aralığı ve yolda/adreste zamanları (yalnız ekleme).
+  const jobCols=jobs.results.map(c=>c.name);
+  for(const name of ["time_window","on_way_at","arrived_at"]){
+   if(jobCols.length&&!jobCols.includes(name)){try{await db.prepare(`ALTER TABLE service_jobs ADD COLUMN ${name} TEXT`).run();}catch(e){if(!/duplicate column/i.test(String(e)))throw e;}}
+  }
   if(cols.results.length&&!cols.results.some(c=>c.name==="signature_path")){
    try{await db.prepare("ALTER TABLE service_approvals ADD COLUMN signature_path TEXT").run();}
    catch(e){if(!/duplicate column/i.test(String(e)))throw e;} // eşzamanlı ilk istek
