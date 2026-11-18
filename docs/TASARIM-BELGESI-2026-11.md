@@ -263,3 +263,22 @@ Menü 5 ana maddeye iner: **Bugün, İşler, Takvim, Müşteriler, Para**. Ayarl
 - **Fatura nasıl kesilecek?** Önerim: Teksanor fatura kesmesin. İlk entegrasyon Paraşüt API'si olsun, diğerlerine dosya ile aktarım yapılsın.
 - **Sabah özeti olacak mı?** Önerim: evet, 2. öncelikte. Rakiplerde belgelenmemiş ve yapması kolay.
 
+
+## G — Kurumsal yol haritası (18 Kasım 2026)
+
+Kaynak: 18 Kasım derin araştırma raporu ("Klinorbis klinik dışı hastane otomasyonu" — Teksanor bölümü). Patron kararı: ürünler kurumsal seviyeye çıkacak; ajanlar bu bölümü izler. Efor tahminidir. Kod partileri bu bölümü öncelikle işler.
+
+| Kimlik | Madde | Neden | Ölçüt | Efor | Durum |
+|---|---|---|---|---|---|
+| TG1 | /guvenlik sayfası + /.well-known/security.txt (barındırma, veri yeri, şifreleme, MFA, roller, denetim kaydı, yedek sıklığı, açık bildirme) | Kurumsal alıcının ilk baktığı yer; ücretsiz | Sayfa ve security.txt yayında, iddialar kodla tutarlı | 1 gün | kod |
+| TG2 | Herkese açık durum sayfası (/durum) + sağlık ucu (veritabanı, depolama) | Güven işareti | Son 90 gün çalışma kaydı görünür | 1 gün | kod |
+| TG3 | Hukuki set: KVKK/GDPR md. 28 veri işleme sözleşmesi şablonu, alt işleyen listesi, saklama ve çıkış (veri teslimi) politikası | Kurumsal satın alma şartı | Sayfalar yayında; metin **avukat onayı** bekler | 2–3 gün | kod + karar-sözleşme |
+| TG4 | SSO: Microsoft (Entra ID) ve Google ile giriş (OIDC), firma bazında "SSO zorunlu" | En sık sorulan kurumsal özellik | Firma yöneticisi açınca parola girişi kapanır | 1 hafta | kod |
+| TG5 | Firma bazlı API anahtarı + HMAC imzalı webhook (iş açıldı, durum değişti, teklif onaylandı, ödeme alındı) + OpenAPI belgesi | Entegrasyon | Webhook imzası doğrulanıyor, tekrar reddediliyor | 1–2 hafta | kod |
+| TG6 | Yedek/geri yükleme kanıtı: otomatik D1 yedeği, yazılı RPO/RTO, 3 ayda bir geri yükleme testi kaydı | ServiceTitan seviyesi | Test kaydı sürüm notunda | 3–5 gün | kod |
+| TG7 | SLA/sözleşme motoru: sözleşme → yanıt/varış/çözüm süreleri → uyarı/ihlal sayacı → mesai takvimi → "parça/müşteri bekleniyor"da duraklatma; KPI: ilk ziyarette çözüm, ortalama onarım süresi, SLA uyumu, teknisyen doluluğu | Orta segment farkı (Dynamics modeli) | İhlalden önce uyarı; KPI panosu | 3–4 hafta | kod |
+| TG8 | e-Fatura/e-Arşiv: GİB lisanslı özel entegratör API'si (UBL-TR), dönen ETTN ve PDF iş kaydına | 1.1.2026'dan itibaren e-Arşiv tutar sınırı yok (GİB 573) | Taslak faturadan entegratöre gönderim (deneme ortamı) | 2–3 hafta | kod + **karar-sözleşme** (entegratör seçimi, mali müşavir) |
+| TG9 | Çok şirket/şube veri ayrımı + beyaz etiketli müşteri portalı (logo, renk) | Orta ölçekli müşteri | Şube kullanıcısı yalnız kendi şubesini görür | 2 hafta | kod |
+| TG10 | Sürüm notları (/surum-notlari) ve yardım merkezi | Bakımlı ürün izlenimi | Her birleşmede not | 2–3 gün | kod |
+
+Kural: ISO 27001/SOC 2 "sertifikalıyız" denmez; "kontroller ISO 27001 Ek A ile uyumlu tasarlandı" gibi dürüst ifade kullanılır.
