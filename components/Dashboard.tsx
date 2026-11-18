@@ -622,6 +622,7 @@ export default function Dashboard() {
             <a className="nav-link" href="/birimler"><Building2 size={18} /><span>Birimler ve süreçler</span></a>
             {viewModules.includes("work-orders") && ["owner", "company_admin", "ceo", "manager"].includes(effectiveProfile) && <>
               <a className="nav-link" href="/servis/sablonlar"><CheckSquare size={18} /><span>Form şablonları</span></a>
+              <a className="nav-link" href="/servis/akis"><Workflow size={18} /><span>İşinizin aşamaları</span></a>
             </>}
             {(canManage || data.user.role === "admin") && !viewAs && <button className={active === "admin" ? "active" : ""} onClick={() => { navigate("admin"); setMobileNav(false); }}><Shield size={18} /><span>Yönetim merkezi</span></button>}
           </details>
