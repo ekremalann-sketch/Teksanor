@@ -1,5 +1,5 @@
 import {recordRead} from "@/lib/read-audit";
-import { scanMalware } from "@/lib/antivirus";
+import { scanMalware, scannerConfigured } from "@/lib/antivirus";
 import { requireAttachmentRecord } from "@/lib/upload-access";
 import { env } from "cloudflare:workers";
 import { NextResponse } from "next/server";
@@ -56,7 +56,11 @@ export async function POST(request: Request) {
   let scanStatus;
   // T9: servis işine saha fotoğrafı — tarayıcıda yeniden kodlanmış WebP, bayt düzeyinde doğrulanır; tarama hizmeti gerekmez.
   const photo=form.get("kind")==="photo"&&recordType==="work_order";
-  if(photo){const p=acceptPhoto(file.type,file.size,buffer);if(!p.ok)return NextResponse.json({error:p.error},{status:400});scanStatus="reencoded_image";}
+  // #70 incelemesi: istemcinin "photo" demesi taramayı atlatmaz. Tarama hizmeti varsa fotoğraf da taranır;
+  // yoksa yalnız katı yapı denetiminden (tek parçalı basit WebP, ek veri yok) geçen dosya kabul edilir.
+  if(photo){const p=acceptPhoto(file.type,file.size,buffer);if(!p.ok)return NextResponse.json({error:p.error},{status:400});
+   if(scannerConfigured()){try{scanStatus=await scanMalware(buffer,file.type);}catch(e){return NextResponse.json({error:"Dosya taranamadı."},{status:503});}}
+   else scanStatus="webp_structural";}
   else{try{scanStatus=await scanMalware(buffer,file.type);}catch(e){return NextResponse.json({error:"Dosya taranamadı."},{status:503});}}
   const id = createId("file");
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-").slice(-120);
