@@ -18,7 +18,7 @@ export async function GET(request:Request){
  await ensureSchema();await ensureServiceColumns();
  const code=new URL(request.url).searchParams.get("code");
  if(!validTrackingCode(code))return fail("Takip bağlantısı geçersiz.",404);
- const row=await getDb().prepare(`SELECT o.name AS company,w.order_number,w.title,w.scheduled_date,s.stage,s.updated_at,s.quote_cents,s.paid_cents,
+ const row=await getDb().prepare(`SELECT o.name AS company,w.order_number,w.title,w.scheduled_date,s.stage,s.updated_at,s.quote_cents,s.paid_cents,s.time_window,s.on_way_at,s.arrived_at,
    (SELECT v.scheduled_date FROM service_visits v WHERE v.job_id=s.id AND v.status='planned' ORDER BY v.scheduled_date LIMIT 1) AS next_visit,
    (julianday('now')-julianday(t.created_at)>${LINK_MAX_DAYS} OR (s.stage IN ('accepted','collected','cancelled') AND julianday('now')-julianday(s.updated_at)>${CLOSED_GRACE_DAYS})) AS expired
   FROM service_tracking t JOIN service_jobs s ON s.id=t.job_id AND s.organization_id=t.organization_id
@@ -28,7 +28,10 @@ export async function GET(request:Request){
  // Güvenlik (#52): bağlantı süresiz açık kalmaz — en çok 90 gün; iş kapandıktan/iptalden 7 gün sonra kapanır.
  if(Number(row.expired))return fail("Takip bağlantısının süresi doldu. Firmanızdan yeni bağlantı isteyin.",410);
  const quote=Number(row.quote_cents),paid=Number(row.paid_cents);
- return NextResponse.json({company:row.company,number:row.order_number,title:row.title,status:CUSTOMER_STAGE_LABELS[String(row.stage)]??"İşleniyor",
+ // T6: sahada olan işte yolda/adreste bilgisi (personel adı gösterilmez).
+ const field=["quote_approved","in_progress"].includes(String(row.stage));
+ const status=field&&row.arrived_at?"Teknisyen adreste":field&&row.on_way_at?"Teknisyen yolda":CUSTOMER_STAGE_LABELS[String(row.stage)]??"İşleniyor";
+ return NextResponse.json({company:row.company,number:row.order_number,title:row.title,status,timeWindow:row.time_window??null,
   stage:row.stage,updatedAt:row.updated_at,plannedDate:row.next_visit??row.scheduled_date??null,
   totalCents:quote,paidCents:paid,remainingCents:Math.max(0,quote-paid)},{headers});
 }

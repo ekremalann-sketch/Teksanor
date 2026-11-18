@@ -5,7 +5,7 @@ import Link from "next/link";
 import {useCallback,useEffect,useMemo,useState} from "react";
 import "../service.css";
 
-type Job={id:string;version:number;title:string;customer_name:string;order_number:string;scheduled_date:string|null;stage:string;assigned_user_id:string|null};
+type Job={id:string;version:number;title:string;customer_name:string;order_number:string;scheduled_date:string|null;stage:string;assigned_user_id:string|null;time_window?:string|null};
 type Data={jobs:Job[];members:{id:string;full_name:string}[];manage:boolean;userId:string;organization:{id:string;name:string}};
 const CLOSED=["accepted","collected","cancelled"];
 const DAILY_LIMIT=3; // kişi başı günde 3'ten fazla iş aşırı yük sayılır
@@ -18,7 +18,7 @@ const dayName=(d:Date)=>d.toLocaleDateString("tr-TR",{weekday:"short",day:"numer
 // Planlama panosu: teknisyen × gün. Yönetici bir işe tıklayıp tarih ve sorumlu atar.
 // Çalışan yalnız kendi satırını görür (sunucu zaten yalnız ona atanan işleri döndürür).
 export default function PlanBoard(){
- const [data,setData]=useState<Data|null>(null),[week,setWeek]=useState(()=>monday(new Date())),[edit,setEdit]=useState<Job|null>(null),[date,setDate]=useState(""),[who,setWho]=useState(""),[msg,setMsg]=useState(""),[busy,setBusy]=useState(false);
+ const [data,setData]=useState<Data|null>(null),[week,setWeek]=useState(()=>monday(new Date())),[edit,setEdit]=useState<Job|null>(null),[date,setDate]=useState(""),[who,setWho]=useState(""),[win,setWin]=useState(""),[msg,setMsg]=useState(""),[busy,setBusy]=useState(false);
  const org=()=>storedOrganization();
  const fetchJobs=useCallback(async()=>{const r=await organizationFetch("/api/service/jobs",{},org());if(r.status===401){goToLogin();throw new Error("Giriş gerekli.");}if(r.status===428){goToMfaSetup();throw new Error("İki aşamalı doğrulama kurulumu gerekli.");}const d=await r.json();if(!r.ok)throw new Error(d.error||"Plan alınamadı.");rememberOrganization((d as Data).organization?.id);return d as Data;},[]);
  useEffect(()=>{let alive=true;fetchJobs().then(d=>{if(alive)setData(d);}).catch(e=>{if(alive)setMsg(String(e.message||e));});return()=>{alive=false;};},[fetchJobs]);
@@ -28,8 +28,8 @@ if(data.manage&&data.jobs.some(j=>!CLOSED.includes(j.stage)&&j.scheduled_date&&!
  const open=(data?.jobs||[]).filter(j=>!CLOSED.includes(j.stage));
  const unscheduled=open.filter(j=>!j.scheduled_date);
  const today=iso(new Date());
- function choose(j:Job){if(!data?.manage)return;setEdit(j);setDate(j.scheduled_date||"");setWho(j.assigned_user_id&&people.some(p=>p.id===j.assigned_user_id)?j.assigned_user_id:data.userId);setMsg("");}
- async function save(){if(!edit||!data)return;setBusy(true);try{const r=await fetch("/api/service/jobs",{method:"POST",headers:{"Content-Type":"application/json","X-Organization-Id":data.organization.id},body:JSON.stringify({action:"schedule",id:edit.id,version:edit.version,scheduledDate:date||null,assignedUserId:who})});const d=await r.json();if(!r.ok)throw new Error(d.error);setEdit(null);setMsg("Plan kaydedildi.");setData(await fetchJobs());}catch(e){setMsg(e instanceof Error?e.message:"Kaydedilemedi.");}finally{setBusy(false);}}
+ function choose(j:Job){if(!data?.manage)return;setEdit(j);setDate(j.scheduled_date||"");setWin(j.time_window||"");setWho(j.assigned_user_id&&people.some(p=>p.id===j.assigned_user_id)?j.assigned_user_id:data.userId);setMsg("");}
+ async function save(){if(!edit||!data)return;setBusy(true);try{const r=await fetch("/api/service/jobs",{method:"POST",headers:{"Content-Type":"application/json","X-Organization-Id":data.organization.id},body:JSON.stringify({action:"schedule",id:edit.id,version:edit.version,scheduledDate:date||null,assignedUserId:who,timeWindow:win})});const d=await r.json();if(!r.ok)throw new Error(d.error);setEdit(null);setMsg("Plan kaydedildi.");setData(await fetchJobs());}catch(e){setMsg(e instanceof Error?e.message:"Kaydedilemedi.");}finally{setBusy(false);}}
  const card=(j:Job)=><button key={j.id} type="button" className="plan-card" onClick={()=>choose(j)} aria-label={`${j.title}, ${j.customer_name||"müşteri yok"}${data?.manage?", planı değiştir":""}`}><b>{j.title}</b><small>{j.order_number} · {j.customer_name||"Müşteri yok"}</small></button>;
  return <main className="service-shell">
   <header className="service-header"><div><Link href="/servis">← Servis masası</Link><h1>Planlama panosu</h1><p>{data?.organization.name||"Yükleniyor"} · kişi başı günde {DAILY_LIMIT}+ iş uyarı verir</p></div></header>
@@ -37,6 +37,9 @@ if(data.manage&&data.jobs.some(j=>!CLOSED.includes(j.stage)&&j.scheduled_date&&!
   <p className="service-message" role="status">{msg}</p>
   {edit&&<section className="plan-editor" aria-label="İşi planla"><div><b>{edit.title}</b><p className="checklist-muted">{edit.order_number}</p></div>
    <label>Tarih<input type="date" value={date} onChange={e=>setDate(e.target.value)}/></label>
+   <label>Saat aralığı (müşteri görür)<input value={win} onChange={e=>setWin(e.target.value)} placeholder="09:00-12:00" maxLength={11} inputMode="numeric"/></label>
+   {/* T8: öneri yalnız yardımcıdır; seçimi yönetici yapar. Ölçüt: o gün en az işi olan kişi. */}
+   {date&&(()=>{const c=people.filter(p=>p.id!=="__none").map(p=>({p,n:open.filter(j=>j.scheduled_date===date&&j.assigned_user_id===p.id&&j.id!==edit.id).length})).sort((a,b)=>a.n-b.n)[0];return c?<p className="checklist-muted">Öneri: {c.p.name} — o gün {c.n} işi var (en az iş). {who!==c.p.id&&<button type="button" className="service-secondary" onClick={()=>setWho(c.p.id)}>Öneriyi seç</button>}</p>:null;})()}
    <label>Sorumlu<select value={who} onChange={e=>setWho(e.target.value)}>{people.filter(p=>p.id!=="__none").map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
    <div className="service-actions"><button type="button" disabled={busy} onClick={()=>void save()}>Planı kaydet</button><button type="button" onClick={()=>{setDate("");}}>Tarihi kaldır</button><button type="button" onClick={()=>setEdit(null)}>Vazgeç</button></div></section>}
   <div className="plan-grid" role="region" aria-label="Haftalık iş planı: satırlar teknisyen, sütunlar gün" tabIndex={0}>

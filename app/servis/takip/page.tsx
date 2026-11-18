@@ -2,7 +2,7 @@
 import {useEffect,useState} from "react";
 import "../service.css";
 
-type Tracking={company:string;number:string;title:string;status:string;stage:string;updatedAt:string;plannedDate:string|null;totalCents:number;paidCents:number;remainingCents:number};
+type Tracking={company:string;number:string;title:string;status:string;stage:string;updatedAt:string;plannedDate:string|null;timeWindow?:string|null;totalCents:number;paidCents:number;remainingCents:number};
 const money=(c:number)=>(c/100).toLocaleString("tr-TR",{style:"currency",currency:"TRY"});
 const STEPS=[["requested","Talep alındı"],["quoted","Teklif"],["quote_approved","Onay"],["in_progress","İşlemde"],["completed","Tamamlandı"],["accepted","Teslim"]] as const;
 const ORDER=["requested","quoted","quote_approved","in_progress","completed","accepted","collected"];
@@ -26,7 +26,7 @@ export default function ServiceTracking(){
    <p className="service-tracking-status" role="status"><b>{data.status}</b></p>
    {data.stage!=="cancelled"&&<ol className="service-tracking-steps">{STEPS.map(([key,label])=><li key={key} className={ORDER.indexOf(key)<=reached?"done":""}>{label}</li>)}</ol>}
    <dl className="service-tracking-facts">
-    {data.plannedDate&&<div><dt>Planlanan tarih</dt><dd>{data.plannedDate}</dd></div>}
+    {data.plannedDate&&<div><dt>Planlanan tarih</dt><dd>{data.plannedDate}{data.timeWindow?` · ${data.timeWindow}`:""}</dd></div>}
     <div><dt>Son güncelleme</dt><dd>{data.updatedAt}</dd></div>
     {data.totalCents>0&&<><div><dt>Toplam</dt><dd>{money(data.totalCents)}</dd></div><div><dt>Ödenen</dt><dd>{money(data.paidCents)}</dd></div><div><dt>Kalan</dt><dd><b>{money(data.remainingCents)}</b></dd></div></>}
    </dl>

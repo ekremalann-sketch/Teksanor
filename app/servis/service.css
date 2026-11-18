@@ -187,3 +187,9 @@
 /* T5: akış düzenleyici */
 .flow-list{display:grid;gap:8px;padding-left:22px}.flow-list li{display:grid;gap:6px;padding:10px 12px;border:1px solid rgb(220 229 238);border-radius:10px;background:rgb(255 255 255)}.flow-list li.flow-extra{border-color:rgb(211 173 102);background:rgb(255 251 242)}.flow-list input[type=text],.flow-list li>input{min-height:40px;padding:0 10px;border:1px solid rgb(200 212 224);border-radius:8px;font:inherit}.flow-list details label{display:flex;gap:6px;align-items:center}.flow-add{display:flex;flex-wrap:wrap;gap:10px;align-items:end;border:1px dashed rgb(200 212 224);border-radius:10px;padding:12px}
 .service-shell .service-primary{background:rgb(11 25 41);color:rgb(255 255 255);border-color:rgb(11 25 41)}.service-shell .service-danger{color:rgb(138 31 17)}
+/* Tasarım bulgusu: saha ekranında dokunma hedefi telefonda en az 48 px */
+@media (max-width:640px){.service-shell button,.service-upload,.service-shell input,.service-shell select{min-height:48px}}
+/* Tasarım bulgusu (T-Y3): telefonda Kaydet/işlem düğmeleri ekranın altında sabit kalır, uzun formda kaybolmaz */
+@media (max-width:640px){.service-actions.service-wide{position:sticky;bottom:0;z-index:2;background:rgb(255 255 255);padding:10px 0;box-shadow:0 -6px 12px rgb(7 19 33 / 8%)}}
+/* T6: Yola çıktım / Vardım ikincil düğmesi */
+.service-shell .service-secondary{background:rgb(255 255 255);color:var(--sv-navy-2)}.service-travel{margin:10px 0 0}

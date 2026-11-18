@@ -105,7 +105,7 @@
 .net-wrap{display:grid;grid-template-columns:minmax(320px,640px) 1fr;gap:20px;align-items:start}
 .net-svg{width:100%;background:#fff;border:1px solid var(--sv-line);border-radius:14px}
 .net-node{cursor:pointer}.net-node circle{fill:#f4f7fb;stroke:#284a73;stroke-width:2}.net-node.on circle{fill:#1f3d63}.net-node.on text{fill:#fff}
-.net-node:focus-visible circle{stroke:#1f6feb;stroke-width:4}.net-node text{font-size:12px;font-weight:700;fill:#102038}.net-node text.sub{font-size:10px;font-weight:500;fill:#4f6178}
+.net-node:focus-visible circle{stroke:#1f6feb;stroke-width:4}.net-node text{font-size:12px;font-weight:700;fill:#102038}.net-node text.sub{font-size:12px;font-weight:500;fill:#4f6178}
 .net-list{background:#fff;border:1px solid var(--sv-line);border-radius:14px;padding:16px;max-height:80vh;overflow:auto}
 .net-list ul{list-style:none;padding:0;margin:0;display:grid;gap:8px}.net-list li{display:flex;flex-wrap:wrap;gap:6px;align-items:center;border-bottom:1px solid #eef1f5;padding-bottom:8px}
 .net-arrow{color:#4f6178;font-weight:700}.net-targets{display:flex;flex-wrap:wrap;gap:6px}
