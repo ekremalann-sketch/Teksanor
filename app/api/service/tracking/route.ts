@@ -9,6 +9,7 @@ import {tokenDigest} from "@/lib/account-tokens";
 import {CUSTOMER_STAGE_LABELS,newTrackingCode,validTrackingCode} from "@/lib/service-tracking";
 
 // GET ?code=: üyeliksiz müşteri görünümü. POST {jobId}: yönetici veya atanmış teknisyen yeni takip bağlantısı üretir.
+const LINK_MAX_DAYS=90,CLOSED_GRACE_DAYS=7;
 const MANAGERS=["owner","company_admin","ceo","manager"];
 const headers={"Cache-Control":"no-store","Referrer-Policy":"no-referrer","X-Robots-Tag":"noindex"};
 const fail=(error:string,status:number)=>NextResponse.json({error},{status,headers});
@@ -18,11 +19,14 @@ export async function GET(request:Request){
  const code=new URL(request.url).searchParams.get("code");
  if(!validTrackingCode(code))return fail("Takip bağlantısı geçersiz.",404);
  const row=await getDb().prepare(`SELECT o.name AS company,w.order_number,w.title,w.scheduled_date,s.stage,s.updated_at,s.quote_cents,s.paid_cents,
-   (SELECT v.scheduled_date FROM service_visits v WHERE v.job_id=s.id AND v.status='planned' ORDER BY v.scheduled_date LIMIT 1) AS next_visit
+   (SELECT v.scheduled_date FROM service_visits v WHERE v.job_id=s.id AND v.status='planned' ORDER BY v.scheduled_date LIMIT 1) AS next_visit,
+   (julianday('now')-julianday(t.created_at)>${LINK_MAX_DAYS} OR (s.stage IN ('accepted','collected','cancelled') AND julianday('now')-julianday(s.updated_at)>${CLOSED_GRACE_DAYS})) AS expired
   FROM service_tracking t JOIN service_jobs s ON s.id=t.job_id AND s.organization_id=t.organization_id
   JOIN work_orders w ON w.id=s.id AND w.organization_id=s.organization_id JOIN organizations o ON o.id=s.organization_id
   WHERE t.code_hash=? AND o.active=1`).bind(await tokenDigest(code)).first<Record<string,unknown>>();
  if(!row)return fail("Takip bağlantısı geçersiz veya yenilenmiş. Firmanızdan yeni bağlantı isteyin.",404);
+ // Güvenlik (#52): bağlantı süresiz açık kalmaz — en çok 90 gün; iş kapandıktan/iptalden 7 gün sonra kapanır.
+ if(Number(row.expired))return fail("Takip bağlantısının süresi doldu. Firmanızdan yeni bağlantı isteyin.",410);
  const quote=Number(row.quote_cents),paid=Number(row.paid_cents);
  return NextResponse.json({company:row.company,number:row.order_number,title:row.title,status:CUSTOMER_STAGE_LABELS[String(row.stage)]??"İşleniyor",
   stage:row.stage,updatedAt:row.updated_at,plannedDate:row.next_visit??row.scheduled_date??null,

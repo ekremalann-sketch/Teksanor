@@ -40,3 +40,15 @@ await test('takip sayfası arama motoruna kapalı ve kod adres çubuğunun # kı
  assert.match(readFileSync('app/servis/takip/layout.tsx','utf8'),/index: false/);
  assert.match(readFileSync('app/servis/takip/page.tsx','utf8'),/location\.hash/);
 });
+
+await test('#52: bağlantı süresiz değil — iş kapandıktan 7 gün sonra ve en çok 90 gün sonra kapanır',async()=>{
+ const id=await newJob();
+ const {code}=await (await create('boss',id)).json();
+ sql.prepare("UPDATE service_jobs SET stage='collected',updated_at=datetime('now','-6 days') WHERE id=?").run(id);
+ assert.equal((await view(code)).status,200,'kapanıştan sonraki 7 gün içinde açık');
+ sql.prepare("UPDATE service_jobs SET updated_at=datetime('now','-8 days') WHERE id=?").run(id);
+ const r=await view(code);assert.equal(r.status,410);assert.match((await r.json()).error,/süresi doldu/);
+ const id2=await newJob();const c2=(await (await create('boss',id2)).json()).code;
+ sql.prepare("UPDATE service_tracking SET created_at=datetime('now','-91 days') WHERE job_id=?").run(id2);
+ assert.equal((await view(c2)).status,410,'açık işte de 90 günden eski bağlantı kapanır');
+});

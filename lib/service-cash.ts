@@ -17,5 +17,6 @@ export function cashRange(period:string|null,from:string|null,to:string|null,tod
  if(period==="ozel"&&from&&to&&valid(from)&&valid(to)&&from<=to&&Date.parse(to)-Date.parse(from)<=366*86400000)return {from,to};
  return null;
 }
-export const csvCell=(v:unknown)=>{const s=String(v??"");const safe=/^[=+\-@\t\r]/.test(s)?"'"+s:s;return /[";\n]/.test(safe)?`"${safe.replace(/"/g,'""')}"`:safe;};
+// Formül enjeksiyonuna karşı = + - @ ile başlayan metne ' eklenir; yalnız sayı olan eksi tutarlar (ör. -12,50) sayı kalır (#53).
+export const csvCell=(v:unknown)=>{const s=String(v??"");const safe=/^-?\d+(?:[.,]\d+)?$/.test(s)?s:/^[=+\-@\t\r]/.test(s)?"'"+s:s;return /[";\n]/.test(safe)?`"${safe.replace(/"/g,'""')}"`:safe;};
 export const METHOD_LABELS:Record<string,string>={nakit:"Nakit",kart:"Kart",havale:"Havale/EFT",diger:"Diğer"};
