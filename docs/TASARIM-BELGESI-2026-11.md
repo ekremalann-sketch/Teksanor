@@ -219,7 +219,7 @@ Menü 5 ana maddeye iner: **Bugün, İşler, Takvim, Müşteriler, Para**. Ayarl
 | T11 | Tahsilatın cari hareket üretmesi, kasa/banka seçimi | Para tarafının tutarlılığı | Paraşüt, LinexServ | 1 | orta | kod | Cari ekstresi işle ve tahsilatla tutuyor |
 | T12 | Onay adımı (rol ya da kişi, açan kişi onaylayamaz seçeneği) | Teklif ve ek parça onayı | Odoo, Kissflow | 2 | orta | kod | Onaysız iş sonraki aşamaya geçemiyor |
 | T13 | Cümle biçimli kurallar (3 tetikleyici, 4 eylem) | Hatırlatma ve otomatik görev | monday | 2 | orta | kod + tasarım | "Müşteri onayı 2 gün bekleyince ofise bildir" kuralı kurulup çalışıyor |
-| T14 | Aşama silmede taşıma sorusu, akış sürümü, "12 işi etkiler" önizlemesi | Yarıdaki işler bozulmasın | Jira | 2 | orta | kod | Silinen aşamadaki işler seçilen aşamaya geçiyor, geçmişe yazılıyor |
+| T14 ✅ #72 | Aşama silmede taşıma sorusu, akış sürümü, "12 işi etkiler" önizlemesi | Yarıdaki işler bozulmasın | Jira | 2 | orta | kod | Silinen aşamadaki işler seçilen aşamaya geçiyor, geçmişe yazılıyor |
 | T15 | Bekleme kuyruğu (parça ya da müşteri cevabı, bitiş tarihli) | Türk servisinde en sık durum | ServiceM8 | 2 | kolay | kod | Süre dolunca iş planlanmamış listeye dönüyor |
 | T16 | Dispeç panosu: sürükle-bırak, telefonda kullanılabilir | Planlama | ServiceM8, Jobber | 2 | orta | kod | 375 piksel ekranda yatay kaydırma gerekmiyor |
 | T17 | "WhatsApp'ta aç" bağlantısıyla mesaj (teklif, onay, yoldayım) | Türk müşterinin kanalı | Servis Pozitif, LinexServ, Logo İşbaşı | 2 | kolay | kod | Mesaj hazır metinle WhatsApp'ta açılıyor |
