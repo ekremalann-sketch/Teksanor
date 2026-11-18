@@ -7,7 +7,7 @@ import {getMemberAccess} from "@/lib/access";
 import {getDb,createId,auditStatement} from "@/lib/db";
 import {cents,totals,serviceJob,ensureServiceColumns,ServiceRuleError} from "@/lib/service";
 import {canTransition,missingRequired} from "@/lib/flow-definition";
-import {buildFlow,loadFlow,loadFlowCustom} from "@/lib/flow-store";
+import {buildFlow,loadFlow,loadFlowCustom,mayApprove} from "@/lib/flow-store";
 import {tokenDigest} from "@/lib/account-tokens";
 import {rejectCrossSiteMutation} from "@/lib/security";
 import {isSafeSignaturePath} from "@/lib/signature";
@@ -56,17 +56,26 @@ async function handle(request:Request){
     return NextResponse.json({stages:stages.results,late:late.results,bottleneck,approximate:true},{headers:{"Cache-Control":"private, no-store"}});
    }
 
+   const {custom}=await loadFlowCustom(db,organization.id);const flow=buildFlow(custom);
+   // T12: kişiye atanmış onay adımında bekleyen işler, o kişinin listesinde de görünür.
+   const myApprovalStages=flow.stages.filter(st=>st.approval?.by==="user"&&st.approval.userId===user.id).map(st=>st.key);
    const lastApproval=(column:string)=>`(SELECT x.${column} FROM service_approvals x WHERE x.job_id=s.id AND x.organization_id=s.organization_id AND x.approved_at IS NOT NULL ORDER BY x.approved_at DESC,x.created_at DESC,x.rowid DESC LIMIT 1)`;
    const jobs=await db.prepare(`SELECT w.title,w.description,w.customer_name,w.location,w.scheduled_date,w.order_number,w.assigned_to,s.*,a.asset_code,a.name AS asset_name,
-    ${lastApproval("purpose")} AS approval_purpose,${lastApproval("approved_by")} AS approved_by,${lastApproval("approved_at")} AS approved_at,${lastApproval("signature_path")} AS signature_path
+    ${lastApproval("purpose")} AS approval_purpose,${lastApproval("approved_by")} AS approved_by,${lastApproval("approved_at")} AS approved_at,${lastApproval("signature_path")} AS signature_path,
+    EXISTS(SELECT 1 FROM service_stage_approvals sa WHERE sa.job_id=s.id AND sa.organization_id=s.organization_id AND sa.stage=s.stage AND sa.job_version=s.version) AS stage_approved,
+    w.created_by AS job_created_by
     FROM service_jobs s JOIN work_orders w ON w.id=s.id AND w.organization_id=s.organization_id
     LEFT JOIN assets a ON a.id=s.asset_id AND a.organization_id=s.organization_id
-    WHERE s.organization_id=? AND (?=1 OR s.assigned_user_id=?) ORDER BY (s.id=?) DESC,s.updated_at DESC LIMIT 200`).bind(organization.id,manage?1:0,user.id,txt(new URL(request.url).searchParams.get("job"),100)).all<Record<string,unknown>>();
-   for(const j of jobs.results){if(!isSafeSignaturePath(j.signature_path))j.signature_path=null;if(manage)Object.assign(j,totals(j as never));else for(const key of ["labor_cents","parts_cents","travel_cents","paid_cents"])delete j[key];}
+    WHERE s.organization_id=? AND (?=1 OR s.assigned_user_id=? OR s.stage IN (SELECT value FROM json_each(?))) ORDER BY (s.id=?) DESC,s.updated_at DESC LIMIT 200`).bind(organization.id,manage?1:0,user.id,JSON.stringify(myApprovalStages),txt(new URL(request.url).searchParams.get("job"),100)).all<Record<string,unknown>>();
+   for(const j of jobs.results){
+    const st=flow.stages.find(x=>x.key===j.stage);
+    j.stage_approved=Boolean(j.stage_approved);
+    j.can_approve=!j.stage_approved&&mayApprove(st,user.id,manage)&&!(st?.approval?.notCreator&&j.job_created_by===user.id);
+    delete j.job_created_by;
+    if(!isSafeSignaturePath(j.signature_path))j.signature_path=null;if(manage)Object.assign(j,totals(j as never));else for(const key of ["labor_cents","parts_cents","travel_cents","paid_cents"])delete j[key];}
    const assets=access.viewModules.includes("assets")?await db.prepare("SELECT id,name,asset_code FROM assets WHERE organization_id=? ORDER BY name LIMIT 500").bind(organization.id).all():{results:[]};
    const members=manage?await db.prepare("SELECT u.id,u.username,u.full_name FROM users u JOIN organization_members m ON m.user_id=u.id WHERE m.organization_id=? AND m.active=1 AND u.active=1").bind(organization.id).all():{results:[]};
    await recordRead(user.id,organization.id,"service-jobs:list");
-   const {custom}=await loadFlowCustom(db,organization.id);const flow=buildFlow(custom);
    const stageLabels={...Object.fromEntries((custom.extra??[]).map(e=>[e.key,e.label])),...(custom.labels??{})};
    return NextResponse.json({flow,stageLabels,jobs:jobs.results,assets:assets.results,members:members.results,manage,canWrite,userId:user.id,organization:{id:organization.id,name:organization.name}});
   }
@@ -97,8 +106,28 @@ async function handle(request:Request){
    return NextResponse.json({ok:true,id},{status:201});
   }
   const id=txt(b.id,100);const job=await serviceJob(id,organization.id);
-  if(!job||(!manage&&job.assigned_user_id!==user.id))return NextResponse.json({error:"Servis kaydı bulunamadı."},{status:404});
+  const flow=await loadFlow(db,organization.id);
+  const jobStage=flow.stages.find(st=>st.key===String(job?.stage));
+  // T12: onaylayacak kişi, kendisine atanmamış işi yalnız onaylamak için açabilir.
+  const approverOnly=Boolean(job)&&!manage&&job?.assigned_user_id!==user.id&&mayApprove(jobStage,user.id,manage);
+  if(approverOnly&&b.action!=="approve-stage")return NextResponse.json({error:"Servis kaydı bulunamadı."},{status:404});
+  if(!job||(!manage&&job.assigned_user_id!==user.id&&!approverOnly))return NextResponse.json({error:"Servis kaydı bulunamadı."},{status:404});
   if(Number(b.version)!==Number(job.version))return NextResponse.json({error:"Kayıt başka bir işlemle güncellendi. Yenileyin."},{status:409});
+  if(b.action==="approve-stage"){
+   // T12: onay adımı. Yetki sunucuda: yönetici ya da akışta seçilen kişi; "açan kişi onaylayamaz" seçiliyse işi açan onaylayamaz.
+   if(!jobStage?.approval)throw new ServiceRuleError("Bu aşamada onay gerekmiyor.");
+   if(!mayApprove(jobStage,user.id,manage))return NextResponse.json({error:"Bu onayı vermeye yetkiniz yok."},{status:403});
+   const creator=await db.prepare("SELECT created_by FROM work_orders WHERE id=? AND organization_id=?").bind(id,organization.id).first<{created_by:string|null}>();
+   if(jobStage.approval.notCreator&&creator?.created_by===user.id)return NextResponse.json({error:"İşi açan kişi bu onayı veremez. Başka bir yetkili onaylamalı."},{status:403});
+   const [added]=await db.batch([
+    db.prepare(`INSERT OR IGNORE INTO service_stage_approvals(organization_id,job_id,stage,job_version,approved_by)
+     SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM service_jobs WHERE id=? AND organization_id=? AND stage=? AND version=?) RETURNING job_id`)
+     .bind(organization.id,id,jobStage.key,job.version,user.id,id,organization.id,jobStage.key,job.version),
+    auditStatement(user.id,"approve_stage","service_job",id,`Onay: ${jobStage.label}`,organization.id,true),
+   ]);
+   if(!added.results?.length)return NextResponse.json({error:"Kayıt değişti veya zaten onaylandı. Yenileyin."},{status:409});
+   return NextResponse.json({ok:true});
+  }
   if(b.action==="quote-revise"){
    if(!manage)return NextResponse.json({error:"Teklifi yönetici düzenleyebilir."},{status:403});
    if(!["requested","quoted"].includes(String(job.stage)))throw new ServiceRuleError("Onaylanmış teklif değiştirilemez.");
@@ -177,8 +206,9 @@ async function handle(request:Request){
   }
   if(b.action!=="update")throw new ServiceRuleError("Geçersiz işlem.");
   // T5: firmanın kendi akışı (eklenen aşamalar dahil).
-  const flow=await loadFlow(db,organization.id);
   const stage=txt(b.stage,30)||String(job.stage);if(!canTransition(flow,String(job.stage),stage,true))throw new ServiceRuleError("Bu durum değişikliği için önceki adımları tamamlayın.");
+  // T12: onaysız iş, onay aşamasından ileri geçemez (iptal hariç). Onay işin o sürümüne bağlıdır; iş değişirse yeniden onay gerekir.
+  if(jobStage?.approval&&stage!==job.stage&&stage!=="cancelled"&&!await db.prepare("SELECT 1 FROM service_stage_approvals WHERE job_id=? AND organization_id=? AND stage=? AND job_version=?").bind(id,organization.id,jobStage.key,job.version).first())throw new ServiceRuleError(`"${jobStage.label}" onayı verilmeden iş ileri geçemez.`);
   if(!manage&&!canTransition(flow,String(job.stage),stage,false))throw new ServiceRuleError("Saha kaydı için onaylı veya devam eden iş seçin.");
   const outcome=b.outcome===undefined?String(job.outcome):txt(b.outcome,6000);
   // T4: aşamanın zorunlu alanları akış tanımından.

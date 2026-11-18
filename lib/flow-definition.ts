@@ -5,7 +5,8 @@
 export type StepHint =
   | { kind: "stage"; label: string; stage: string; hint: string; needsNote?: boolean }
   | { kind: "share"; label: string; purpose: "quote" | "completion"; hint: string }
-  | { kind: "info"; hint: string };
+  | { kind: "info"; hint: string }
+  | { kind: "approve"; label: string; stage: string; hint: string };
 
 export type RequiredField = { field: "outcome" | "quote_cents" | "scheduled_date" | "assigned_user_id"; message: string };
 
@@ -19,6 +20,8 @@ export type FlowStage = {
   staffNext?: string[];
   step: { manage: StepHint; staff: StepHint };
   closed?: boolean;
+  /** T12: onay adımı — iş bu aşamadan ancak onaylandıktan sonra ileri geçer. */
+  approval?: { by: "manager" | "user"; userId?: string; notCreator: boolean };
 };
 export type FlowDefinition = { key: string; label: string; version: number; stages: FlowStage[] };
 

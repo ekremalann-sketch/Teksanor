@@ -217,7 +217,7 @@ Menü 5 ana maddeye iner: **Bugün, İşler, Takvim, Müşteriler, Para**. Ayarl
 | T8 ✅ #69 | Dönüştürme düğmeleri: talep → teklif → iş, tamamla → tahsil et | Bugün teklif ve tahsilat adımında düğme yok | Jobber | 1 | orta | kod (PR #49 ve #53 gözden geçirilir) | Hiçbir adımda açılır listeden aşama seçmek gerekmiyor |
 | T9 ✅ #70 | Fotoğraf yükleme (güvenli tarama ile) | Saha kanıtı. Bugün kapalı. | ServiceM8, Servis Pozitif | 1 | orta | kod (tarama servisi: **karar-sözleşme** olabilir) | Teknisyen telefondan fotoğraf ekleyebiliyor |
 | T11 | Tahsilatın cari hareket üretmesi, kasa/banka seçimi | Para tarafının tutarlılığı | Paraşüt, LinexServ | 1 | orta | kod | Cari ekstresi işle ve tahsilatla tutuyor |
-| T12 | Onay adımı (rol ya da kişi, açan kişi onaylayamaz seçeneği) | Teklif ve ek parça onayı | Odoo, Kissflow | 2 | orta | kod | Onaysız iş sonraki aşamaya geçemiyor |
+| T12 ✅ #73 | Onay adımı (rol ya da kişi, açan kişi onaylayamaz seçeneği) | Teklif ve ek parça onayı | Odoo, Kissflow | 2 | orta | kod | Onaysız iş sonraki aşamaya geçemiyor |
 | T13 | Cümle biçimli kurallar (3 tetikleyici, 4 eylem) | Hatırlatma ve otomatik görev | monday | 2 | orta | kod + tasarım | "Müşteri onayı 2 gün bekleyince ofise bildir" kuralı kurulup çalışıyor |
 | T14 ✅ #72 | Aşama silmede taşıma sorusu, akış sürümü, "12 işi etkiler" önizlemesi | Yarıdaki işler bozulmasın | Jira | 2 | orta | kod | Silinen aşamadaki işler seçilen aşamaya geçiyor, geçmişe yazılıyor |
 | T15 | Bekleme kuyruğu (parça ya da müşteri cevabı, bitiş tarihli) | Türk servisinde en sık durum | ServiceM8 | 2 | kolay | kod | Süre dolunca iş planlanmamış listeye dönüyor |
