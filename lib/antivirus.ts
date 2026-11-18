@@ -8,3 +8,6 @@ export async function scanMalware(buffer:ArrayBuffer,contentType:string){
  if(!r.ok)throw new Error("Dosya tarama hizmetine erişilemedi.");
  const result=await r.json() as {clean?:boolean};if(result.clean!==true)throw new Error("Dosya güvenlik taramasından geçemedi.");return "clean";
 }
+
+/** Tarama hizmeti tanımlı mı (adres ve belirteç). */
+export function scannerConfigured(){const c=env as unknown as {FILE_SCAN_URL?:string;FILE_SCAN_TOKEN?:string};return Boolean(c.FILE_SCAN_URL&&c.FILE_SCAN_TOKEN);}
