@@ -54,3 +54,9 @@ await test('dönem hesapları',async()=>{
  assert.deepEqual(cashRange('ay',null,null,'2026-11-11'),{from:'2026-11-01',to:'2026-11-11'});
  assert.equal(cashRange('ozel','2026-11-12','2026-11-11','2026-11-11'),null);
 });
+
+test('#53: CSV — eksi tutarlar sayı kalır, formül gibi başlayan metin yine korunur',()=>{
+ const {csvCell}=api.cashLib;
+ assert.equal(csvCell('-125,50'),'-125,50');assert.equal(csvCell('-3.00'),'-3.00');assert.equal(csvCell('42'),'42');
+ assert.equal(csvCell('-1+1'),"'-1+1");assert.equal(csvCell('=SUM(A1)'),"'=SUM(A1)");assert.equal(csvCell('@x'),"'@x");
+});
