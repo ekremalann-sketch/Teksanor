@@ -180,3 +180,6 @@
 .service-stock-low td{background:rgb(255 250 240)}
 .service-table-wrap{overflow-x:auto}
 .service-check{display:flex;align-items:center;gap:8px}
+
+/* T9: saha fotoğrafları */
+.service-photos{display:grid;gap:10px}.service-photo-list{list-style:none;padding:0;margin:0;display:grid;gap:6px}.service-photo-list li{display:grid}.service-photo-list small{color:rgb(79 97 120)}

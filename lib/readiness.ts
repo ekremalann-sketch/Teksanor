@@ -21,7 +21,7 @@ export const workingModules = [
   { name: "İş emri ve saha ziyareti", status: "partial" as ReadinessStatus, note: "İş emri ve ziyaret kaydı var; fotoğraf kanıtı/versiyon/onay bağları daha da güçlendirilmeli." },
   { name: "Varlık envanteri ve periyodik bakım", status: "done" as ReadinessStatus, note: "Ekipman kodu, konum, sorumlu, durum, bakım sıklığı ve otomatik sonraki bakım tarihi çalışır." },
   { name: "Satın alma, CRM, İK ve risk", status: "partial" as ReadinessStatus, note: "Temel kayıt, listeleme, durum ve silme/güncelleme akışları var; ileri raporlama ve entegrasyonlar sonraki faz." },
-  { name: "Dosya yükleme", status: "partial" as ReadinessStatus, note: "Canlı demoda kapalı: R2 bağlı değil, yükleme kullanılamaz. Kod hazır: boyut, MIME, uzantı ve magic-byte kontrolü; gerçek AV/karantina servisi ayrı faz." },
+  { name: "Dosya yükleme", status: "partial" as ReadinessStatus, note: "Canlı demoda kapalı: R2 bağlı değil, yükleme kullanılamaz. Kod hazır: boyut, MIME, uzantı ve magic-byte kontrolü; gerçek AV/karantina servisi ayrı faz. Saha fotoğrafı (telefonda yeniden kodlanmış WebP) tarama hizmeti olmadan, yalnız R2 bağlanınca açılır." },
   { name: "Excel/CSV içe aktarma", status: "done" as ReadinessStatus, note: "xlsx kaldırıldı; ExcelJS + Türkçe para/ondalık parser kullanılır." },
   { name: "Otomasyon ve yapay zekâ ajanları", status: "partial" as ReadinessStatus, note: "Ajan sohbeti ve otomatik özet var; bağlantı yoksa açıkça etiketlenmiş kayıt özeti gösterilir." },
 ] as const;

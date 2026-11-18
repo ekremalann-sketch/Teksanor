@@ -1,4 +1,5 @@
 "use client";
+import PhotoPanel from "./photo-panel";
 import {transitionsOf,TECHNICAL_SERVICE_FLOW} from "@/lib/flow-definition";
 import {goToLogin,goToMfaSetup} from "@/lib/workspace-navigation";
 import {organizationFetch,rememberOrganization,storedOrganization} from "@/lib/org-client";
@@ -78,7 +79,7 @@ export default function Service(){
  {data&&<ChecklistPanel key={current.id} jobId={current.id} organizationId={data.organization.id}/>}
  {data&&<TrackingPanel key={"trk:"+current.id} jobId={current.id} organizationId={data.organization.id} title={current.title} customer={current.customer_name} stage={current.stage} remainingCents={current.remaining_cents}/>}
  {data?.manage&&<PaymentsPanel key={"pay:"+data.organization.id+":"+current.id} jobId={current.id} organizationId={data.organization.id} version={current.version} stage={current.stage} onChanged={load}/>}
- {data&&<PartsPanel key={"parts:"+data.organization.id+":"+current.id} jobId={current.id} organizationId={data.organization.id} version={current.version} stage={current.stage} manage={data.manage} canWrite={data.canWrite} onChanged={load}/>}
+ {data&&<PhotoPanel key={"ph:"+data.organization.id+":"+current.id} jobId={current.id} organizationId={data.organization.id} canWrite={!!data.canWrite&&!["collected","cancelled"].includes(current.stage)}/>}{data&&<PartsPanel key={"parts:"+data.organization.id+":"+current.id} jobId={current.id} organizationId={data.organization.id} version={current.version} stage={current.stage} manage={data.manage} canWrite={data.canWrite} onChanged={load}/>}
  {data&&<VisitPanel key={data.organization.id+":"+current.id} jobId={current.id} organizationId={data.organization.id}
   version={current.version} stage={current.stage} manage={data.manage} canWrite={data.canWrite} members={data.members} onChanged={load}/>}
  <div className="service-actions">{data?.manage&&<button type="button" onClick={()=>{setPrefill(current);setCreating(true);window.scrollTo({top:0,behavior:"smooth"});}}>Bu işi tekrar aç</button>}{data?.manage&&["accepted","collected"].includes(current.stage)&&<a className="service-open-link" href={`/api/service/invoice?id=${encodeURIComponent(current.id)}&organizationId=${encodeURIComponent(data.organization.id)}&vat=20`} download>Muhasebe XML ön taslağı (KDV %20)</a>}{data?.manage&&["quoted","completed"].includes(current.stage)&&<button disabled={busy||offline} onClick={()=>void act({action:"share",id:current.id,version:current.version,purpose:current.stage==="quoted"?"quote":"completion"})}>Müşteri onay bağlantısı oluştur</button>}<button onClick={()=>window.print()}>Servis formu / PDF</button>{data?.manage&&(next[current.stage]||[]).includes("cancelled")&&<button type="button" className="service-danger" disabled={busy||offline} onClick={()=>{if(window.confirm("Bu iş iptal edilsin mi?"))void act({action:"update",id:current.id,version:current.version,stage:"cancelled",outcome:note});}}>İşi iptal et</button>}</div>
