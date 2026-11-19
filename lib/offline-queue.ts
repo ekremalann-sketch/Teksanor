@@ -6,8 +6,16 @@ export type QueuedAction = { id: string; at: number; body: Record<string, unknow
 export const QUEUEABLE = new Set(["update", "travel"]);
 const key = (userId: string, orgId: string) => `teksanor-offline-queue:${userId}:${orgId}`;
 
-export function readQueue(userId: string, orgId: string): QueuedAction[] {
-  try { const v = JSON.parse(localStorage.getItem(key(userId, orgId)) || "[]"); return Array.isArray(v) ? v.slice(0, 50) : []; } catch { return []; }
+// Güvenlik (18 Kasım bulgusu): sıradaki kayıtlar en çok 24 saat tutulur; çıkışta tümü silinir (clearQueues).
+export const QUEUE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+export function readQueue(userId: string, orgId: string, now = Date.now()): QueuedAction[] {
+  try { const v = JSON.parse(localStorage.getItem(key(userId, orgId)) || "[]"); return Array.isArray(v) ? v.filter((q) => typeof q?.at === "number" && now - q.at < QUEUE_MAX_AGE_MS).slice(0, 50) : []; } catch { return []; }
+}
+/** Çıkışta bu cihazdaki tüm çevrimdışı kuyrukları siler (ortak cihazda başkası görmesin). */
+export function clearQueues(storage: Storage) {
+  const keys: string[] = [];
+  for (let i = 0; i < storage.length; i++) { const k = storage.key(i); if (k?.startsWith("teksanor-offline-queue:")) keys.push(k); }
+  for (const k of keys) storage.removeItem(k);
 }
 function write(userId: string, orgId: string, list: QueuedAction[]) {
   try { if (list.length) localStorage.setItem(key(userId, orgId), JSON.stringify(list)); else localStorage.removeItem(key(userId, orgId)); } catch { /* depolama kapalıysa sıra tutulamaz */ }
