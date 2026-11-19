@@ -1,6 +1,5 @@
-# Teksanor güvenlik bildirimi / security contact
 Contact: https://github.com/ekremalann-sketch/Teksanor/security/advisories/new
-Policy: https://github.com/ekremalann-sketch/Teksanor/blob/main/SECURITY.md
+Expires: 2027-11-19T00:00:00.000Z
 Preferred-Languages: tr, en
 Canonical: https://teksanor.pages.dev/.well-known/security.txt
-Expires: 2027-09-25T00:00:00.000Z
+Policy: https://teksanor.pages.dev/guven#acik-bildirme
