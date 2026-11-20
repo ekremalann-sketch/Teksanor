@@ -85,7 +85,7 @@ function Overview({ onOpen, onNetwork, onReport }: { onOpen: (slug: string) => v
       <Kpi label="Beklemede" value={totals.blocked} tone={totals.blocked ? "amber" : undefined} active={filter === "blocked"} onClick={pick("blocked")} />
     </section>}
     {filter !== "all" && <p className="dept-filter">Yalnız {FILTER_LABEL[filter].toLocaleLowerCase("tr-TR")} olan birimler gösteriliyor. <button type="button" onClick={() => setFilter("all")}>Filtreyi kaldır</button></p>}
-    {data && totals.open === 0 && ["Firma sahibi", "Firma yöneticisi", "Platform yetkilisi"].includes(data.label) && <div className="dept-empty"><h2>Henüz süreç yok</h2><p>Ekranların nasıl çalıştığını görmek için örnek süreçler ekleyebilirsiniz. Başlıkları “[Örnek]” ile başlar; iptal ederek kaldırabilirsiniz.</p><div className="service-actions"><button type="button" className="primary" onClick={() => call("/api/departments", { method: "POST", body: JSON.stringify({ action: "demo.seed" }) }).then(() => call<{ departments: Summary[]; label: string; organization: { name: string } }>("/api/departments").then(setData)).catch((e) => setMsg(e.message))}>Örnek süreçleri ekle</button></div></div>}
+    {data && totals.open === 0 && <div className="dept-empty"><h2>Açık süreç yok</h2><p>Yeni bir iş veya talep başlatmak için ilgili birimi açın.</p></div>}
     <section className="dept-tiles" aria-label="Birim listesi">
       {sorted.map((d) => <button type="button" key={d.slug} className={`dept-tile ${d.overdue ? "alert" : ""}`} onClick={() => onOpen(d.slug)} aria-label={`${d.short} (${d.name}): ${d.open} açık, ${d.overdue} geciken. Birimi aç`}>
         <span className="dept-tile-head"><b>{d.short}</b>{d.role === "member" && <em>Talep</em>}</span>
@@ -259,7 +259,7 @@ function DepartmentWorkspace({ slug, onBack, onOpen }: { slug: string; onBack: (
           </div>
           {showClosed && <ClosedList items={list.filter((p) => p.status === "done" || p.status === "cancelled")} onOpen={(p) => setSelected(p)} />}
         </> : <>
-          {processes.length === 0 && <div className="dept-empty"><h2>Bu birimde henüz süreç yok</h2><p>{role === "manage" ? "Sağ üstteki düğmeyle ilk süreci başlatın. Örnek: " : "Talep oluşturabileceğiniz süreçler: "}{templates.map((t) => t.label).join(", ")}.</p></div>}
+          {processes.length === 0 && <div className="dept-empty"><h2>Bu birimde henüz süreç yok</h2><p>{role === "manage" ? "Sağ üstteki düğmeyle süreç başlatın. Kullanılabilir süreçler: " : "Talep oluşturabileceğiniz süreçler: "}{templates.map((t) => t.label).join(", ")}.</p></div>}
           {processes.length > 0 && list.length === 0 && <p className="checklist-muted">Bu filtreye uyan süreç yok.</p>}
           <div className="dept-list">{list.map((p) => <Card key={p.id} p={p} wide template={tplOf(p.template_key)?.label} active={selected?.id === p.id} onOpen={() => { setSelected(p); setCreating(false); }} />)}</div>
         </>}

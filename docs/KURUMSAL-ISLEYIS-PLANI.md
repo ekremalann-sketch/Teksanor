@@ -11,7 +11,7 @@ Kurumsal sitede hizmet, referans, servis talebi ve takip görünür. İşletme p
 | Finans | Ödeme isteği, belge kontrolü, yetkili karar | Mutabakat |
 | Kalite veya hukuk | Olay, inceleme, karar, kanıt | Düzeltici faaliyet veya sözleşme |
 
-Bağlı iş kaydı firma, kaynak iş, hedef birim ve atanmış sorumlu taşır. Onay hedef kuyruğuna geçirir, ret gerekçesiyle mevcut sorumluya döner. Sürüm ve tekil olay kimliği üzerinden aynı kararın ikinci iş üretmesi engellenir. İzlenebilirlik kaydı, durum güncellemesiyle birlikte yazılır. API karar cevabı ekranın kullanacağı kayıt kimliği ve aşamayı taşır.
+Mevcut Birimler ekranı süreç ağını gösterir ve tanımlı sonuçlarda takip işlerinin başlatıldığını bildirir. Servis, satın alma ve finans modüllerinde bu davranışın kapsamı ayrı doğrulanır. Bağlı iş kaydı firma, kaynak iş, hedef birim ve atanmış sorumlu taşır. Onay hedef kuyruğuna geçirir, ret gerekçesiyle mevcut sorumluya döner. Sürüm ve tekil olay kimliği üzerinden aynı kararın ikinci iş üretmesi engellenir. İzlenebilirlik kaydı, durum güncellemesiyle birlikte yazılır. API karar cevabı ekranın kullanacağı kayıt kimliği ve aşamayı taşır.
 
 Firma ayrımı her sorguya taşınır. Görüntüleme, düzenleme ve imza yetkileri ayrı tutulur. Finans ve satın almada tutara göre ikinci göz kontrolü uygulanır. Ekler depolama ve zararlı içerik kontrolü aktifken kabul edilir. Finans, müşteri ve sözleşme verilerinin dış hizmetlere aktarımı ayrıca yetkilendirilir.
 
