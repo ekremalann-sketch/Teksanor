@@ -32,7 +32,7 @@ export function PublicFooter() {
         <p>Teknik hizmet, mühendislik ve saha operasyonlarını ölçülebilir bir çalışma düzeninde birleştiren kurumsal operasyon platformu.</p>
         <span><MapPin size={16} /> Türkiye</span>
       </div>
-      <div><b>Platform</b><Link href="/platform">Modüller</Link><Link href="/entegrasyonlar">Entegrasyonlar</Link><Link href="/guven">Güven merkezi</Link><Link href="/kurumsal-durum">Ürün durumu</Link></div>
+      <div><b>Platform</b><Link href="/platform">Modüller</Link><Link href="/entegrasyonlar">Entegrasyonlar</Link><Link href="/guven">Güven merkezi</Link><Link href="/kurumsal-durum">Ürün durumu</Link><Link href="/durum">Hizmet durumu</Link></div>
       <div><b>Çözümler</b><Link href="/sektorler/teknik-servis">Teknik servis</Link><Link href="/sektorler/bakim-onarim">Bakım ve onarım</Link><Link href="/sektorler/muhendislik-taahhut">Mühendislik ve taahhüt</Link></div>
       <div><b>Başlangıç</b><Link href="/pilot">Pilot programı</Link><Link href="/fiyatlandirma">Paketler</Link><Link href="/yardim">Yardım merkezi</Link><Link href="/en" hrefLang="en">English</Link><a href="mailto:bilgi@teksanor.com"><Mail size={14} /> İletişim</a></div>
       <div className="enterprise-footer-bottom">

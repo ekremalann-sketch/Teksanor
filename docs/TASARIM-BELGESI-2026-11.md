@@ -271,7 +271,7 @@ Kaynak: 18 Kasım derin araştırma raporu ("Klinorbis klinik dışı hastane ot
 | Kimlik | Madde | Neden | Ölçüt | Efor | Durum |
 |---|---|---|---|---|---|
 | TG1 ✅ #78 | /guvenlik sayfası + /.well-known/security.txt (barındırma, veri yeri, şifreleme, MFA, roller, denetim kaydı, yedek sıklığı, açık bildirme) | Kurumsal alıcının ilk baktığı yer; ücretsiz | Sayfa ve security.txt yayında, iddialar kodla tutarlı | 1 gün | kod |
-| TG2 | Herkese açık durum sayfası (/durum) + sağlık ucu (veritabanı, depolama) | Güven işareti | Son 90 gün çalışma kaydı görünür | 1 gün | kod |
+| TG2 | Herkese açık durum sayfası (/durum) + sağlık ucu (veritabanı, depolama) | Güven işareti | Son 90 gün çalışma kaydı görünür | 1 gün | kod — ✅ #79 |
 | TG3 | Hukuki set: KVKK/GDPR md. 28 veri işleme sözleşmesi şablonu, alt işleyen listesi, saklama ve çıkış (veri teslimi) politikası | Kurumsal satın alma şartı | Sayfalar yayında; metin **avukat onayı** bekler | 2–3 gün | kod + karar-sözleşme |
 | TG4 | SSO: Microsoft (Entra ID) ve Google ile giriş (OIDC), firma bazında "SSO zorunlu" | En sık sorulan kurumsal özellik | Firma yöneticisi açınca parola girişi kapanır | 1 hafta | kod |
 | TG5 | Firma bazlı API anahtarı + HMAC imzalı webhook (iş açıldı, durum değişti, teklif onaylandı, ödeme alındı) + OpenAPI belgesi | Entegrasyon | Webhook imzası doğrulanıyor, tekrar reddediliyor | 1–2 hafta | kod |

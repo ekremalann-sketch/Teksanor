@@ -33,6 +33,7 @@ export const PUBLIC_PAGES: Array<{ path: string; title: string; description: str
   { path: "/sektorler/muhendislik-taahhut", title: "Mühendislik ve taahhüt", description: "Proje, saha, satın alma ve bütçeyi aynı ilerleme görünümünde birleştirin." },
   { path: "/entegrasyonlar", title: "Entegrasyonlar", description: "Kur, dosya, API ve bildirim bağlantıları; her bağlantının durumu ve veri yönü açıkça gösterilir, çalışmayan bağlantı hazırmış gibi sunulmaz." },
   { path: "/guven", title: "Güven merkezi", description: "Verinin nerede işlendiği, kimin erişebildiği, hangi güvenlik kontrollerinin uygulandığı ve hangilerinin henüz tamamlanmadığı." },
+  { path: "/durum", title: "Hizmet durumu", description: "Teksanor hizmetinin anlık durumu ve son 90 günün yoklama kaydı; yoklama yapılmayan günler boş bırakılmadan veri yok olarak gösterilir." },
   { path: "/kurumsal-durum", title: "Ürün durumu ve yol haritası", description: "Teksanor'un çalışan modülleri, açık riskleri, pilot öncesi yapılacakları ve hazırlık yol haritası." },
   { path: "/pilot", title: "Kontrollü pilot", description: "Büyük sözleşmeden önce gerçek işte kanıtlanan, 6–12 haftalık sınırlı kapsamlı pilot modeli." },
   { path: "/fiyatlandirma", title: "Fiyatlandırma", description: "Fiyat, kullanıcı sayısından önce çözülen işin kapsamına göre belirlenir: pilot, operasyon ve kurumsal kapsam." },
