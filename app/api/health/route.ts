@@ -1,6 +1,7 @@
 import {env} from "cloudflare:workers";
 import {NextResponse} from "next/server";
 import {ensureSchema,getDb} from "@/lib/db";
+import {recordStatus} from "@/lib/status-log";
 
 declare const __TEKSANOR_COMMIT__:string;
 
@@ -26,6 +27,8 @@ export async function GET(){
   if(bucket)await bucket.head("__teksanor_health_probe__");
   const scan=env as unknown as {FILE_SCAN_URL?:string;FILE_SCAN_TOKEN?:string};
   const fileUploads=!!bucket&&!!scan.FILE_SCAN_URL&&!!scan.FILE_SCAN_TOKEN;
+  // TG2: herkese açık durum sayfasının günlük kaydı (en iyi çaba; yanıtı etkilemez).
+  await recordStatus(true,null).catch(()=>undefined);
 
   return NextResponse.json(
    {ok:true,version:__TEKSANOR_COMMIT__,checkedAt:new Date().toISOString(),capabilities:{storage:bucket?"available":"disabled",fileUploads:fileUploads?"configured":"disabled"},warnings:!bucket?["Dosya yükleme kapalı: UPLOADS bağlantısı yapılandırılmadı."]:!fileUploads?["Dosya yükleme kapalı: güvenli tarama hizmeti yapılandırılmadı."]:[]},
@@ -36,6 +39,7 @@ export async function GET(){
    dependency,
    message:error instanceof Error?error.message:"Bilinmeyen hata",
   });
+  if(dependency!=="database")await recordStatus(false,dependency).catch(()=>undefined);
   return NextResponse.json(
    {ok:false,version:__TEKSANOR_COMMIT__,checkedAt:new Date().toISOString(),code:"DEPENDENCY_NOT_READY",dependency,message:"Servis bağımlılıkları hazır değil."},
    {status:503,headers:{"Cache-Control":"no-store"}},

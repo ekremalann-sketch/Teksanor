@@ -1,0 +1,18 @@
+name: Teksanor Durum Yoklaması
+
+# TG2: herkese açık durum sayfasının (/durum) günlük kaydı için /api/health'i düzenli yoklar.
+# Yalnız okuma isteği atar; sır kullanmaz; dış eylem kullanmaz.
+on:
+  schedule:
+    - cron: "7,37 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  yokla:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Sağlık ucunu yokla
+        run: curl --silent --show-error --max-time 25 --output /dev/null --write-out "%{http_code}\n" https://teksanor.pages.dev/api/health
