@@ -1047,13 +1047,13 @@ function AdminCenter({ canManage, platformAdmin, organizationName, onAddUser, on
       <article><ShieldCheck size={22} /><h3>Yetki kuralları</h3><p>İş açma yetkisi birime göredir: birim sorumlusu süreç başlatır, çalışan yalnız açık talep türlerini kullanır. Talep eden kendi talebini onaylayamaz.</p><a className="outline-button" href="/birimler">Birimleri incele</a></article>
     </div>}
     {tab === "data" && <div className="admin-grid">
+      <article><Workflow size={22} /><h3>İş tanımları</h3><p>Firmanızın birimlerini ve işlerini tanımlayın: aşamalar, onaylayan roller, süre hedefi, ret ve birimler arası aktarım.</p><a className="panel-primary" href="/birimler/is-tanimlari">İş tanımlarını aç <ArrowRight size={16} /></a></article>
       <article><Database size={22} /><h3>Veri yönetimi</h3><p>Saklama politikaları, ilgili kişi başvuruları ve dışa aktarma kayıtları.</p><a className="panel-primary" href="/veri-yonetimi">Veri yönetimini aç <ArrowRight size={16} /></a></article>
       <article><Files size={22} /><h3>İşlem geçmişi</h3><p>Kim, ne zaman, hangi kaydı değiştirdi; şirket merkezindeki son faaliyetler ve kayıt detaylarında görünür.</p></article>
     </div>}
     {tab === "platform" && <div className="admin-platform">
       <div className="admin-grid">
         <article><Building2 size={22} /><h3>Firma gözünden gör</h3><p>Destek için bir firmanın panelini salt okunur açın. Değişiklik yapılamaz; her açılış gerekçesiyle kayda geçer.</p></article>
-        <article><Factory size={22} /><h3>Örnek işletme</h3><p>Kurgusal verilerle dolu bir tanıtım firması oluşturun; gerçek müşteri verisi içermez.</p><a className="outline-button" href="/ornek-isletme"><Plus size={16} /> Örnek işletme oluştur</a></article>
       </div>
       {platform}
     </div>}

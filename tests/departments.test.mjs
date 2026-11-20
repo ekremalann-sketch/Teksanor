@@ -107,13 +107,10 @@ await test('özet: gecikme ve onay bekleyen sayıları; başka firma süreçleri
   assert.equal((await post('boss',{action:'create',slug:'yok',template:'x',title:'x'})).status,404);
 });
 
-await test('örnek süreçler: yalnız firma yöneticisi, yalnız boş firmada',async()=>{
-  await h.user('newowner','c','owner','owner');await h.user('cemp','c','member','employee');
-  assert.equal((await post('cemp',{action:'demo.seed'},'c')).status,403);
-  const r=await post('newowner',{action:'demo.seed'},'c');assert.equal(r.status,201);
-  const n=sql.prepare("SELECT COUNT(*) AS n FROM department_processes WHERE organization_id='c'").get().n;assert.equal(n,8);
-  assert.equal((await post('newowner',{action:'demo.seed'},'c')).status,409);
-  assert.equal(sql.prepare("SELECT COUNT(*) AS n FROM department_processes WHERE organization_id='c' AND title NOT LIKE '[Örnek]%'").get().n,0);
+await test('örnek süreç ekleme kaldırıldı: boş firmaya kurgusal kayıt yazılmaz',async()=>{
+  await h.user('newowner','c','owner','owner');
+  assert.equal((await post('newowner',{action:'demo.seed'},'c')).status,404,'demo.seed artık birim işlemi değil');
+  assert.equal(sql.prepare("SELECT COUNT(*) AS n FROM department_processes WHERE organization_id='c'").get().n,0);
 });
 
 await test('süreç ağı: en az 100 süreç türü, tüm bağlantılar var olan sürece ve sonuca işaret eder',async()=>{

@@ -38,6 +38,8 @@ function seed(org){
     if(t==='agent_chats'){values.agent_name='Yönetim';values.access_scope=api.access.accessRules.owner.view.slice().sort().join(',');}
     if(t==='notifications')values.is_read=0;
     if(t==='department_process_events')values.process_id=`department_processes-${org}`;
+    if(t==='organization_departments')values.slug='f-gizli-birim';
+    if(t==='organization_workflow_templates'){values.department_slug='f-gizli-birim';values.template_key='f-gizli-surec';}
     const keys=Object.keys(values);
     sql.prepare(`INSERT INTO ${t}(${keys.join(',')}) VALUES(${keys.map(()=>'?').join(',')})`).run(...keys.map(k=>values[k]));
   }

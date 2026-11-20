@@ -7,6 +7,8 @@ import "./home-servis.css";
 // Ana sayfa: teknik servis işletmesine "ne işe yarar, nasıl çalışır, nasıl başlarım" sorularını sırayla yanıtlar.
 // Yalnız kodda çalışan özellikler anlatılır; planlanan özellikler "Yakında" olarak ayrı gösterilir.
 const features=[
+ {icon:Users,title:"Firmaya özel iş tanımları",text:"Birimlerinizi ve işlerinizi kendiniz tanımlayın: aşamalar, kim yapar, kim onaylar, kaç günde biter. Sistem sizin tanımınıza göre çalışır."},
+ {icon:CheckCircle2,title:"Onay ve birimler arası aktarım",text:"Onaylanan iş anında sonraki birime düşer; reddedilen iş gerekçesiyle düzeltmeye döner ya da tanımladığınız birimde yeni süreç açar."},
  {icon:Wrench,title:"Servis kaydı",text:"Müşteri, adres, cihaz ve arıza tek kayıtta. Kayıtlı müşterinin bilgileri yeniden yazılmaz."},
  {icon:FileSignature,title:"Teklif ve müşteri onayı",text:"Parça ve işçilik kalemleriyle teklif hazırlayın. Müşteri WhatsApp'tan gelen bağlantıyla telefonundan onaylar veya gerekçesiyle reddeder."},
  {icon:Smartphone,title:"Teknisyen telefonda",text:"Teknisyen yalnız kendi işlerini görür; işe başlar, not yazar, kontrol listesini doldurur, müşteriye yerinde imza attırır."},
@@ -55,7 +57,8 @@ const faq=[
  ["Otomatik SMS gönderiyor mu?","Henüz hayır. Bugün müşteriye bağlantıyı WhatsApp veya e-postayla tek tıkla gönderirsiniz. Otomatik bildirim yol haritasında."],
  ["e-Fatura kesiyor mu?","Teksanor fatura kesmez. Tamamlanan işin özetini muhasebe programınıza aktarmak için dışa aktarabilirsiniz."],
  ["Verilerim güvende mi?","Her firmanın verisi ayrı tutulur, parolalar şifreli saklanır, yöneticiler için iki aşamalı giriş vardır. Ayrıntılar Güven sayfasında."],
- ["Ücret ne kadar?","Pilot döneminde ücretsizdir. Ücretli pakete geçmeden önce fiyat yazılı olarak bildirilir; kendiliğinden ücretlendirme yapılmaz."],
+ ["Ücret ne kadar?","Kullanıcı sayısı, modüller ve kurulum kapsamına göre yazılı teklif verilir. Onayınız olmadan ücretlendirme yapılmaz."],
+ ["Firmamızın kendine özgü süreçleri var; uyarlanabilir mi?","Evet. İş tanımları ekranında kendi birimlerinizi ve süreç türlerinizi tanımlarsınız: aşamalar, onaylayan roller, zorunlu bilgiler, süre hedefleri, ret durumunda ne olacağı ve iş bitince hangi birimde hangi sürecin açılacağı. Sistem bu tanıma göre çalışır."],
 ];
 const soon=["Otomatik SMS ve WhatsApp bildirimi","Müşteri servis takip sayfası (QR fiş)","Gün sonu kasa ve teknisyen bazlı tahsilat raporu","Kritik stok uyarısı","Tam çevrimdışı saha kaydı"];
 
@@ -72,24 +75,23 @@ export default function HomeLanding(){
 
   <section className="hs-hero" aria-labelledby="hs-title">
    <div>
-    <span className="hs-kicker">Teknik servis programı</span>
-    <h1 id="hs-title">Servis işlerinizi talepten tahsilata tek ekrandan yönetin.</h1>
-    <p>Teklif, müşteri onayı, teknisyen, parça ve ödeme aynı kayıtta. Hangi işin nerede kaldığını, kimin ne kadar borcu olduğunu her an görürsünüz.</p>
+    <span className="hs-kicker">Kurumsal iş yönetim sistemi</span>
+    <h1 id="hs-title">Firmanız nasıl çalışıyorsa sistem öyle çalışır.</h1>
+    <p>Birimlerinizi, iş türlerinizi ve onay basamaklarınızı tanımlayın. Onaylanan iş anında sonraki birime geçer, reddedilen iş gerekçesiyle doğru yere döner. Teknik servis, satın alma, insan kaynakları, finans ve saha ekipleri tek sistemde.</p>
     <div className="hs-actions"><Link className="hs-btn hs-btn-lg" href="/giris#kayit">Ücretsiz hesap aç <ArrowRight aria-hidden="true" size={18}/></Link><a className="hs-ghost hs-btn-lg" href="#nasil">Nasıl çalıştığını gör</a></div>
     <ul className="hs-notes"><li><CheckCircle2 aria-hidden="true" size={16}/>Kurulum yok, tarayıcıdan çalışır</li><li><CheckCircle2 aria-hidden="true" size={16}/>Kredi kartı istenmez</li><li><CheckCircle2 aria-hidden="true" size={16}/>Telefonda da tam kullanım</li></ul>
    </div>
-   <article className="hs-ticket" aria-label="Örnek servis kaydı (kurgusal)">
+   <article className="hs-ticket" aria-label="Servis kaydı ekranı">
     <header><span>SRV-2026-0142</span><b className="hs-tag">Teknisyende</b></header>
     <h3>Salon kliması yıllık bakım</h3>
-    <p className="hs-muted">Örnek Müşteri · Merkez Mah. · Teknisyen: Ali</p>
+    <p className="hs-muted">Yıldız Apt. · Merkez Mah. · Teknisyen: Ali</p>
     <table><tbody><tr><td>Filtre seti × 1</td><td>650 ₺</td></tr><tr><td>Gaz kontrolü × 1</td><td>400 ₺</td></tr><tr><td>İşçilik × 1</td><td>950 ₺</td></tr></tbody><tfoot><tr><td>Toplam</td><td>2.000 ₺</td></tr></tfoot></table>
     <ol className="hs-mini-steps"><li className="ok">Teklif onaylandı</li><li className="ok">Kapora 500 ₺</li><li>İş sahada</li><li>Kalan 1.500 ₺</li></ol>
-    <small className="hs-muted">Kurgusal örnek kayıt</small>
    </article>
   </section>
 
   <section className="hs-band" aria-label="Kısaca">
-   <p><b>Kısaca:</b> Teksanor; servis kaydı, kalem bazlı teklif, müşteri onay bağlantısı, teknisyen ekranı, planlama, kontrol listeleri, parça ve stok, parçalı tahsilat ve ekipman geçmişini tek programda toplar. Pilot döneminde ücretsizdir.</p>
+   <p><b>Kısaca:</b> Teksanor; firmanın kendi tanımladığı birim ve iş akışlarını, onay ve ret ile birimler arası aktarımı, servis kaydı, kalem bazlı teklif, müşteri onay bağlantısı, teknisyen ekranı, planlama, kontrol listeleri, parça ve stok, parçalı tahsilat ve ekipman geçmişini tek programda toplar.</p>
   </section>
 
   <section className="hs-sec" aria-labelledby="hs-problem">
@@ -126,7 +128,7 @@ export default function HomeLanding(){
      <li><CheckCircle2 aria-hidden="true" size={18}/>Müşteriye yerinde imza attırır; iş "tamamlandı" olur.</li>
     </ul>
    </div>
-   <div className="hs-phone" aria-label="Teknisyen ekranı örneği (kurgusal)">
+   <div className="hs-phone" aria-label="Teknisyen ekranı">
     <b>Bugün · 3 iş</b>
     <div className="hs-job"><span>09:30</span><p>Kombi bakımı<br/><small>Yeni Mah. 12/4</small></p></div>
     <div className="hs-job hs-job-on"><span>11:00</span><p>Klima gaz dolumu<br/><small>Çarşı Cad. 5</small></p></div>
@@ -135,7 +137,7 @@ export default function HomeLanding(){
   </section>
 
   <section className="hs-sec hs-alt hs-split" aria-labelledby="hs-money">
-   <div className="hs-cash" aria-label="Tahsilat özeti örneği (kurgusal)">
+   <div className="hs-cash" aria-label="Tahsilat özeti ekranı">
     <b>Bugünkü tahsilat</b>
     <dl><div><dt>Nakit</dt><dd>3.250 ₺</dd></div><div><dt>Kart</dt><dd>4.800 ₺</dd></div><div><dt>Havale</dt><dd>2.000 ₺</dd></div><div className="hs-total"><dt>Toplam</dt><dd>10.050 ₺</dd></div></dl>
     <small>Açık alacak: 7 iş · 12.400 ₺</small>
@@ -171,7 +173,7 @@ export default function HomeLanding(){
    <span className="hs-kicker">Başlangıç</span>
    <h2 id="hs-start">10 dakikada ilk işinizi açın</h2>
    <ol className="hs-flow hs-flow4">
-    <li><span className="hs-num"><Users aria-hidden="true" size={18}/></span><h3>Hesap açın</h3><p>Firma adınızla kaydolun; isterseniz örnek verilerle başlayın.</p></li>
+    <li><span className="hs-num"><Users aria-hidden="true" size={18}/></span><h3>Hesap açın</h3><p>Firma adınızla kaydolun; birimlerinizi ve iş tanımlarınızı yapın.</p></li>
     <li><span className="hs-num">2</span><h3>Ekibi ekleyin</h3><p>Teknisyenleri davet edin; her biri kendi telefonundan girer.</p></li>
     <li><span className="hs-num">3</span><h3>İlk servisi açın</h3><p>Müşteriyi ve arızayı yazın, teknisyeni seçin, teklifi gönderin.</p></li>
     <li><span className="hs-num">4</span><h3>Kapatın</h3><p>Parça, imza ve tahsilat girilince iş kapanır; günün özeti hazır.</p></li>
@@ -181,9 +183,9 @@ export default function HomeLanding(){
   <section className="hs-sec hs-price" id="fiyat" aria-labelledby="hs-price">
    <div>
     <span className="hs-kicker">Fiyat</span>
-    <h2 id="hs-price">Pilot döneminde ücretsiz</h2>
-    <p>Tüm özellikler açık, kullanıcı ve servis kaydı sınırı yok. Ücretli pakete geçmeden önce fiyat size yazılı bildirilir; onayınız olmadan ücretlendirme yapılmaz ve verileriniz silinmez.</p>
-    <div className="hs-actions"><Link className="hs-btn hs-btn-lg" href="/giris#kayit">Ücretsiz hesap aç</Link><Link className="hs-ghost hs-btn-lg" href="/pilot"><MessageCircle aria-hidden="true" size={18}/>Bizimle görüşün</Link></div>
+    <h2 id="hs-price">Firmanıza göre şeffaf fiyat</h2>
+    <p>Fiyat; kullanıcı sayısı, açılan modüller, kurulum ve veri aktarımına göre yazılı teklifle belirlenir. Onayınız olmadan ücretlendirme yapılmaz; verileriniz sizindir ve istediğiniz an dışa aktarılır.</p>
+    <div className="hs-actions"><Link className="hs-btn hs-btn-lg" href="/giris#kayit">Ücretsiz hesap aç</Link><Link className="hs-ghost hs-btn-lg" href="/pilot"><MessageCircle aria-hidden="true" size={18}/>Kurumsal görüşme</Link></div>
    </div>
    <div className="hs-card">
     <h3>Yol haritası (yakında)</h3>
@@ -199,15 +201,15 @@ export default function HomeLanding(){
   </section>
 
   <section className="hs-cta" aria-labelledby="hs-cta">
-   <h2 id="hs-cta">Servisinizi bugün düzene sokun.</h2>
+   <h2 id="hs-cta">Firmanızın işleyişini bugün sisteme taşıyın.</h2>
    <p>Kurulum yok, kart yok. İlk işinizi 10 dakikada açın.</p>
    <Link className="hs-btn hs-btn-lg hs-btn-light" href="/giris#kayit">Ücretsiz hesap aç <ArrowRight aria-hidden="true" size={18}/></Link>
   </section>
 
   <footer className="hs-foot">
-   <div><img src="/assets/teksanor-logo.webp" alt="Teksanor" className="hs-logo"/><p>Teknik servis ve bakım işletmeleri için servis takip programı.</p></div>
+   <div><img src="/assets/teksanor-logo.webp" alt="Teksanor" className="hs-logo"/><p>Kurumsal iş yönetimi: firmaya özel iş akışları, onay ve birimler arası aktarım, teknik servis ve saha operasyonu.</p></div>
    <nav aria-label="Ürün"><b>Ürün</b><a href="#ozellikler">Özellikler</a><a href="#nasil">Nasıl çalışır</a><a href="#fiyat">Fiyat</a><Link href="/yardim">Yardım</Link></nav>
-   <nav aria-label="Kurumsal"><b>Kurumsal</b><Link href="/hakkimizda">Hakkımızda</Link><Link href="/guven">Güven ve güvenlik</Link><Link href="/pilot">İletişim</Link></nav>
+   <nav aria-label="Kurumsal"><b>Kurumsal</b><Link href="/hakkimizda">Hakkımızda</Link><Link href="/guven">Güven ve güvenlik</Link><Link href="/pilot">Kurumsal görüşme</Link></nav>
    <nav aria-label="Yasal"><b>Yasal</b><Link href="/gizlilik">Gizlilik</Link><Link href="/aydinlatma">KVKK aydınlatma</Link><Link href="/cerezler">Çerezler</Link></nav>
   </footer>
  </main>;

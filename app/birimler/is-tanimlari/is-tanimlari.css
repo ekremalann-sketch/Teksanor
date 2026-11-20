@@ -1,0 +1,41 @@
+/* İş tanımları ekranı */
+.wd-grid{display:grid;grid-template-columns:240px 1fr;gap:20px;align-items:start}
+.wd-depts{display:grid;gap:6px;position:sticky;top:12px}
+.wd-depts button{display:grid;text-align:left;gap:2px;padding:10px 12px;border:1px solid #d5dfea;border-radius:10px;background:#fff;cursor:pointer;min-height:44px}
+.wd-depts button[aria-current="true"]{border-color:#0e6b55;box-shadow:inset 3px 0 0 #0e6b55;background:#f2faf7}
+.wd-depts span{font-size:.8rem;color:#5b6676}
+.wd-main{background:#fff;border:1px solid #d5dfea;border-radius:14px;padding:18px;display:grid;gap:14px}
+.wd-dept-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px}.wd-dept-head h2{margin:0}.wd-dept-head p{margin:4px 0;color:#5b6676}
+.wd-templates{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.wd-templates>li{display:flex;justify-content:space-between;gap:12px;border:1px solid #e3e9f0;border-radius:12px;padding:12px}
+.wd-templates>li.off{opacity:.6}
+.wd-templates em{font-style:normal;font-size:.75rem;margin-left:8px;padding:2px 8px;border-radius:999px;background:#e6f4ee;color:#0e5a45}
+.wd-templates em.muted{background:#eef2f6;color:#5b6676}
+.wd-templates p{margin:4px 0 8px;color:#5b6676}
+.wd-flow{list-style:none;margin:0 0 6px;padding:0;display:flex;flex-wrap:wrap;gap:6px}
+.wd-flow li{font-size:.8rem;padding:3px 9px;border-radius:999px;background:#f4f7fa;border:1px solid #e3e9f0}
+.wd-flow li.ap{background:#fff6dc;border-color:#f1d78c}
+.wd-empty{color:#5b6676}
+.wd-editor{display:grid;gap:14px}
+.wd-editor h3{margin:0}
+.wd-editor fieldset{border:1px solid #e3e9f0;border-radius:12px;padding:12px;display:grid;gap:10px}
+.wd-editor legend{font-weight:700;padding:0 6px}
+.wd-editor label{display:grid;gap:4px;font-size:.9rem}
+.wd-editor input,.wd-editor select,.wd-editor textarea,.wd-modal input,.wd-modal textarea{min-height:40px;border:1px solid #d5dfea;border-radius:8px;padding:0 10px;font:inherit}
+.wd-row{display:grid;grid-template-columns:1fr 2fr;gap:12px}
+.wd-line{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.wd-line input{flex:1 1 160px}
+.wd-line input[type=number]{flex:0 0 80px}
+.wd-line button{min-width:40px;min-height:40px}
+.wd-stage{border-left:3px solid #d5dfea;padding-left:10px;display:grid;gap:6px}
+.wd-stage details summary{cursor:pointer;color:#0b4a8b;font-size:.9rem;min-height:32px;display:flex;align-items:center}
+.wd-checks{display:flex;flex-wrap:wrap;gap:6px 14px}
+.wd-checks label,.wd-inline{display:flex!important;align-items:center;gap:6px;font-size:.9rem}
+.wd-checks input,.wd-inline input{min-height:auto!important}
+.wd-hint{margin:4px 0;color:#5b6676;font-size:.85rem}
+.wd-modal{position:fixed;inset:0;background:#0b213c66;display:grid;place-items:center;padding:16px;z-index:50}
+.wd-modal form{background:#fff;border-radius:14px;padding:20px;display:grid;gap:12px;width:min(560px,100%)}
+.wd-modal label{display:grid;gap:4px}
+.wd-modal fieldset{border:1px solid #e3e9f0;border-radius:10px;padding:10px}
+.wd-modal textarea{padding:8px 10px}
+@media (max-width:900px){.wd-grid{grid-template-columns:1fr}.wd-depts{position:static;grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}.wd-row{grid-template-columns:1fr}.wd-templates>li{flex-direction:column}}
