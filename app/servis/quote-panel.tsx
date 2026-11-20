@@ -1,5 +1,5 @@
 "use client";
-import {useState,type FormEvent} from "react";
+import {useEffect,useRef,useState,type FormEvent} from "react";
 import type {QuoteLine} from "@/lib/service-quotes";
 
 type Revision = {revision:number; lines:QuoteLine[]; reason:string; total_cents:number};
@@ -10,8 +10,8 @@ export function QuoteLines({lines}:{lines:QuoteLine[]}){
  return <ul>{lines.map((line,i)=><li key={i}>{line.kind==="labor"?"İşçilik · ":""}{line.label} · {line.quantity} × {money(line.unitCents)}</li>)}</ul>;
 }
 
-export function QuotePanel({editable,busy,history,save}:{
- editable:boolean;busy:boolean;history:()=>Promise<{history:Revision[]}>;
+export function QuotePanel({editable,busy,history,save,startOpen=false}:{
+ editable:boolean;busy:boolean;startOpen?:boolean;history:()=>Promise<{history:Revision[]}>;
  save:(lines:QuoteLine[],reason:string)=>Promise<unknown>;
 }){
  const [lines,setLines]=useState<QuoteLine[]>([blank]);
@@ -23,8 +23,11 @@ export function QuotePanel({editable,busy,history,save}:{
   try{setError("");const result=await history();setRevisions(result.history);if(result.history[0])setLines(result.history[0].lines);}
   catch(e){setError(e instanceof Error?e.message:"Teklifler yüklenemedi.");}
  }
+ // Sıradaki adım "teklif kalemlerini girin" ise bölüm açık gelir; kullanıcı kapalı bölümü aramaz.
+ const box=useRef<HTMLDetailsElement>(null);
+ useEffect(()=>{if(startOpen&&box.current&&!box.current.open)box.current.open=true;},[startOpen]);
  function submit(event:FormEvent<HTMLFormElement>){event.preventDefault();void save(lines,reason);}
- return <details onToggle={e=>{if(e.currentTarget.open&&!revisions)void load();}}>
+ return <details ref={box} onToggle={e=>{if(e.currentTarget.open&&!revisions)void load();}}>
   <summary>Teklif kalemleri ve sürümleri</summary>
   {error&&<p role="alert">{error}</p>}
   {editable&&revisions&&<form onSubmit={submit} className="service-grid">
