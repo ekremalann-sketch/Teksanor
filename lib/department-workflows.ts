@@ -18,7 +18,7 @@ export const WORKFLOW_PREFIX = "UNIT-WORKFLOW:";
 export type UnitRecord = {unit:string;process:string;stage:number;note:string;approver:string;history:{at:string;actor:string;action:string;note:string}[]};
 export function readUnitRecord(description:unknown):UnitRecord|null {try {if(typeof description!=="string"||!description.startsWith(WORKFLOW_PREFIX))return null;return JSON.parse(description.slice(WORKFLOW_PREFIX.length));}catch{return null;}}
 export function advanceUnitRecord(record:UnitRecord,action:string,actor:string,manager:boolean,note:string):UnitRecord {
- const unit=UNITS.find(u=>u.id===record.unit);const stages=unit?.processes[record.process];if(!stages||record.stage>=stages.length-1)throw new Error("Tamamlanmış süreç değiştirilemez.");
+ const unit=UNITS.find(u=>u.id===record.unit);const stages=unit && Object.hasOwn(unit.processes,record.process) ? unit.processes[record.process] : undefined;if(!stages||record.stage>=stages.length-1)throw new Error("Tamamlanmış süreç değiştirilemez.");
  const approval=stages[record.stage].includes("onayı");
  if(approval){if(action!=="approve"&&action!=="reject")throw new Error("Bu aşamada onay kararı gerekir.");if(!manager||actor!==record.approver)throw new Error("Karar yalnız atanmış firma yöneticisi tarafından verilebilir.");}
  else if(action!=="advance")throw new Error("Geçersiz süreç işlemi.");
