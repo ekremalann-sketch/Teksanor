@@ -119,3 +119,12 @@
 .service-shell button.dept-kpi span{color:#4f6178}.service-shell button.dept-kpi{background:#fff}
 .service-shell button.dept-kpi.gold{background:#fffaf0}.service-shell button.dept-kpi.red{background:#fff5f5}.service-shell button.dept-kpi.amber{background:#fff8ec}
 .report-block{position:static!important;max-height:none!important;margin-bottom:14px;overflow:auto}
+/* Onayınızı bekleyen işler ve iş tanımları bağlantısı */
+.dept-awaiting{margin:0 0 20px;padding:16px;border:1px solid #f1d78c;background:#fffaf0;border-radius:14px}
+.dept-awaiting h2{margin:0 0 10px;font-size:1.05rem}
+.dept-awaiting ul{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.dept-approval{display:grid;grid-template-columns:1.4fr 1fr auto;gap:12px;align-items:end;background:#fff;border:1px solid #e6e1d3;border-radius:12px;padding:12px}
+.dept-approval div:first-child{display:grid;gap:2px}.dept-approval span{color:#5b6676;font-size:.9rem}
+.dept-approval label{display:grid;gap:4px;font-size:.85rem}.dept-approval input{min-height:40px;border:1px solid #d5dfea;border-radius:8px;padding:0 10px}
+.button-link{display:inline-flex;align-items:center;min-height:40px;padding:0 14px;border-radius:10px;border:1px solid #d5dfea;text-decoration:none;font-weight:600}
+@media (max-width:760px){.dept-approval{grid-template-columns:1fr}}

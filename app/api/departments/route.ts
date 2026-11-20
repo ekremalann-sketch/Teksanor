@@ -7,15 +7,17 @@ import { createId, getDb, type Database } from "@/lib/db";
 import { ensureDepartmentTables } from "@/lib/department-store";
 import { rejectCrossSiteMutation } from "@/lib/security";
 import {
-  DEPARTMENTS, WorkflowError, cleanData, departmentBySlug, departmentRole, departmentSchema, isOverdue,
-  followUpsFor, missingForStage, triggeredBy, templateOf, type Department, type WorkflowTemplate,
+  WorkflowError, cleanData, departmentRole, isOverdue,
+  followUpsFor, missingForStage, templateOf, type Department, type WorkflowTemplate,
 } from "@/lib/department-catalog";
+import { catalogFor, rejectionFollowUps, rejectionTarget, REJECTED_OUTCOME, type Catalog } from "@/lib/org-workflows";
 
 // Birim çalışma alanları API'si.
 // GET                      → yetkili olunan birimlerin özet sayıları (yönetici kontrol kulesi)
 // GET ?slug=ik             → birimin süreç türleri, açık/kapalı süreçleri, durum sayıları
 // GET ?slug=ik&process=ID  → tek sürecin ayrıntısı ve olay geçmişi
-// POST {action:create|advance|back|block|unblock|cancel|update, ...}
+// POST {action:create|advance|reject|back|block|unblock|cancel|update, ...}
+// Katalog = hazır birimler + firmanın kendi tanımladığı birim ve süreç türleri (lib/org-workflows.ts).
 // Kurallar sunucuda uygulanır: aşama sırası, zorunlu alan, onay sahibi, talep edenin kendi
 // talebini onaylayamaması (firma sahibi hariç), sürüm çakışması (409) ve firma ayrımı.
 
@@ -24,6 +26,9 @@ type Row = {
   owner_name: string | null; requester_id: string; requester_name: string | null; due_date: string | null; data: string;
   outcome: string | null; blocked_reason: string | null; version: number; stage_entered_at: string; created_at: string; updated_at: string; closed_at: string | null;
 };
+// Birim dışından onay: yalnız işlevsel roller (finans, İK, bilgi işlem, üst yönetim). "Birim yöneticisi" ve
+// "çalışan" profilleri yalnız kendi birimlerinde karar verir; başka birimin yöneticisi süreci göremez.
+const crossUnitApprover = (profile: string) => !["manager", "employee"].includes(profile);
 const json = (data: unknown, status = 200) => NextResponse.json(data, { status, headers: { "Cache-Control": "private, no-store" } });
 const PRIORITY = ["low", "normal", "high", "critical"];
 const text = (v: unknown, max = 200) => String(v ?? "").trim().slice(0, max);
@@ -54,8 +59,9 @@ async function handle(request: Request) {
     await ensureDepartmentTables();
     const db = getDb();
     const access = await getMemberAccess(user, organization);
-    if (request.method === "GET") return await read(request, db, access, organization.id, user.id, { id: organization.id, name: organization.name });
-    return await write(request, db, access, organization.id, { id: user.id, name: user.full_name || user.username });
+    const catalog = await catalogFor(db, organization.id);
+    if (request.method === "GET") return await read(request, db, access, organization.id, user.id, { id: organization.id, name: organization.name }, catalog);
+    return await write(request, db, access, organization.id, { id: user.id, name: user.full_name || user.username }, catalog);
   } catch (error) {
     if (error instanceof WorkflowError) return json({ error: error.message }, error.status);
     if (error instanceof SyntaxError) return json({ error: "İstek biçimi geçersiz." }, 400);
@@ -64,11 +70,13 @@ async function handle(request: Request) {
   }
 }
 
-async function read(request: Request, db: Database, access: MemberAccess, orgId: string, userId: string, org: { id: string; name: string }) {
+async function read(request: Request, db: Database, access: MemberAccess, orgId: string, userId: string, org: { id: string; name: string }, catalog: Catalog) {
+  const DEPARTMENTS = catalog.departments;
+  const departmentBySlug = catalog.bySlug;
   const url = new URL(request.url);
   const slug = url.searchParams.get("slug");
-  if (url.searchParams.get("view") === "network") return json(network());
-  if (url.searchParams.get("view") === "report") return json(await report(db, access, orgId));
+  if (url.searchParams.get("view") === "network") return json(network(catalog));
+  if (url.searchParams.get("view") === "report") return json(await report(db, access, orgId, catalog));
   if (!slug) {
     const visible = DEPARTMENTS.map((d) => ({ d, role: departmentRole(access.profile, access.department, d) })).filter((x) => x.role !== "none");
     const rows = (await db.prepare("SELECT * FROM department_processes WHERE organization_id = ? AND (status IN ('active','blocked') OR closed_at >= datetime('now','-30 days'))").bind(orgId).all<Row>()).results;
@@ -77,23 +85,30 @@ async function read(request: Request, db: Database, access: MemberAccess, orgId:
       const open = mine.filter((r) => r.status === "active" || r.status === "blocked").map((r) => shape(r, d));
       return {
         slug: d.slug, name: d.name, short: d.short, mission: d.mission, role,
-        templates: d.templates.length,
+        templates: d.templates.length, custom: d.slug.startsWith("f-"),
         open: open.length, blocked: open.filter((p) => p.status === "blocked").length,
         overdue: open.filter((p) => p.overdue).length, awaiting: open.filter((p) => p.awaiting_approval).length,
         closed30: mine.filter((r) => r.status === "done").length,
         attention: open.filter((p) => p.overdue || p.status === "blocked").slice(0, 3).map((p) => ({ id: p.id, title: p.title, stage: p.stage_label, overdue: p.overdue, blocked: p.status === "blocked" })),
       };
     });
-    return json({ departments, profile: access.profile, label: access.label, organization: org });
+    // Onayımı bekleyenler: hangi birimde olursa olsun, şu anki aşamasının onay rolü benim profilim olan süreçler.
+    const awaitingMe = rows.filter((r) => r.status === "active").map((r) => {
+      const d = departmentBySlug(r.department_slug); const t = d ? templateOf(d, r.template_key) : null; const st = t?.stages.find((s) => s.key === r.stage_key);
+      return d && crossUnitApprover(access.profile) && departmentRole(access.profile, access.department, d) !== "manage" && st?.approvers?.includes(access.profile) && r.requester_id !== userId ? { id: r.id, slug: d.slug, department: d.short, title: r.title, stage: st.label, since: r.stage_entered_at, version: r.version } : null;
+    }).filter(Boolean).slice(0, 50);
+    return json({ departments, awaitingMe, profile: access.profile, label: access.label, organization: org });
   }
   const dep = departmentBySlug(slug);
   if (!dep) throw new WorkflowError("Birim bulunamadı.", 404);
   const role = departmentRole(access.profile, access.department, dep);
-  if (role === "none") throw new WorkflowError("Bu birim için görev yetkiniz bulunmuyor.", 403);
   const processId = url.searchParams.get("process");
+  if (role === "none" && !processId) throw new WorkflowError("Bu birim için görev yetkiniz bulunmuyor.", 403);
   if (processId) {
     const row = await db.prepare("SELECT * FROM department_processes WHERE id = ? AND organization_id = ? AND department_slug = ?").bind(processId, orgId, dep.slug).first<Row>();
-    if (!row || (role !== "manage" && row.requester_id !== userId)) throw new WorkflowError("Süreç bulunamadı.", 404);
+    const tpl = row ? templateOf(dep, row.template_key) : null;
+    const approverHere = !!row && row.status === "active" && crossUnitApprover(access.profile) && !!tpl?.stages.find((s) => s.key === row.stage_key)?.approvers?.includes(access.profile);
+    if (!row || (role !== "manage" && row.requester_id !== userId && !approverHere)) throw new WorkflowError("Süreç bulunamadı.", 404);
     const events = (await db.prepare("SELECT action, from_stage, to_stage, actor_name, note, created_at FROM department_process_events WHERE process_id = ? AND organization_id = ? ORDER BY created_at, rowid").bind(row.id, orgId).all()).results;
     return json({ process: shape(row, dep), events });
   }
@@ -103,10 +118,10 @@ async function read(request: Request, db: Database, access: MemberAccess, orgId:
     ORDER BY CASE priority WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END, stage_entered_at LIMIT 500`)
     .bind(...(role === "manage" ? [orgId, dep.slug] : [orgId, dep.slug, userId])).all<Row>()).results;
   const processes = rows.map((r) => shape(r, dep));
-  const templates = dep.templates.filter((t) => role === "manage" || t.selfService).map((t) => ({
-    ...t,
+  const templates = dep.templates.filter((t) => catalog.isActive(dep.slug, t.key) && (role === "manage" || t.selfService)).map((t) => ({
+    ...t, custom: t.key.startsWith("f-"),
     next: (t.next ?? []).map((n) => ({ ...n, department: departmentBySlug(n.slug)?.short ?? n.slug, label: templateOf(departmentBySlug(n.slug)!, n.template)?.label ?? n.template })),
-    from: triggeredBy(dep.slug, t.key).map((f) => ({ ...f, department: departmentBySlug(f.slug)?.short ?? f.slug })),
+    from: catalog.triggeredBy(dep.slug, t.key).map((f) => ({ ...f, department: departmentBySlug(f.slug)?.short ?? f.slug })),
   }));
   return json({
     department: { slug: dep.slug, name: dep.name, short: dep.short, mission: dep.mission, modules: dep.modules },
@@ -117,8 +132,8 @@ async function read(request: Request, db: Database, access: MemberAccess, orgId:
 
 // Performans raporu (son 180 gün): süreç türü başına ortalama tamamlanma süresi, aşama başına ortalama bekleme,
 // hedef süreye (SLA) uyum, en çok bekleten aşamalar ve şu an geciken süreçler. Yalnız yönetilen birimler.
-async function report(db: Database, access: MemberAccess, orgId: string) {
-  const managed = DEPARTMENTS.filter((d) => departmentRole(access.profile, access.department, d) === "manage");
+async function report(db: Database, access: MemberAccess, orgId: string, catalog: Catalog) {
+  const managed = catalog.departments.filter((d) => departmentRole(access.profile, access.department, d) === "manage");
   if (!managed.length) throw new WorkflowError("Performans raporu birim sorumlularına açıktır.", 403);
   const slugs = managed.map((d) => d.slug);
   const procs = (await db.prepare(`SELECT * FROM department_processes WHERE organization_id = ? AND department_slug IN (${slugs.map(() => "?").join(", ")}) AND created_at >= datetime('now','-180 days') LIMIT 3000`).bind(orgId, ...slugs).all<Row>()).results;
@@ -173,7 +188,8 @@ async function report(db: Database, access: MemberAccess, orgId: string) {
 }
 
 // Süreç ağı: tüm birimler, süreç türleri ve aralarındaki bağlantılar (veritabanı okumaz).
-function network() {
+function network(catalog: Catalog) {
+  const DEPARTMENTS = catalog.departments, departmentBySlug = catalog.bySlug;
   const nodes = DEPARTMENTS.map((d) => ({ slug: d.slug, short: d.short, name: d.name, templates: d.templates.length }));
   const links: { from: string; fromLabel: string; to: string; toTemplate: string; toLabel: string; fromTemplate: string; when?: string[] }[] = [];
   for (const d of DEPARTMENTS) for (const t of d.templates) for (const n of t.next ?? []) {
@@ -203,9 +219,10 @@ async function commit(db: Database, statements: Stmt[]) {
 
 // Süreç ağı: kapanan süreç, tanımlı bağlantılara göre diğer birimlerde yeni süreç açar.
 // Tek istekte en çok 2 sorgu (çok satırlı ekleme) çalışır; D1 sorgu ve parametre sınırlarının altında kalır.
-function followUpStatements(db: Database, orgId: string, actor: { id: string; name: string }, dep: Department, template: WorkflowTemplate, row: Row, outcome: string, sourceData: Record<string, string>) {
-  const list = followUpsFor(template, outcome).map((n) => {
-    const d = departmentBySlug(n.slug); const t = d ? templateOf(d, n.template) : null;
+function followUpStatements(db: Database, orgId: string, actor: { id: string; name: string }, dep: Department, template: WorkflowTemplate, row: Row, outcome: string, sourceData: Record<string, string>, catalog: Catalog) {
+  const links = outcome === REJECTED_OUTCOME ? rejectionFollowUps(template) : followUpsFor(template, outcome).filter((n) => !(n.when?.length === 1 && n.when[0] === REJECTED_OUTCOME));
+  const list = links.map((n) => {
+    const d = catalog.bySlug(n.slug); const t = d ? templateOf(d, n.template) : null;
     return d && t ? { d, t, id: createId("dproc") } : null;
   }).filter((x): x is { d: Department; t: WorkflowTemplate; id: string } => !!x).slice(0, 6);
   if (!list.length) return { statements: [] as Stmt[], started: [] as { id: string; slug: string; department: string; template: string; label: string }[] };
@@ -243,18 +260,18 @@ function carryOver(source: Record<string, string>, target: WorkflowTemplate) {
   return out;
 }
 
-async function write(request: Request, db: Database, access: MemberAccess, orgId: string, actor: { id: string; name: string }) {
+async function write(request: Request, db: Database, access: MemberAccess, orgId: string, actor: { id: string; name: string }, catalog: Catalog) {
   const body = await request.json() as Record<string, unknown>;
-  if (body.action === "demo.seed") return seedExamples(db, access, orgId, actor);
-  const dep = departmentBySlug(text(body.slug, 40));
+  const dep = catalog.bySlug(text(body.slug, 40));
   if (!dep) throw new WorkflowError("Birim bulunamadı.", 404);
   const role = departmentRole(access.profile, access.department, dep);
-  if (role === "none") throw new WorkflowError("Bu birim için görev yetkiniz bulunmuyor.", 403);
   const action = text(body.action, 20);
+  // Onay aşamasındaki rol (ör. finans), birimin üyesi olmasa da yalnız o aşamada karar verir: iş onay için ona düşer.
+  if (role === "none" && action !== "advance" && action !== "reject") throw new WorkflowError("Bu birim için görev yetkiniz bulunmuyor.", 403);
 
   if (action === "create") {
     const template = templateOf(dep, text(body.template, 40));
-    if (!template) throw new WorkflowError("Süreç türü bulunamadı.", 404);
+    if (!template || !catalog.isActive(dep.slug, template.key)) throw new WorkflowError("Süreç türü bulunamadı.", 404);
     if (role !== "manage" && !template.selfService) throw new WorkflowError("Bu süreci birim sorumlusu başlatır.", 403);
     const title = text(body.title, 160);
     if (title.length < 3) throw new WorkflowError("Süreç için kısa bir başlık yazın.");
@@ -276,8 +293,9 @@ async function write(request: Request, db: Database, access: MemberAccess, orgId
   }
 
   const row = await db.prepare("SELECT * FROM department_processes WHERE id = ? AND organization_id = ? AND department_slug = ?").bind(text(body.id, 60), orgId, dep.slug).first<Row>();
-  if (!row || (role !== "manage" && row.requester_id !== actor.id)) throw new WorkflowError("Süreç bulunamadı.", 404);
-  const template = templateOf(dep, row.template_key) as WorkflowTemplate;
+  const template = row ? templateOf(dep, row.template_key) as WorkflowTemplate : null;
+  const approverHere = !!row && !!template && row.status === "active" && crossUnitApprover(access.profile) && !!template.stages.find((s) => s.key === row.stage_key)?.approvers?.includes(access.profile);
+  if (!row || !template || (role !== "manage" && row.requester_id !== actor.id && !approverHere)) throw new WorkflowError("Süreç bulunamadı.", 404);
   if (Number(body.version) !== row.version) throw new WorkflowError("Bu süreç başka biri tarafından değiştirildi. Sayfayı yenileyin.", 409);
   if (row.status === "done" || row.status === "cancelled") throw new WorkflowError("Kapanmış süreç değiştirilemez.", 409);
   const note = text(body.note, 600) || null;
@@ -309,7 +327,7 @@ async function write(request: Request, db: Database, access: MemberAccess, orgId
     return json({ ok: true });
   }
 
-  if (role !== "manage") throw new WorkflowError("Süreci yalnız birim sorumlusu ilerletir.", 403);
+  if (role !== "manage" && !(approverHere && (action === "advance" || action === "reject"))) throw new WorkflowError("Süreci yalnız birim sorumlusu ilerletir.", 403);
 
   if (action === "block" || action === "unblock") {
     if (action === "block") {
@@ -329,6 +347,32 @@ async function write(request: Request, db: Database, access: MemberAccess, orgId
     const prev = template.stages[index - 1];
     await commit(db, [save("stage_key = ?, status = 'active', blocked_reason = NULL, stage_entered_at = CURRENT_TIMESTAMP", [prev.key]), ev("back", row.stage_key, prev.key, note)]);
     return json({ ok: true });
+  }
+
+  if (action === "reject") {
+    // Onay aşamasında ret: gerekçe zorunlu. Tanımlıysa önceki aşamaya düzeltmeye döner; değilse süreç
+    // "Reddedildi" sonucuyla kapanır ve yalnız bu sonuca bağlanmış takip süreçleri diğer birimlerde açılır.
+    if (!stage.approvers?.length) throw new WorkflowError("Ret yalnız onay aşamasında verilir; diğer aşamalarda geri gönderin.");
+    if (!stage.approvers.includes(access.profile)) throw new WorkflowError(`"${stage.label}" adımında yalnız onay yetkilisi karar verir.`, 403);
+    if (template.selfService && row.requester_id === actor.id) throw new WorkflowError("Kendi talebiniz hakkında karar veremezsiniz.", 403);
+    if (!note) throw new WorkflowError("Ret gerekçesini yazın.");
+    const target = rejectionTarget(template, stage.key);
+    if (target.kind === "back") {
+      await commit(db, [
+        save("stage_key = ?, status = 'active', blocked_reason = NULL, stage_entered_at = CURRENT_TIMESTAMP", [target.stage.key]),
+        ev("reject", stage.key, target.stage.key, note),
+        auditStmt(db, actor.id, "reject", row.id, `${dep.short}: ${row.title} — ${stage.label} reddedildi, ${target.stage.label} aşamasına döndü.`, orgId),
+      ]);
+      return json({ ok: true, stage: target.stage.key });
+    }
+    const follow = followUpStatements(db, orgId, actor, dep, template, row, REJECTED_OUTCOME, data, catalog);
+    await commit(db, [
+      save("status = 'done', outcome = ?, closed_at = CURRENT_TIMESTAMP", [REJECTED_OUTCOME]),
+      ev("reject", stage.key, null, note),
+      auditStmt(db, actor.id, "reject", row.id, `${dep.short}: ${row.title} — ${stage.label} reddedildi, süreç kapandı.`, orgId),
+      ...follow.statements,
+    ]);
+    return json({ ok: true, done: true, started: follow.started });
   }
 
   if (action === "advance") {
@@ -352,7 +396,7 @@ async function write(request: Request, db: Database, access: MemberAccess, orgId
     if (last) {
       const outcome = text(body.outcome, 80);
       if (!template.outcomes.includes(outcome)) throw new WorkflowError("Süreci kapatmak için sonucu seçin.");
-      const follow = followUpStatements(db, orgId, actor, dep, template, row, outcome, merged);
+      const follow = followUpStatements(db, orgId, actor, dep, template, row, outcome, merged, catalog);
       await commit(db, [
         save("status = 'done', outcome = ?, data = ?, closed_at = CURRENT_TIMESTAMP", [outcome, JSON.stringify(merged)]),
         ev("done", stage.key, null, [outcome, note].filter(Boolean).join(" · ")),
@@ -371,36 +415,4 @@ async function write(request: Request, db: Database, access: MemberAccess, orgId
   }
 
   throw new WorkflowError("Bilinmeyen işlem.");
-}
-
-// Boş bir firmada birim ekranlarının nasıl çalıştığını görmek için örnek süreçler.
-// Yalnız firma sahibi/yöneticisi, yalnız hiç süreç yokken; başlıklar "[Örnek]" ile başlar ve iptal edilerek temizlenebilir.
-const EXAMPLES: { slug: string; template: string; title: string; data: Record<string, string>; steps: number }[] = [
-  { slug: "ik", template: "ise-alim", title: "[Örnek] Saha teknisyeni alımı", data: { pozisyon: "Saha teknisyeni", birim: "Operasyon" }, steps: 2 },
-  { slug: "ik", template: "izin", title: "[Örnek] Yıllık izin talebi", data: { tur: "Yıllık", baslangic: "2026-11-02", bitis: "2026-11-06" }, steps: 1 },
-  { slug: "ik", template: "ise-giris", title: "[Örnek] Yeni çalışan oryantasyonu", data: { calisan: "Örnek Çalışan", baslama: "2026-11-02" }, steps: 0 },
-  { slug: "arge", template: "fikir", title: "[Örnek] Arıza tahmini için sensör denemesi", data: { problem: "Plansız duruşlar", olcut: "Duruşlarda %20 azalma" }, steps: 2 },
-  { slug: "arge", template: "destek", title: "[Örnek] Destek programı başvurusu", data: { program: "Ar-Ge destek çağrısı", "son-tarih": "2026-12-15" }, steps: 1 },
-  { slug: "satin-alma", template: "talep", title: "[Örnek] Saha ekibi için tablet", data: { urun: "Tablet", miktar: "4" }, steps: 0 },
-  { slug: "finans", template: "odeme-talebi", title: "[Örnek] Kira ödemesi", data: { alici: "Örnek Gayrimenkul", tutar: "45000", dayanak: "KİRA-ÖRNEK" }, steps: 1 },
-  { slug: "kalite", template: "dof", title: "[Örnek] Geç teslim düzeltici faaliyeti", data: { uygunsuzluk: "Planlanan tarih kaçtı", kok: "Kapasite uyarısı izlenmiyordu" }, steps: 2 },
-];
-async function seedExamples(db: Database, access: MemberAccess, orgId: string, actor: { id: string; name: string }) {
-  if (!["owner", "company_admin"].includes(access.profile)) throw new WorkflowError("Örnek süreçleri firma yöneticisi ekler.", 403);
-  const existing = await db.prepare("SELECT COUNT(*) AS n FROM department_processes WHERE organization_id = ?").bind(orgId).first<{ n: number }>();
-  if (Number(existing?.n ?? 0) > 0) throw new WorkflowError("Bu firmada süreç zaten var; örnekler yalnız boş firmaya eklenir.", 409);
-  const statements: Stmt[] = [];
-  for (const ex of EXAMPLES) {
-    const dep = departmentBySlug(ex.slug)!; const t = templateOf(dep, ex.template)!;
-    const stage = t.stages[Math.min(ex.steps, t.stages.length - 1)];
-    const id = createId("dproc");
-    statements.push(db.prepare(`INSERT INTO department_processes (id, organization_id, department_slug, template_key, title, stage_key, requester_id, requester_name, owner_name, data)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, orgId, dep.slug, t.key, ex.title, stage.key, actor.id, actor.name, "Örnek sorumlu", JSON.stringify(cleanData(t, ex.data))));
-    statements.push(eventStmt(db, orgId, id, "create", actor, null, stage.key, "Örnek süreç", `${id}:v0`));
-  }
-  // Çift tıklamaya karşı kilit: firma başına tek örnek ekleme kaydı.
-  statements.unshift(db.prepare("INSERT INTO app_metadata (key, value) VALUES (?, 'done')").bind(`department_examples:${orgId}`));
-  statements.push(db.prepare("INSERT INTO audit_logs (id, user_id, action, entity_type, entity_id, details, organization_id) VALUES (?, ?, 'seed', 'department_process', NULL, ?, ?)").bind(createId("audit"), actor.id, `${EXAMPLES.length} örnek süreç eklendi.`, orgId));
-  await commit(db, statements);
-  return json({ ok: true, created: EXAMPLES.length }, 201);
 }

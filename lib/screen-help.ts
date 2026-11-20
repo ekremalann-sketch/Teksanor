@@ -57,14 +57,4 @@ export const SCREEN_HELP: Record<string, ScreenHelp> = {
   expenses: { purpose: "Dönemsel giderler.", who: "Finans", steps: ["\"Yeni kayıt\" ile gideri girin.", "\"Excel'e indir\" ile listeyi alın."] },
   financial: { purpose: "Borç, ödeme ve dönem özeti.", who: "Firma sahibi, finans", steps: ["Dönemler arası değişimi kartlardan izleyin.", "Ayrıntı için Ödemeler ekranına geçin."] },
   users: { purpose: "Kullanıcılar ve yetkiler.", who: "Firma yöneticisi", steps: ["Kullanıcı ekleyin; rol, hangi ekranları göreceğini belirler.", "Teknisyenler yalnız kendine atanan işleri görür."] },
-  "ornek-isletme": {
-    purpose: "Tanıtım için sentetik bir firma (15 çalışan, servis işleri, 28 birim süreci) kurar.",
-    who: "Yalnız platform yöneticisi",
-    steps: [
-      "Firma adını yazın, her rol için kullanıcı adı ve parola belirleyin (firma sahibi zorunlu).",
-      "\"Örnek işletmeyi oluştur\"a basın; kurulum dört bölümde ilerler; her bölüm kendi içinde birlikte kaydedilir.",
-      "Yarım kalırsa \"Oluşturulan örnek işletmeler\" listesinden \"Kuruluma devam et\".",
-    ],
-    tip: "Parolalar bir daha gösterilmez; ilgili kişilere güvenli bir kanaldan iletin.",
-  },
 };

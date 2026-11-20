@@ -1,4 +1,4 @@
-const ROOTS=["/panel","/birimler","/servis","/kullanicilar","/ornek-isletme","/veri-yonetimi"];
+const ROOTS=["/panel","/birimler","/servis","/kullanicilar","/veri-yonetimi"];
 export function safeWorkspacePath(value:string|null|undefined){
  if(!value||!value.startsWith("/")||value.startsWith("//"))return "/panel";
  try{const url=new URL(value,"https://workspace.invalid");if(url.origin!=="https://workspace.invalid"||!ROOTS.some(root=>url.pathname===root||url.pathname.startsWith(root+"/")))return "/panel";return url.pathname+url.search+url.hash;}catch{return "/panel";}

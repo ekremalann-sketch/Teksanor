@@ -7,7 +7,7 @@ import {signOut} from "@/lib/org-client";
 // en fazla 5 dk'da bir hafif bir istekle sunucu oturumu canlı tutulur — uzun not yazan teknisyen kaydederken girişe atılmaz.
 const KEY="teksanor_last_activity";
 const IDLE_MS=30*60*1000, PING_MS=5*60*1000;
-const WORKSPACE=/^\/(panel|servis|birimler|kullanicilar|ornek-isletme|hesap-guvenligi|veri-yonetimi)(\/|$)/;
+const WORKSPACE=/^\/(panel|servis|birimler|kullanicilar|hesap-guvenligi|veri-yonetimi)(\/|$)/;
 export default function IdleSessionGuard(){useEffect(()=>{
  // Müşteriye açık onay sayfası oturum gerektirmez.
  if(!WORKSPACE.test(location.pathname)||location.pathname.startsWith("/servis/onay")||location.pathname.startsWith("/servis/takip"))return;

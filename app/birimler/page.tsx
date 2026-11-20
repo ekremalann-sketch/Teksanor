@@ -12,7 +12,8 @@ import { ScreenHelpBox } from "@/components/shared/ScreenHelpBox";
 // her sürecin aşamaları sütun olarak görünür; bir karta tıklayınca ayrıntı, onay ve geçmiş açılır.
 
 type Field = { key: string; label: string; type: "text" | "textarea" | "date" | "number" | "choice"; required?: boolean; options?: string[]; hint?: string };
-type Stage = { key: string; label: string; todo: string; approvers?: string[]; slaDays?: number; requires?: string[] };
+type Stage = { key: string; label: string; todo: string; approvers?: string[]; slaDays?: number; requires?: string[]; rejectTo?: string };
+type Awaiting = { id: string; slug: string; department: string; title: string; stage: string; since: string; version: number };
 type Template = { key: string; label: string; summary: string; selfService?: boolean; fields: Field[]; stages: Stage[]; outcomes: string[]; note?: string; next?: NetLink[]; from?: NetLink[] };
 type NetLink = { slug: string; template: string; department: string; label: string; when?: string[] };
 type Network = { nodes: { slug: string; short: string; name: string; templates: number }[]; links: { from: string; fromTemplate: string; fromLabel: string; to: string; toTemplate: string; toLabel: string; when?: string[] }[]; templateCount: number };
@@ -25,7 +26,7 @@ type Detail = { department: { slug: string; name: string; short: string; mission
 type Event = { action: string; from_stage: string | null; to_stage: string | null; actor_name: string | null; note: string | null; created_at: string };
 
 const PRIORITY: Record<string, string> = { critical: "Kritik", high: "Yüksek", normal: "Normal", low: "Düşük" };
-const ACTION: Record<string, string> = { create: "Başlattı", advance: "İlerletti", approve: "Onayladı", back: "Geri gönderdi", block: "Beklemeye aldı", unblock: "Beklemeyi kaldırdı", cancel: "İptal etti", update: "Bilgileri güncelledi", done: "Kapattı" };
+const ACTION: Record<string, string> = { create: "Başlattı", advance: "İlerletti", approve: "Onayladı", back: "Geri gönderdi", reject: "Reddetti", block: "Beklemeye aldı", unblock: "Beklemeyi kaldırdı", cancel: "İptal etti", update: "Bilgileri güncelledi", done: "Kapattı" };
 const org = () => storedOrganization();
 const slugFromUrl = () => { try { return new URLSearchParams(location.search).get("birim") || ""; } catch { return ""; } };
 const daysIn = (iso: string) => Math.max(0, Math.floor((Date.now() - new Date(iso.replace(" ", "T") + (iso.includes("Z") ? "" : "Z")).getTime()) / 86400000));
@@ -67,7 +68,7 @@ export default function DepartmentsPage() {
 
 function Overview({ onOpen, onNetwork, onReport }: { onOpen: (slug: string) => void; onNetwork: () => void; onReport: () => void }) {
   const [filter, setFilter] = useState<Filter>("all");
-  const [data, setData] = useState<{ departments: Summary[]; label: string; organization: { name: string } } | null>(null);
+  const [data, setData] = useState<{ departments: Summary[]; awaitingMe?: Awaiting[]; label: string; organization: { name: string } } | null>(null);
   const [msg, setMsg] = useState("");
   useEffect(() => { call<typeof data>("/api/departments").then(setData).catch((e) => setMsg(e.message)); }, []);
   const totals = useMemo(() => (data?.departments || []).reduce((a, d) => ({ open: a.open + d.open, overdue: a.overdue + d.overdue, awaiting: a.awaiting + d.awaiting, blocked: a.blocked + d.blocked }), { open: 0, overdue: 0, awaiting: 0, blocked: 0 }), [data]);
@@ -75,7 +76,7 @@ function Overview({ onOpen, onNetwork, onReport }: { onOpen: (slug: string) => v
   const pick = (f: Filter) => () => setFilter(filter === f ? "all" : f);
   return <main className="service-shell dept-shell">
     <header className="service-header dept-header"><div><Link href="/panel">← Yönetim paneli</Link><h1>Birimler</h1><p>{data ? `${data.organization.name} · ${data.label}` : "Yükleniyor"} · Bir birime tıklayın, ekran o birimin çalışma alanına dönsün.</p></div>
-      <div className="dept-header-actions"><button type="button" onClick={onNetwork}>Süreç ağını göster</button><button type="button" onClick={onReport}>Performans raporu</button></div></header>
+      <div className="dept-header-actions">{data && ["Firma sahibi", "Firma yöneticisi", "Üst yönetim", "Birim yöneticisi"].includes(data.label) && <Link className="button-link" href="/birimler/is-tanimlari">İş tanımları</Link>}<button type="button" onClick={onNetwork}>Süreç ağını göster</button><button type="button" onClick={onReport}>Performans raporu</button></div></header>
     <p className="service-message" role="status">{msg}</p>
     <ScreenHelpBox screen="birimler" />
     {data && <section className="dept-kpis" aria-label="Tüm birimlerin özeti">
@@ -85,7 +86,8 @@ function Overview({ onOpen, onNetwork, onReport }: { onOpen: (slug: string) => v
       <Kpi label="Beklemede" value={totals.blocked} tone={totals.blocked ? "amber" : undefined} active={filter === "blocked"} onClick={pick("blocked")} />
     </section>}
     {filter !== "all" && <p className="dept-filter">Yalnız {FILTER_LABEL[filter].toLocaleLowerCase("tr-TR")} olan birimler gösteriliyor. <button type="button" onClick={() => setFilter("all")}>Filtreyi kaldır</button></p>}
-    {data && totals.open === 0 && ["Firma sahibi", "Firma yöneticisi", "Platform yetkilisi"].includes(data.label) && <div className="dept-empty"><h2>Henüz süreç yok</h2><p>Ekranların nasıl çalıştığını görmek için örnek süreçler ekleyebilirsiniz. Başlıkları “[Örnek]” ile başlar; iptal ederek kaldırabilirsiniz.</p><div className="service-actions"><button type="button" className="primary" onClick={() => call("/api/departments", { method: "POST", body: JSON.stringify({ action: "demo.seed" }) }).then(() => call<{ departments: Summary[]; label: string; organization: { name: string } }>("/api/departments").then(setData)).catch((e) => setMsg(e.message))}>Örnek süreçleri ekle</button></div></div>}
+    {data && totals.open === 0 && ["Firma sahibi", "Firma yöneticisi"].includes(data.label) && <div className="dept-empty"><h2>Henüz süreç yok</h2><p>Bir birimi açıp ilk süreci başlatın. Firmanızın kendine özgü işlerini (birimler, aşamalar, onaylayan roller, ret durumunda ne olacağı) <b>İş tanımları</b> ekranında tanımlayın; sistem bu tanıma göre çalışır.</p><div className="service-actions"><Link className="primary button-link" href="/birimler/is-tanimlari">İş tanımlarını aç</Link></div></div>}
+    {!!data?.awaitingMe?.length && <section className="dept-awaiting" aria-label="Onayımı bekleyenler"><h2>Onayınızı bekleyen işler ({data.awaitingMe.length})</h2><ul>{data.awaitingMe.map((a) => <ApprovalRow key={a.id} a={a} onDone={async (m) => { setMsg(m); setData(await call<typeof data>("/api/departments")); }} />)}</ul></section>}
     <section className="dept-tiles" aria-label="Birim listesi">
       {sorted.map((d) => <button type="button" key={d.slug} className={`dept-tile ${d.overdue ? "alert" : ""}`} onClick={() => onOpen(d.slug)} aria-label={`${d.short} (${d.name}): ${d.open} açık, ${d.overdue} geciken. Birimi aç`}>
         <span className="dept-tile-head"><b>{d.short}</b>{d.role === "member" && <em>Talep</em>}</span>
@@ -335,6 +337,20 @@ function CreatePanel({ templates, slug, role, initial, onClose, onDone }: { temp
   </aside>;
 }
 
+// Başka birimden onaya düşen iş: karar burada verilir (birimin tamamını görme yetkisi gerekmez).
+function ApprovalRow({ a, onDone }: { a: Awaiting; onDone: (msg: string) => Promise<void> }) {
+  const [note, setNote] = useState(""), [busy, setBusy] = useState(false), [err, setErr] = useState("");
+  const decide = async (action: "advance" | "reject") => {
+    setBusy(true); setErr("");
+    try { await call("/api/departments", { method: "POST", body: JSON.stringify({ action, slug: a.slug, id: a.id, version: a.version, note }) }); await onDone(action === "advance" ? `${a.title}: onaylandı, sıradaki birime geçti.` : `${a.title}: reddedildi.`); }
+    catch (x) { setErr(x instanceof Error ? x.message : "İşlem tamamlanamadı."); } finally { setBusy(false); }
+  };
+  return <li className="dept-approval"><div><b>{a.title}</b><span>{a.department} · {a.stage} · {daysIn(a.since)} gündür bekliyor</span></div>
+    <label><span>Not (retde zorunlu)</span><input value={note} onChange={(e) => setNote(e.target.value)} maxLength={600} /></label>
+    <div className="service-actions"><button type="button" className="primary" disabled={busy} onClick={() => void decide("advance")}>Onayla</button><button type="button" className="danger" disabled={busy || !note.trim()} onClick={() => void decide("reject")}>Reddet</button></div>
+    {err && <p className="dept-error" role="alert">{err}</p>}</li>;
+}
+
 function ProcessPanel({ p, template, slug, role, onClose, onChanged, onOpenDept }: { p: Proc; template: Template; slug: string; role: string; onClose: () => void; onChanged: (msg: string) => Promise<void>; onOpenDept: (slug: string) => void }) {
   const [values, setValues] = useState<Record<string, string>>(p.data);
   const [note, setNote] = useState(""), [outcome, setOutcome] = useState(""), [err, setErr] = useState(""), [busy, setBusy] = useState(false);
@@ -368,12 +384,13 @@ function ProcessPanel({ p, template, slug, role, onClose, onChanged, onOpenDept 
       {editable && changed && <div className="service-actions"><button type="button" disabled={busy} onClick={() => void act("update", { data: dataPayload() }, "Bilgiler kaydedildi.")}>Bilgileri kaydet</button></div>}
     </div>
     {!closed && <div className="dept-actions">
-      <label><span>Not (geri gönderme, bekletme ve iptalde zorunlu)</span><textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} /></label>
+      <label><span>Not (ret, geri gönderme, bekletme ve iptalde zorunlu)</span><textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} /></label>
       {role === "manage" && <>
         {!next && <label><span>Sonuç</span><select value={outcome} onChange={(e) => setOutcome(e.target.value)}><option value="">Seçin</option>{template.outcomes.map((o) => <option key={o}>{o}</option>)}</select></label>}
         {!next && outcome && !!template.next?.length && (() => { const go = template.next.filter((n) => !n.when || n.when.includes(outcome)); return <p className="net-preview">{go.length ? <>Bu sonuçla kapanınca otomatik açılacak: {go.map((n) => <b key={n.slug + n.template}>{n.department} · {n.label}</b>)}</> : "Bu sonuçla başka birimde süreç açılmaz."}</p>; })()}
         <div className="service-actions">
           <button type="button" className="primary" disabled={busy || p.status === "blocked"} onClick={() => void act("advance", { data: dataPayload(), outcome }, next ? `${next.label} aşamasına geçti.` : "Süreç kapandı.")}>{stage?.approvers?.length ? "Onayla ve " : ""}{next ? `ilerlet → ${next.label}` : "Süreci kapat"}</button>
+          {!!stage?.approvers?.length && <button type="button" className="danger" disabled={busy} title={stage.rejectTo ? `Reddedilirse "${stageName(stage.rejectTo)}" aşamasına geri döner.` : "Reddedilirse süreç kapanır; tanımlıysa ilgili birimde takip süreci açılır."} onClick={() => void act("reject", {}, stage.rejectTo ? `Reddedildi; ${stageName(stage.rejectTo)} aşamasına döndü.` : "Reddedildi; süreç kapandı.")}>Reddet</button>}
           {p.stage_index > 0 && <button type="button" disabled={busy} onClick={() => void act("back", {}, "Önceki aşamaya gönderildi.")}>Geri gönder</button>}
           {p.status === "blocked" ? <button type="button" disabled={busy} onClick={() => void act("unblock", {}, "Bekleme kaldırıldı.")}>Beklemeyi kaldır</button> : <button type="button" disabled={busy} onClick={() => void act("block", {}, "Beklemeye alındı.")}>Beklet</button>}
           <button type="button" className="danger" disabled={busy} onClick={() => void act("cancel", {}, "İptal edildi.")}>İptal et</button>

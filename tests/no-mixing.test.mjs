@@ -9,11 +9,10 @@ test('app, components, lib ve public içinde hastane/Klinorbis terimi yok',async
   assert.ok(!/klinorbis|\bhasta\b|hasta |hastane|hekim|patient/i.test(text),`${file} hastane terimi içeriyor`);
  }}
 });
-test('örnek işletme verisinde gerçek operatör önekli telefon ve gerçekçi ad-soyad yok',async()=>{
- const text=await readFile('lib/demo-company.ts','utf8');
- assert.ok(!/05\d\d \d{3} \d\d \d\d/.test(text),'gerçek GSM önekli telefon');
- for(const name of ['Murat Arslan','Elif Kaya','Mehmet Aydın','Selin Öztürk','Zeynep Demir','Arslan Klima','İzmir'])assert.ok(!text.includes(name),name);
- assert.match(text,/Teknisyen A \(örnek\)/);
+test('örnek / tanıtım firması özelliği kaldırıldı',async()=>{
+ const {access}=await import('node:fs/promises');
+ await assert.rejects(access('lib/demo-company.ts'));
+ await assert.rejects(access('app/ornek-isletme/page.tsx'));
 });
 test('varsayılan firma tohumunda kişisel ad yok; kimlik geriye uyumlu',async()=>{
  const text=await readFile('lib/db.ts','utf8');
