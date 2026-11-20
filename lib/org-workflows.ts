@@ -1,3 +1,4 @@
+import { requestSafeInitializer } from "./request-safe-initializer";
 // Firma iş tanımları: her firma kendi birimlerini ve kendi süreç türlerini (aşamalar, onaylayan roller,
 // süre hedefleri, zorunlu alanlar, ret davranışı, kapanınca başka birimde açılacak süreçler) tanımlar.
 // Hazır katalog (lib/department-catalog.ts) olduğu gibi kalır; firmanın tanımları onun üzerine eklenir.
@@ -103,7 +104,14 @@ export type Catalog = {
   custom: { departments: OrgDepartment[]; templates: StoredTemplate[] };
 };
 
+const ensureOrgWorkflowSchema = requestSafeInitializer(async (db: Database) => {
+  await db.prepare("-- Firma iş tanımları: firmanın kendi birimleri ve süreç türleri. Hazır katalog değişmez; yalnız yeni tablolar.\nCREATE TABLE IF NOT EXISTS `organization_departments` (\n\t`organization_id` text NOT NULL,\n\t`slug` text NOT NULL,\n\t`name` text NOT NULL,\n\t`short` text NOT NULL,\n\t`mission` text DEFAULT '' NOT NULL,\n\t`owners` text DEFAULT '[]' NOT NULL,\n\t`created_by` text NOT NULL,\n\t`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,\n\t`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,\n\tPRIMARY KEY(`organization_id`, `slug`)\n);").run();
+  await db.prepare("CREATE TABLE IF NOT EXISTS `organization_workflow_templates` (\n\t`organization_id` text NOT NULL,\n\t`department_slug` text NOT NULL,\n\t`template_key` text NOT NULL,\n\t`definition` text NOT NULL,\n\t`active` integer DEFAULT 1 NOT NULL,\n\t`version` integer DEFAULT 1 NOT NULL,\n\t`updated_by` text,\n\t`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,\n\tPRIMARY KEY(`organization_id`, `department_slug`, `template_key`)\n);").run();
+  await db.prepare("CREATE INDEX IF NOT EXISTS `idx_org_wf_templates_org` ON `organization_workflow_templates` (`organization_id`, `active`);").run();
+});
+
 export async function loadOrgDefinitions(db: Database, orgId: string) {
+  await ensureOrgWorkflowSchema(db);
   // Migrasyon uygulanmadan önce de çalışsın: tablo yoksa yalnız hazır katalog kullanılır.
   try {
     const deps = (await db.prepare("SELECT slug, name, short, mission, owners FROM organization_departments WHERE organization_id = ? ORDER BY name LIMIT 60").bind(orgId).all<{ slug: string; name: string; short: string; mission: string; owners: string }>()).results;
