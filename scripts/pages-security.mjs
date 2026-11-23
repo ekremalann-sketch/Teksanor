@@ -22,7 +22,7 @@ export function contentSecurityPolicy(nonce) {
   return [
     "default-src 'self'", "base-uri 'self'", "object-src 'none'", "frame-ancestors 'none'",
     "img-src 'self' data: blob: https:", "font-src 'self' data:", "style-src 'self' 'unsafe-inline'",
-    `script-src ${script}`, "connect-src 'self' https:", "form-action 'self'", "upgrade-insecure-requests",
+    `script-src ${script}`, "connect-src 'self'", "form-action 'self'", "upgrade-insecure-requests",
   ].join("; ");
 }
 

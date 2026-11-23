@@ -18,7 +18,7 @@ const securityHeaders = [
       "font-src 'self' data:",
       "style-src 'self' 'unsafe-inline'",
       "script-src 'self' 'unsafe-inline'",
-      "connect-src 'self' https:",
+      "connect-src 'self'",
       "form-action 'self'",
       "upgrade-insecure-requests",
     ].join("; "),
