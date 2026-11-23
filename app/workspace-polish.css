@@ -39,3 +39,6 @@
 @media(max-width:760px){.login-brand-panel{padding-top:64px}.login-brand-panel .back-home{top:12px;left:24px;min-height:36px;display:inline-flex;align-items:center}.login-brand-copy>img{height:54px;margin-bottom:8px}.login-kicker{font-size:12px}.login-card{padding:22px}.login-lock{margin-block:16px}.login-card h2{margin-top:14px}}
 
 .pending-approvals{margin:20px 0;padding:22px;border:1px solid var(--ui-line);border-radius:18px;background:var(--ui-paper)}.pending-approvals h2{font-size:18px;margin:0 0 14px}.pending-approvals button{display:flex;gap:16px}.setup-list>summary{min-height:44px;cursor:pointer;display:flex;align-items:center;font-size:14px;font-weight:650}
+/* Talep ve teklif aşamasında ana işlem "Sıradaki adım" kutusundadır; Kaydet çubuğu ekranın altına sabitlenmez, formun sonunda durur. */
+.service-shell .service-savebar.service-savebar--inline{position:static;box-shadow:none;left:auto;right:auto}
+.service-shell .service-savebar.service-savebar--inline>span{display:inline}
