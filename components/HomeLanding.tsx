@@ -1,5 +1,5 @@
 "use client";
-// Ana sayfa: Ekim 2026 kurumsal tasarımı (koyu lacivert + altın, logo, kısa sayfa ritmi) patron talimatıyla geri alındı.
+// Ana sayfa: Ekim 2026 kurumsal tasarımı (koyu lacivert + altın, logo, kısa sayfa ritmi) geri alındı.
 // Bağlantılar güncel ve çalışan adreslere gider; "Hizmet durumu" alt menüye eklendi.
 import Link from "next/link";
 import {useEffect,useState} from "react";
