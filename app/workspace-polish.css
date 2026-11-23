@@ -40,5 +40,5 @@
 
 .pending-approvals{margin:20px 0;padding:22px;border:1px solid var(--ui-line);border-radius:18px;background:var(--ui-paper)}.pending-approvals h2{font-size:18px;margin:0 0 14px}.pending-approvals button{display:flex;gap:16px}.setup-list>summary{min-height:44px;cursor:pointer;display:flex;align-items:center;font-size:14px;font-weight:650}
 /* Talep ve teklif aşamasında ana işlem "Sıradaki adım" kutusundadır; Kaydet çubuğu ekranın altına sabitlenmez, formun sonunda durur. */
-.service-shell .service-savebar.service-savebar--inline{position:static;box-shadow:none;left:auto;right:auto}
-.service-shell .service-savebar.service-savebar--inline>span{display:inline}
+.service-shell .service-savebar[data-inline="true"]{position:static;box-shadow:none;left:auto;right:auto}
+.service-shell .service-savebar[data-inline="true"]>span{display:inline}
