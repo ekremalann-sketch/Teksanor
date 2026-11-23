@@ -26,3 +26,11 @@ test('API ve varlık yanıtlarında gövde değişmez, güvenlik başlıkları e
 test('addNonce saldırganın nonce taklidini yeni etikete taşımaz',()=>{
   assert.equal(addNonce('<script data-x="1">',"N"),'<script nonce="N" data-x="1">');
 });
+test('CSP tarayıcının yalnızca aynı kaynağa bağlanmasına izin verir',async()=>{
+  const html=await secure(new Response('<script></script>',{headers:{'content-type':'text/html'}}),'/');
+  const api=await secure(Response.json({ok:true}),'/api/health');
+  for(const csp of [html.headers.get('content-security-policy'),api.headers.get('content-security-policy'),contentSecurityPolicy(null)]){
+    const connect=csp.split(';').map(s=>s.trim()).find(s=>s.startsWith('connect-src'));
+    assert.equal(connect,"connect-src 'self'");
+  }
+});
